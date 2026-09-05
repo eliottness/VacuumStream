@@ -101,7 +101,7 @@
 
 .player-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) repeat(4, auto);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -118,14 +118,15 @@
 }
 
 .player-frame,
-.player-frame iframe {
+.twitch-player-root,
+.twitch-player-root iframe {
   inline-size: 100%;
   block-size: 100%;
   border: 0;
   background: var(--color-canvas);
 }
 
-.player-frame iframe {
+.twitch-player-root iframe {
   display: block;
 }
 
@@ -182,11 +183,10 @@
 
   .field-row,
   .player-toolbar {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .player-toolbar > div,
-  .player-toolbar button:nth-of-type(2) {
+  .player-toolbar > div {
     display: none;
   }
 }
