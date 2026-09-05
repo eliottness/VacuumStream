@@ -1,0 +1,15 @@
+export const CHANNELS = {
+  authBegin: "auth:begin",
+  authLogout: "auth:logout",
+  authOpenActivation: "auth:open-activation",
+  authSnapshot: "auth:snapshot",
+  catalogFollowed: "catalog:followed",
+  catalogLive: "catalog:live",
+  catalogSearch: "catalog:search",
+  catalogTopCategories: "catalog:top-categories",
+  catalogVideos: "catalog:videos",
+  settingsSaveClientId: "settings:save-client-id",
+  settingsSnapshot: "settings:snapshot",
+  systemIsSteamGameMode: "system:is-steam-game-mode",
+  systemToggleFullscreen: "system:toggle-fullscreen",
+} as const
