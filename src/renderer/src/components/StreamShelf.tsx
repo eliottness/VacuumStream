@@ -3,6 +3,7 @@ import type { StreamCard as StreamCardModel } from "../../../shared/contracts"
 
 type StreamShelfProps = {
   readonly emptyActionLabel?: string
+  readonly emptyActionFocusId?: string
   readonly emptyMessage: string
   readonly onEmptyAction?: () => void
   readonly onRetry?: () => void
@@ -19,6 +20,7 @@ const formatViewers = (viewers: number): string =>
 
 export const StreamShelf = ({
   emptyActionLabel,
+  emptyActionFocusId,
   emptyMessage,
   onEmptyAction,
   onRetry,
@@ -56,7 +58,15 @@ export const StreamShelf = ({
         <div className="empty-state">
           <span>{emptyMessage}</span>
           {onEmptyAction === undefined || emptyActionLabel === undefined ? null : (
-            <button data-focusable="true" onClick={onEmptyAction} type="button">
+            <button
+              data-focus-id={emptyActionFocusId}
+              data-focus-left={
+                emptyActionFocusId === "following-connect" ? "nav-following" : undefined
+              }
+              data-focusable="true"
+              onClick={onEmptyAction}
+              type="button"
+            >
               {emptyActionLabel}
             </button>
           )}

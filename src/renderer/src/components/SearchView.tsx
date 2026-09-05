@@ -32,6 +32,7 @@ export const SearchView = ({ busy, onOpen, onSearch, results }: SearchViewProps)
         <div className="field-row">
           <input
             data-focus-id="search-input"
+            data-focus-down="search-submit"
             data-focusable="true"
             id="channel-search"
             onChange={(event) => setQuery(event.currentTarget.value)}
@@ -39,7 +40,13 @@ export const SearchView = ({ busy, onOpen, onSearch, results }: SearchViewProps)
             ref={inputRef}
             value={query}
           />
-          <button data-focus-id="search-submit" data-focusable="true" disabled={busy} type="submit">
+          <button
+            data-focus-id="search-submit"
+            data-focus-up="search-input"
+            data-focusable="true"
+            disabled={busy}
+            type="submit"
+          >
             <MagnifyingGlassIcon aria-hidden="true" />
             Search
           </button>

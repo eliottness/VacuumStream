@@ -103,6 +103,7 @@ export const SettingsPanel = ({
             <input
               autoComplete="off"
               data-focus-id="settings-client-id"
+              data-focus-down="settings-save"
               data-focusable="true"
               id="client-id"
               onChange={(event) => setClientId(event.currentTarget.value)}
@@ -112,6 +113,7 @@ export const SettingsPanel = ({
             />
             <button
               data-focus-id="settings-save"
+              data-focus-up="settings-client-id"
               data-focusable="true"
               disabled={busy}
               type="submit"
@@ -149,6 +151,7 @@ export const SettingsPanel = ({
           <button
             className="primary-button"
             data-focus-id="settings-sign-in"
+            data-focus-up="settings-save"
             data-focusable="true"
             disabled={busy || settings.clientId === ""}
             onClick={begin}
@@ -165,6 +168,7 @@ export const SettingsPanel = ({
             <span>{auth.challenge.verificationUri}</span>
             <button
               data-focus-id="settings-open-activation"
+              data-focus-up="settings-save"
               data-focusable="true"
               onClick={() => void openActivation()}
               type="button"
