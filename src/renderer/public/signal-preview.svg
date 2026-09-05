@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <title>VacuumStream channel signal</title>
+  <rect width="640" height="360" fill="#18181b"/>
+  <circle cx="320" cy="180" r="76" fill="#26262c"/>
+  <path d="M280 126l40 108 40-108h-28l-12 40-12-40z" fill="#bf94ff"/>
+  <path d="M250 112c-34 36-34 100 0 136M390 112c34 36 34 100 0 136" fill="none" stroke="#9147ff" stroke-width="12" stroke-linecap="round"/>
+</svg>
