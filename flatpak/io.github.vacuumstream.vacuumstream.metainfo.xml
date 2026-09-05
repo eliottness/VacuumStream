@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.vacuumstream.vacuumstream</id>
+  <name>VacuumStream</name>
+  <summary>Controller-first Twitch viewing for Linux TVs and handhelds</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>VacuumStream is a ten-foot Twitch browser for Linux HTPCs, Steam Deck, and Bazzite. It uses Twitch's official player and public device authorization.</p>
+  </description>
+  <requires>
+    <internet>always</internet>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>gamepad</control>
+    <control>tv-remote</control>
+    <control>pointing</control>
+  </supports>
+  <developer id="io.github.vacuumstream">
+    <name>VacuumStream contributors</name>
+  </developer>
+  <launchable type="desktop-id">io.github.vacuumstream.vacuumstream.desktop</launchable>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-09-05" />
+  </releases>
+</component>

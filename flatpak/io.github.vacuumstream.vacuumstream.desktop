@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=VacuumStream
+Comment=Browse and watch Twitch with a controller
+Exec=vacuumstream
+Icon=io.github.vacuumstream.vacuumstream
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=Twitch;streaming;HTPC;Steam Deck;
+StartupWMClass=VacuumStream

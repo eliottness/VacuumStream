@@ -1,0 +1,44 @@
+id: io.github.vacuumstream.vacuumstream
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "24.08"
+command: vacuumstream
+separate-locales: false
+
+finish-args:
+  - --require-version=1.16.0
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  - --device=input
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.kwalletd5
+  - --talk-name=org.kde.kwalletd6
+
+modules:
+  - name: vacuumstream
+    buildsystem: simple
+    build-commands:
+      - cp -a app /app/vacuumstream
+      - install -Dm755 vacuumstream.sh /app/bin/vacuumstream
+      - install -Dm644 io.github.vacuumstream.vacuumstream.desktop /app/share/applications/io.github.vacuumstream.vacuumstream.desktop
+      - install -Dm644 io.github.vacuumstream.vacuumstream.metainfo.xml /app/share/metainfo/io.github.vacuumstream.vacuumstream.metainfo.xml
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github.vacuumstream.vacuumstream.png
+    sources:
+      - type: dir
+        path: ../dist/linux-unpacked
+        dest: app
+      - type: file
+        path: vacuumstream.sh
+      - type: file
+        path: io.github.vacuumstream.vacuumstream.desktop
+      - type: file
+        path: io.github.vacuumstream.vacuumstream.metainfo.xml
+      - type: file
+        path: ../build/icon.png
+        dest-filename: icon.png
