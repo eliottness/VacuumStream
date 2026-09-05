@@ -30,9 +30,11 @@ Device Code Flow designed for set-top boxes and game consoles, and the official 
 - Device sign-in authenticates Helix discovery. It does **not** sign the iframe into
   Twitch or share cookies with a browser.
 - The embedded player can show ads and Twitch's own offline or error surfaces.
-- A public release should obtain Twitch confirmation that the HTPC navigation and
-  accessibility work constitute sufficient additional value under the
-  [Twitch Developer Agreement](https://legal.twitch.com/legal/developer-agreement).
+- Twitch's published terms do not require advance approval to distribute an ordinary
+  registered standalone application. VacuumStream must continuously comply with the
+  [Developer Services Agreement](https://legal.twitch.com/legal/developer-agreement),
+  including the official-player, advertisement, branding, privacy, and rate-limit rules.
+  Twitch Extensions are a separate product with a mandatory review lifecycle.
 
 ## Run from source
 
@@ -55,7 +57,10 @@ development server; use a packaged build when validating playback origin behavio
 
 ## Connect Twitch
 
-Guest playback works without setup. Personalized browsing needs a public Twitch Client ID:
+Guest playback works without setup. Personalized browsing needs a public Twitch Client ID.
+Twitch explicitly permits Client IDs in public source, and projects including Twire, Chatty,
+and Streamlink Twitch GUI bundle project-owned IDs. Release builds should therefore embed a
+VacuumStream-owned public Client ID; the current Settings field remains useful for development.
 
 1. Open the [Twitch Developer Console](https://dev.twitch.tv/console/apps).
 2. Register an application. Twitch requires a verified account and two-factor authentication.
@@ -156,9 +161,16 @@ The implementation and local Linux artifacts are functional. Before a public Fla
 submission, replace the manifest's local `dist/linux-unpacked` source with a versioned,
 checksummed source build. Flathub's Node source generator does not support Bun locks, so
 that submission must add a synchronized pnpm/npm lock for `flatpak-node-generator` or a
-fully checksummed generated-sources manifest. Also add project screenshots and a real homepage, and obtain
-the Twitch policy confirmation described above. Publish signed checksums or signed repository
-metadata for every public artifact.
+fully checksummed generated-sources manifest. Also add project screenshots and a real homepage.
+Publish signed checksums or signed repository metadata for every public artifact.
+
+Comparable distributed open-source clients include
+[Twire](https://github.com/twireapp/Twire),
+[S0undTV](https://github.com/S0und/S0undTV),
+[SmartTwitchTV](https://github.com/fgl27/SmartTwitchTV), and
+[Streamlink Twitch GUI](https://github.com/streamlink/streamlink-twitch-gui). None documents a
+general Twitch pre-distribution approval step; many use unofficial GraphQL/Usher playback,
+whereas VacuumStream deliberately stays on Helix, Device Code Flow, and Twitch's official player.
 
 ## License
 

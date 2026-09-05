@@ -100,5 +100,8 @@ built from reviewed source. Public artifacts require signed checksums or reposit
   be bundled for anonymous app-token creation.
 - Helix Device Flow authentication does not authenticate the iframe.
 - Twitch controls player availability, advertising, region policy, and embed behavior.
-- Public distribution remains subject to Twitch's anti-replication terms and should receive
-  explicit Twitch confirmation before submission to Flathub.
+- Twitch does not document an advance approval process for ordinary standalone applications.
+  Distribution requires a uniquely registered app and continuing compliance. The embed terms
+  prohibit website experiences that merely replicate Twitch without substantial additional value;
+  the six-key HTPC interface is VacuumStream's differentiating functionality. Mandatory Twitch
+  review applies to Twitch Extensions, not this externally distributed desktop application.
