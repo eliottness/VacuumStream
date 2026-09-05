@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+coverage/
+.flatpak-build/
+.flatpak-repository/
+*.log
+.env
+.env.*
+!.env.example
