@@ -54,7 +54,7 @@ Primary: **Atkinson Hyperlegible Next**, self-hosted, with `system-ui` fallback.
 | Body | `1rem` | 400 | 1.45 | Stream metadata |
 | Label | `0.875rem` | 600 | 1.3 | Tags and compact controls |
 
-At 1920 px and above, UI labels must remain at least 18 physical pixels. Important labels are never uppercase and stream titles truncate to two lines.
+At 1920 px and above, UI labels must remain at least 18 physical pixels. The root scale increases at 2560, 3456, and 3840 px, reaching 200% at 4K so controls and metadata remain readable at TV distance. Important labels are never uppercase and stream titles truncate to two lines.
 
 ## 4. Spacing & Layout
 
@@ -100,7 +100,7 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 - **Structure**: heading/action cluster plus horizontal `StreamCard` reel.
 - **States**: loading skeletons, populated, empty, error with retry.
-- **Accessibility**: arrow keys move within a shelf, up/down move between shelves, Home/End reach boundaries.
+- **Accessibility**: arrow keys move within and between shelves; no additional navigation key is required.
 - **Layout**: reel owns horizontal overflow; no nested vertical scroll.
 
 ### StreamCard
@@ -125,14 +125,14 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 ### PlayerStage
 
-- **Structure**: official Twitch player iframe, local top controls, loading/error surface.
-- **States**: local loading, ready, and iframe load error. Twitch owns inner-player playing, paused, offline, and playback-error states.
-- **Accessibility**: player remains unobscured; local controls occupy a separate region and preserve Twitch controls.
+- **Structure**: official interactive Twitch player, local Back, play/pause, mute, VOD, and fullscreen controls, loading/error surface.
+- **States**: local loading, ready, paused, muted, offline, and script/player load error.
+- **Accessibility**: all playback actions use Arrow keys and Enter; local controls remain separate from Twitch's unobscured player.
 - **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport.
 
 ### Primitive Showcase
 
-The development-only `?showcase=1` surface renders action default/focus/disabled states, populated/loading/error/empty shelves, media fallback handling, and category cards at 375, 768, 1280, and 1920 px before product screens are accepted.
+The development-only `?showcase=1` surface renders action default/focus/disabled states, populated/loading/error/empty shelves, media fallback handling, and category cards at 375, 768, 1280, 1920, and 3840 px before product screens are accepted.
 
 ## 6. Motion & Interaction
 
@@ -142,7 +142,7 @@ The development-only `?showcase=1` surface renders action default/focus/disabled
 | Focus | 180 ms | `cubic-bezier(0.16, 1, 0.3, 1)` | Card lift and frame |
 | Panel | 240 ms | `cubic-bezier(0.16, 1, 0.3, 1)` | Dialog entry/exit |
 
-Movement uses only `transform` and `opacity`. Short color and shadow transitions communicate focus/press state, and skeleton background-position communicates loading. Focus movement scrolls the destination into view with `nearest` alignment. `prefers-reduced-motion: reduce` removes smooth scrolling, transforms, and skeleton animation. Gamepad normalization follows A/Enter select, B/Escape back, D-pad/left-stick arrows, X or Y search, and Menu settings. Holding a direction repeats after 500 ms at 100 ms intervals.
+Movement uses only `transform` and `opacity`. Short color and shadow transitions communicate focus/press state, and skeleton background-position communicates loading. Focus movement scrolls the destination into view with `nearest` alignment. `prefers-reduced-motion: reduce` removes smooth scrolling, transforms, and skeleton animation. The complete HTPC contract is four Arrow keys for movement, Enter for activation, and Escape for Back; text entry is the only exception. Gamepad normalization maps D-pad/left-stick, A, and B to those six keys. Holding a direction repeats after 500 ms at 100 ms intervals.
 
 ## 7. Depth & Surface
 
@@ -161,6 +161,7 @@ Use a mixed strategy with tonal surfaces at rest and a shadow only for active hi
 
 - WCAG target: 2.2 AA minimum, AAA text contrast where practical.
 - Every task is operable with keyboard, standard gamepad, Steam Input keyboard mapping, touch, and pointer.
+- Every non-text task is operable with only four Arrow keys, Enter, and Escape.
 - Focus is always visible and never clipped by shelf overflow.
 - Targets are at least 48 by 48 CSS pixels and expand on TV layouts.
 - Navigation semantics remain stable across routes; controller Back never exits unexpectedly.

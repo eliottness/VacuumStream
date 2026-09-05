@@ -73,16 +73,15 @@ and at least hourly; public-client refresh tokens are rotated atomically.
 
 | Input | Action |
 | --- | --- |
-| D-pad or left stick | Move spatial focus |
-| A | Select / Enter |
-| B | Back / Escape |
-| X | Search |
-| Menu / Start | Settings |
-| Keyboard `/` | Search |
-| Keyboard `F10` | Settings |
+| Four Arrow keys | Move spatial focus; Left/Right edit text inside an input |
+| Enter | Activate, submit Search, play/pause, mute/unmute, or open the selected item |
+| Escape | Return to Home from any secondary screen |
 
-Directional holds repeat after 500 ms and then every 100 ms. If a controller is not
-visible through the browser Gamepad API, map the same keyboard actions in Steam Input.
+Every non-text task is reachable with those six keys. Search text, and initial Client ID
+setup, use normal text entry; ArrowDown exits an input into spatial navigation. Optional
+`/` and `F10` shortcuts open Search and Settings. Directional holds repeat after 500 ms
+and then every 100 ms. If a controller is not visible through the browser Gamepad API,
+map D-pad/left stick to arrows, A to Enter, and B to Escape in Steam Input.
 
 ## AppImage
 
