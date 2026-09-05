@@ -90,7 +90,7 @@ export const startStaticHttpsServer = async (
       response.writeHead(200, {
         "cache-control": extname(assetPath) === ".html" ? "no-store" : "public, max-age=31536000",
         "content-security-policy":
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; frame-src https://player.twitch.tv https://www.twitch.tv; connect-src 'self'",
+          "default-src 'self'; script-src 'self' https://player.twitch.tv; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; frame-src https://player.twitch.tv https://www.twitch.tv; connect-src 'self'",
         "content-type": CONTENT_TYPES[extname(assetPath)] ?? "application/octet-stream",
         "referrer-policy": "strict-origin-when-cross-origin",
         "x-content-type-options": "nosniff",
