@@ -8,16 +8,8 @@ import type {
   VideoCard,
 } from "../../shared/contracts"
 import type { RouteName } from "./components/Navigation"
-import type { PlayerSource } from "./components/PlayerView"
 import { PREVIEW_CATEGORIES, PREVIEW_STREAMS } from "./demo-data"
-
-export type Screen =
-  | { readonly kind: "browse"; readonly route: RouteName }
-  | { readonly kind: "player"; readonly source: PlayerSource }
-  | { readonly kind: "videos" }
-
-export const shouldNavigateHomeOnBack = (screen: Screen): boolean =>
-  screen.kind !== "browse" || screen.route !== "home"
+import { type Screen, shouldNavigateHomeOnBack } from "./screen"
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred"

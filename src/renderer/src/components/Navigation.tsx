@@ -19,6 +19,13 @@ const items = [
   { icon: MagnifyingGlassIcon, label: "Search", route: "search" },
 ] as const
 
+const routeEntryTarget: Readonly<Record<RouteName, string>> = {
+  following: "following-connect",
+  home: "home-sign-in",
+  search: "search-input",
+  settings: "settings-client-id",
+}
+
 export const Navigation = ({ active, onNavigate }: NavigationProps) => (
   <nav className="navigation" aria-label="Primary">
     <div className="navigation__brand" title="VacuumStream">
@@ -30,7 +37,9 @@ export const Navigation = ({ active, onNavigate }: NavigationProps) => (
         <button
           aria-current={active === route ? "page" : undefined}
           className="navigation__item"
+          data-focus-down={active === route ? routeEntryTarget[route] : undefined}
           data-focus-id={`nav-${route}`}
+          data-focus-right={active === route ? routeEntryTarget[route] : undefined}
           data-focusable="true"
           key={route}
           onClick={() => onNavigate(route)}
@@ -44,7 +53,9 @@ export const Navigation = ({ active, onNavigate }: NavigationProps) => (
     <button
       aria-current={active === "settings" ? "page" : undefined}
       className="navigation__item navigation__settings"
+      data-focus-down={active === "settings" ? routeEntryTarget.settings : undefined}
       data-focus-id="nav-settings"
+      data-focus-right={active === "settings" ? routeEntryTarget.settings : undefined}
       data-focusable="true"
       onClick={() => onNavigate("settings")}
       type="button"

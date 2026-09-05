@@ -1,5 +1,5 @@
 import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
-import { useEffect } from "react"
+import { useEffect, useLayoutEffect } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
@@ -8,6 +8,7 @@ import { SettingsPanel } from "./components/SettingsPanel"
 import { StreamShelf } from "./components/StreamShelf"
 import { VideoShelf } from "./components/VideoShelf"
 import { useControllerNavigation } from "./focus-navigation"
+import { screenEntryFocusId } from "./screen"
 import { useAppController } from "./useAppController"
 
 const ROUTE_TITLES: Readonly<Record<RouteName, string>> = {
@@ -30,6 +31,10 @@ export const App = () => {
   useEffect(() => {
     document.title = `${screenTitle} · VacuumStream`
   }, [screenTitle])
+  useLayoutEffect(() => {
+    const focusId = screenEntryFocusId(controller.screen)
+    document.querySelector<HTMLElement>(`[data-focus-id="${focusId}"]`)?.focus()
+  }, [controller.screen])
 
   if (controller.screen.kind === "player") {
     return (
@@ -83,7 +88,9 @@ export const App = () => {
               {controller.auth.kind !== "authenticated" ? (
                 <button
                   className="primary-button"
+                  data-focus-down="stream-preview-twitch"
                   data-focus-id="home-sign-in"
+                  data-focus-left="nav-home"
                   data-focusable="true"
                   onClick={() => controller.navigate("settings")}
                   type="button"
@@ -118,6 +125,7 @@ export const App = () => {
               <p>Live channels from the Twitch account connected to this device.</p>
             </header>
             <StreamShelf
+              emptyActionFocusId="following-connect"
               emptyActionLabel="Connect Twitch"
               emptyMessage="Connect Twitch or follow channels to populate this shelf."
               onEmptyAction={() => controller.navigate("settings")}
