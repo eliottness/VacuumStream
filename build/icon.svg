@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>VacuumStream signal mark</title>
+  <rect width="512" height="512" rx="112" fill="#18181b"/>
+  <circle cx="256" cy="256" r="152" fill="#9147ff"/>
+  <path d="M168 180l88 184 88-184h-54l-34 84-34-84z" fill="#fff"/>
+  <path d="M104 174c-24 48-24 116 0 164M408 174c24 48 24 116 0 164" fill="none" stroke="#bf94ff" stroke-width="22" stroke-linecap="round"/>
+</svg>
