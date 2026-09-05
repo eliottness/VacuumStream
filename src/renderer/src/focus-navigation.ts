@@ -62,6 +62,54 @@ export const chooseNextFocus = (
     .sort((left, right) => left.score - right.score)[0]?.candidate
 }
 
+export const focusDirectionalOverride = (
+  current: HTMLElement,
+  direction: FocusDirection,
+): HTMLElement | undefined => {
+  const insideNavigation = current.closest(".navigation") !== null
+  if (insideNavigation) {
+    const horizontalNavigation = matchMedia("(width < 45rem)").matches
+    if (
+      (horizontalNavigation && (direction === "left" || direction === "right")) ||
+      (!horizontalNavigation && (direction === "up" || direction === "down"))
+    ) {
+      return undefined
+    }
+  }
+  const { focusDown, focusLeft, focusRight, focusUp } = current.dataset
+  let targetId: string | undefined
+  switch (direction) {
+    case "down":
+      targetId = focusDown
+      break
+    case "left":
+      targetId = focusLeft
+      break
+    case "right":
+      targetId = focusRight
+      break
+    case "up":
+      targetId = focusUp
+      break
+    default:
+      return assertNever(direction)
+  }
+  if (targetId === undefined) return undefined
+  return [...document.querySelectorAll<HTMLElement>("[data-focus-id]")].find((element) => {
+    const { focusId } = element.dataset
+    return focusId === targetId
+  })
+}
+
+const moveFocusTo = (element: HTMLElement): void => {
+  element.focus()
+  element.scrollIntoView({
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    block: "nearest",
+    inline: "nearest",
+  })
+}
+
 const keyboardForGamepad = (gamepad: Gamepad): string | undefined => {
   if (gamepad.buttons[0]?.pressed === true) return "Enter"
   if (gamepad.buttons[1]?.pressed === true) return "Escape"
@@ -87,7 +135,7 @@ export const shouldPreserveInputArrow = (
   inputHasFocus: boolean,
   eventIsTrusted: boolean,
   key: string,
-): boolean => inputHasFocus && eventIsTrusted && key.startsWith("Arrow")
+): boolean => inputHasFocus && eventIsTrusted && (key === "ArrowLeft" || key === "ArrowRight")
 
 export const shouldRepeatControllerKey = (key: string | undefined): boolean =>
   key?.startsWith("Arrow") === true
@@ -160,6 +208,18 @@ export const useControllerNavigation = (): void => {
       }
       const direction = directionByKey[event.key]
       if (direction === undefined) return
+      if (activeElement instanceof HTMLElement) {
+        const override = focusDirectionalOverride(activeElement, direction)
+        if (
+          override !== undefined &&
+          !override.hasAttribute("disabled") &&
+          override.offsetParent !== null
+        ) {
+          event.preventDefault()
+          moveFocusTo(override)
+          return
+        }
+      }
 
       const elements = [
         ...document.querySelectorAll<HTMLElement>('[data-focusable="true"]'),
@@ -184,12 +244,7 @@ export const useControllerNavigation = (): void => {
       const nextElement = nextIndex < 0 ? undefined : elements[nextIndex]
       if (nextElement !== undefined) {
         event.preventDefault()
-        nextElement.focus()
-        nextElement.scrollIntoView({
-          behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-          block: "nearest",
-          inline: "nearest",
-        })
+        moveFocusTo(nextElement)
       }
     }
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import {
   chooseNextFocus,
   dispatchControllerKey,
+  focusDirectionalOverride,
   shouldPreserveInputArrow,
   shouldRepeatControllerKey,
 } from "./focus-navigation"
@@ -51,10 +52,12 @@ describe("spatial focus navigation", () => {
     // When physical and synthetic directional events are classified
     const physicalArrowIsPreserved = shouldPreserveInputArrow(inputHasFocus, true, "ArrowRight")
     const gamepadArrowIsPreserved = shouldPreserveInputArrow(inputHasFocus, false, "ArrowRight")
+    const physicalDownLeavesInput = shouldPreserveInputArrow(inputHasFocus, true, "ArrowDown")
 
     // Then caret movement stays native while gamepad spatial navigation remains available
     expect(physicalArrowIsPreserved).toBe(true)
     expect(gamepadArrowIsPreserved).toBe(false)
+    expect(physicalDownLeavesInput).toBe(false)
   })
 
   it("repeats directional holds without repeating action buttons", () => {
@@ -66,6 +69,23 @@ describe("spatial focus navigation", () => {
 
     // Then only spatial navigation repeats
     expect(decisions).toEqual([true, false, false, false, false])
+  })
+
+  it("uses an explicit directional link before geometric fallback", () => {
+    // Given a focused control linked to a semantic destination
+    const current = document.createElement("button")
+    const target = document.createElement("button")
+    current.setAttribute("data-focus-right", "target-control")
+    target.setAttribute("data-focus-id", "target-control")
+    document.body.append(current, target)
+
+    // When rightward navigation resolves the explicit link
+    const destination = focusDirectionalOverride(current, "right")
+
+    // Then the linked control wins over unrelated geometry
+    expect(destination).toBe(target)
+    current.remove()
+    target.remove()
   })
 
   it("returns no candidate when nothing exists in the requested direction", () => {
