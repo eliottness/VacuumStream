@@ -4,6 +4,7 @@ import { z } from "zod"
 import { type ClientId, ClientIdSchema } from "../shared/contracts"
 
 const StoredSettingsSchema = z.object({ clientId: ClientIdSchema })
+const DEFAULT_CLIENT_ID = ClientIdSchema.parse("eakftex39l79dzb7irvxxvr3i0o7d0")
 
 export type PublicSettings = {
   readonly clientId: ClientId | ""
@@ -27,7 +28,7 @@ export class SettingsStore {
       contents = await readFile(this.#path, "utf8")
     } catch (error) {
       if (isMissingFile(error)) {
-        return { clientId: "" }
+        return { clientId: DEFAULT_CLIENT_ID }
       }
       throw error
     }

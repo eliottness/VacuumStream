@@ -13,6 +13,18 @@ describe("settings store", () => {
     }
   })
 
+  it("uses the embedded Twitch Client ID when no settings were saved", async () => {
+    // Given an empty application data directory
+    directory = await mkdtemp(join(tmpdir(), "vacuumstream-settings-"))
+    const store = new SettingsStore(directory)
+
+    // When settings are loaded for the first time
+    const settings = await store.load()
+
+    // Then the project-owned public Client ID is available without setup
+    expect(settings.clientId).toBe("eakftex39l79dzb7irvxxvr3i0o7d0")
+  })
+
   it("persists a valid public Twitch Client ID atomically", async () => {
     // Given an empty application data directory
     directory = await mkdtemp(join(tmpdir(), "vacuumstream-settings-"))
