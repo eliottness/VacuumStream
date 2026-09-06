@@ -86,14 +86,14 @@ export const SettingsPanel = ({
       <header className="page-heading">
         <span>Account and application</span>
         <h1>Settings</h1>
-        <p>Connect a public Twitch application to unlock personalized discovery.</p>
+        <p>Sign in to Twitch to unlock personalized discovery.</p>
       </header>
 
       <section className="settings-card" aria-labelledby="developer-app-heading">
         <div>
           <h2 id="developer-app-heading">Twitch application</h2>
           <p>
-            Create a public application in the Twitch Developer Console, then paste its Client ID.
+            A public Client ID is built in. Only replace it when using your own Twitch application.
             VacuumStream never asks for or stores a Client Secret.
           </p>
         </div>
