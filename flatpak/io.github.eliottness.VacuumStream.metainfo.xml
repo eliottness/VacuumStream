@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.vacuumstream.vacuumstream</id>
+  <id>io.github.eliottness.VacuumStream</id>
   <name>VacuumStream</name>
   <summary>Controller-first Twitch viewing for Linux TVs and handhelds</summary>
   <metadata_license>CC0-1.0</metadata_license>
@@ -17,10 +17,13 @@
     <control>tv-remote</control>
     <control>pointing</control>
   </supports>
-  <developer id="io.github.vacuumstream">
-    <name>VacuumStream contributors</name>
+  <developer id="io.github.eliottness">
+    <name>Eliott Bouhana</name>
   </developer>
-  <launchable type="desktop-id">io.github.vacuumstream.vacuumstream.desktop</launchable>
+  <url type="homepage">https://github.com/eliottness/VacuumStream</url>
+  <url type="bugtracker">https://github.com/eliottness/VacuumStream/issues</url>
+  <url type="vcs-browser">https://github.com/eliottness/VacuumStream</url>
+  <launchable type="desktop-id">io.github.eliottness.VacuumStream.desktop</launchable>
   <content_rating type="oars-1.1" />
   <releases>
     <release version="0.1.0" date="2026-09-05" />
