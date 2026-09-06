@@ -1,5 +1,8 @@
 # VacuumStream Architecture
 
+For contributors working on process boundaries, authentication, and packaging.
+See [development setup](development.md) and [release operations](../maintainers/releases.md).
+
 ## Decision
 
 VacuumStream is a custom React TV shell around supported Twitch services. It is not a
@@ -72,7 +75,8 @@ server, and absence of privileged HTTP endpoints.
 
 ## OAuth and storage
 
-The user provides a public Client ID. Device Code Flow requests only `user:read:follows`.
+VacuumStream embeds its registered public Client ID. Settings allows an optional override;
+an existing saved ID takes precedence. Device Code Flow requests only `user:read:follows`.
 The main process polls at Twitch's interval, validates sessions on startup and hourly, and
 serializes refresh through one in-flight promise so concurrent failures cannot reuse a
 one-time refresh token.
@@ -84,7 +88,7 @@ a secure backend, the token remains in process memory and disappears on exit.
 ## Packaging
 
 Flatpak is primary for Bazzite, Steam Deck, ChimeraOS, and other immutable deployments.
-The manifest uses Freedesktop 24.08, Electron2 BaseApp, and Zypak with minimal permissions.
+The manifest uses Freedesktop 25.08, Electron2 BaseApp, and Zypak with minimal permissions.
 Raw input access enables native gamepads; no home-directory access is granted.
 AppImage is a fallback where Chromium user namespaces are available; sandbox failures are
 never worked around with `--no-sandbox`.
@@ -92,7 +96,8 @@ never worked around with `--no-sandbox`.
 Flatpak's `--device=input` exposes the sandbox to all host input devices, not only gamepads,
 and fallback X11 has weaker isolation than Wayland. These are accepted HTPC compatibility
 tradeoffs: Wayland remains preferred, no filesystem access is granted, and packages must be
-built from reviewed source. Public artifacts require signed checksums or repository signing.
+built from reviewed source. Release assets include SHA-256 checksums, not cryptographic signatures.
+The application ID is `io.github.eliottness.VacuumStream` across Electron and Flatpak metadata.
 
 ## External constraints
 
@@ -100,8 +105,5 @@ built from reviewed source. Public artifacts require signed checksums or reposit
   be bundled for anonymous app-token creation.
 - Helix Device Flow authentication does not authenticate the iframe.
 - Twitch controls player availability, advertising, region policy, and embed behavior.
-- Twitch does not document an advance approval process for ordinary standalone applications.
-  Distribution requires a uniquely registered app and continuing compliance. The embed terms
-  prohibit website experiences that merely replicate Twitch without substantial additional value;
-  the six-key HTPC interface is VacuumStream's differentiating functionality. Mandatory Twitch
-  review applies to Twitch Extensions, not this externally distributed desktop application.
+- Maintainers must recheck Twitch's current terms before releases; see
+  [Twitch integration policy](../maintainers/twitch.md). Open-source precedents are not approval.

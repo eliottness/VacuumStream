@@ -1,11 +1,7 @@
 # VacuumStream Design System
 
-## 0. Research Log
-
-- Embedded references: shortlisted PlayStation, Spotify, and Twitch's own product UI; picked the operational `taste-skill` discipline with the PlayStation big-screen reference because its 4K scaling and focus amplification suit a controller-first media browser.
-- Lazyweb: two searches, three screens viewed (Twitch, DLive, CNN Watch); kept the persistent rail, horizontal shelves, partially visible next tile, 16:9 live cards, and prominent selected-item metadata. Desktop-sized text and invisible focus states were rejected.
-- VacuumTube: studied commit `0365dead79d295294855f3dcc2f71702c0f8c427`; retained semantic input normalization, 500 ms hold delay, 100 ms repeat cadence, fullscreen Game Mode launch, and local settings ownership.
-- Imagen drafts: skipped because no image-generation tool is available. Live Twitch thumbnails are the product's visual material, so fabricated imagery would also be misleading.
+This is the interaction and visual contract for contributors, not a claim of complete
+accessibility certification. See [development and manual checks](development.md).
 
 ## 1. Atmosphere & Identity
 
@@ -155,7 +151,7 @@ Use a mixed strategy with tonal surfaces at rest and a shadow only for active hi
 - Dialogs use `0 1.5rem 4rem rgba(0, 0, 0, 0.5)`.
 - No glow, backdrop blur, gradient text, or decorative glass.
 
-## 8. Accessibility Constraints & Accepted Debt
+## 8. Accessibility Constraints
 
 ### Constraints
 
@@ -167,12 +163,12 @@ Use a mixed strategy with tonal surfaces at rest and a shadow only for active hi
 - Navigation semantics remain stable across routes; controller Back never exits unexpectedly.
 - Screen-reader labels avoid duplicated thumbnail/title announcements.
 - Loading, empty, offline, expired-session, and API-error states provide a next action.
-- No timed interaction is required except Twitch's 30-minute device code, whose remaining time is announced without visual urgency.
+- Twitch device codes expire at the time returned by the service; do not assume a fixed lifetime.
 
-### Accepted Debt
+### Platform limitations
 
 | Item | Location | Why accepted | Owner / Exit |
 | --- | --- | --- | --- |
 | Twitch iframe internals cannot be restyled or fully inspected | Player | Official embed is the supported playback surface | Reassess only if Twitch ships a native desktop SDK |
 | Real hardware gamepad labels vary by Steam Input layout | Input hints | Browser Gamepad API does not expose Steam's displayed binding names | Add Steam Input API integration if a supported desktop contract appears |
-| Dedicated whole-shell offline screen | App shell | Contextual API errors retain guest playback and avoid trapping the viewer | Add before public distribution if user testing shows the notice is insufficient |
+| Dedicated whole-shell offline screen | App shell | Contextual API errors keep navigation available | Reassess with offline usability feedback |
