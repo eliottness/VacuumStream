@@ -4,6 +4,8 @@ dist/
 coverage/
 .flatpak-build/
 .flatpak-repository/
+.flatpak-builder/
+.playwright-mcp/
 *.log
 .env
 .env.*

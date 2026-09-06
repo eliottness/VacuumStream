@@ -8,7 +8,16 @@
     }
   },
   "files": {
-    "includes": ["**", "!node_modules", "!out", "!dist", "!coverage"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!out",
+      "!dist",
+      "!coverage",
+      "!!.flatpak-build",
+      "!!.flatpak-builder",
+      "!!.flatpak-repository"
+    ]
   },
   "formatter": {
     "enabled": true,
