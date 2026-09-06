@@ -5,6 +5,10 @@
 A controller-first Twitch client for Linux TVs and handhelds. Browse from the sofa with
 four arrow keys, Enter, and Escape, or a gamepad. Playback uses Twitch's official player.
 
+![VacuumStream homepage in guest mode, with controller navigation, Quick watch channels, and game categories](docs/images/homepage.png)
+
+Guest-mode homepage captured during 4K interface testing. Channel previews depend on availability.
+
 **Early-stage software.** Linux x86_64 builds target HTPCs, Steam Deck, and Bazzite.
 Physical Steam Deck/Bazzite validation and authenticated playback testing remain ongoing;
 these are target platforms, not a hardware certification. Windows, macOS, and ARM builds
