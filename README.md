@@ -57,10 +57,11 @@ development server; use a packaged build when validating playback origin behavio
 
 ## Connect Twitch
 
-Guest playback works without setup. Personalized browsing needs a public Twitch Client ID.
-Twitch explicitly permits Client IDs in public source, and projects including Twire, Chatty,
-and Streamlink Twitch GUI bundle project-owned IDs. Release builds should therefore embed a
-VacuumStream-owned public Client ID; the current Settings field remains useful for development.
+Guest playback works without setup. Personalized browsing uses VacuumStream's embedded public
+Twitch Client ID. Twitch explicitly permits Client IDs in public source, and projects including
+Twire, Chatty, and Streamlink Twitch GUI use the same distribution model.
+
+Developers can replace the embedded ID from **Settings** when testing another Twitch application:
 
 1. Open the [Twitch Developer Console](https://dev.twitch.tv/console/apps).
 2. Register an application. Twitch requires a verified account and two-factor authentication.
