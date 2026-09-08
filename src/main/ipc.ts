@@ -3,6 +3,7 @@ import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
 import { CursorInputSchema, SearchInputSchema, VideosInputSchema } from "../shared/contracts"
 import type { TwitchService } from "./twitch-service"
+import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
 type IpcOptions = {
   readonly mainWindow: BrowserWindow
@@ -76,9 +77,17 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     return options.twitch.videos(VideosInputSchema.parse(input))
   })
+  ipcMain.handle(CHANNELS.systemActivateEmbeddedPlayer, async (event) => {
+    authorize(event)
+    return activateEmbeddedPlayer(options.mainWindow.webContents)
+  })
   ipcMain.handle(CHANNELS.systemIsSteamGameMode, (event) => {
     authorize(event)
     return options.runningInSteamGameMode
+  })
+  ipcMain.handle(CHANNELS.systemRestoreShellFullscreen, (event) => {
+    authorize(event)
+    return restoreShellFullscreen(options.mainWindow, options.runningInSteamGameMode)
   })
   ipcMain.handle(CHANNELS.systemToggleFullscreen, (event) => {
     authorize(event)

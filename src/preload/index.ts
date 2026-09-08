@@ -55,8 +55,12 @@ const api = {
         .then((value) => SettingsSnapshotSchema.parse(value)),
   },
   system: {
+    activateEmbeddedPlayer: () =>
+      ipcRenderer.invoke(CHANNELS.systemActivateEmbeddedPlayer).then((value) => Boolean(value)),
     isSteamGameMode: () =>
       ipcRenderer.invoke(CHANNELS.systemIsSteamGameMode).then((value) => Boolean(value)),
+    restoreShellFullscreen: () =>
+      ipcRenderer.invoke(CHANNELS.systemRestoreShellFullscreen).then((value) => Boolean(value)),
     toggleFullscreen: () =>
       ipcRenderer.invoke(CHANNELS.systemToggleFullscreen).then((value) => Boolean(value)),
   },

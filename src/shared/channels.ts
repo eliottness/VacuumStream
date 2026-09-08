@@ -10,6 +10,8 @@ export const CHANNELS = {
   catalogVideos: "catalog:videos",
   settingsSaveClientId: "settings:save-client-id",
   settingsSnapshot: "settings:snapshot",
+  systemActivateEmbeddedPlayer: "system:activate-embedded-player",
   systemIsSteamGameMode: "system:is-steam-game-mode",
+  systemRestoreShellFullscreen: "system:restore-shell-fullscreen",
   systemToggleFullscreen: "system:toggle-fullscreen",
 } as const
