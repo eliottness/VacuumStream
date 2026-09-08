@@ -42,9 +42,9 @@ let playerApiPromise: Promise<TwitchPlayerApi> | undefined
 
 export const createTwitchPlayerOptions = (source: PlayerSource): TwitchPlayerOptions => {
   const base = {
-    autoplay: true,
+    autoplay: false,
     height: "100%",
-    muted: false,
+    muted: true,
     parent: ["localhost"],
     width: "100%",
   } as const
