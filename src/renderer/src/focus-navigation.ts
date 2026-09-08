@@ -101,7 +101,15 @@ export const focusDirectionalOverride = (
   })
 }
 
+export const markControllerFocus = (element: HTMLElement): void => {
+  document
+    .querySelector<HTMLElement>('[data-controller-focused="true"]')
+    ?.removeAttribute("data-controller-focused")
+  element.setAttribute("data-controller-focused", "true")
+}
+
 const moveFocusTo = (element: HTMLElement): void => {
+  markControllerFocus(element)
   element.focus()
   element.scrollIntoView({
     behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",

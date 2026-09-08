@@ -133,7 +133,10 @@
 
 .stream-card:focus-visible,
 .category-card:focus-visible,
-.video-card:focus-visible {
+.video-card:focus-visible,
+.stream-card[data-controller-focused="true"]:focus,
+.category-card[data-controller-focused="true"]:focus,
+.video-card[data-controller-focused="true"]:focus {
   transform: translateY(-0.25rem);
 }
 

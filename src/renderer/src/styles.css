@@ -96,7 +96,8 @@ button.primary-button:disabled {
   background: var(--color-raised);
 }
 
-[data-focusable="true"]:focus-visible {
+[data-focusable="true"]:focus-visible,
+[data-controller-focused="true"]:focus {
   outline: 0;
   box-shadow:
     0 0 0 0.2rem var(--color-canvas),

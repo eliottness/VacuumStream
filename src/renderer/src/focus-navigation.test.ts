@@ -5,6 +5,7 @@ import {
   chooseNextFocus,
   dispatchControllerKey,
   focusDirectionalOverride,
+  markControllerFocus,
   shouldPreserveInputArrow,
   shouldRepeatControllerKey,
 } from "./focus-navigation"
@@ -58,6 +59,23 @@ describe("spatial focus navigation", () => {
     expect(physicalArrowIsPreserved).toBe(true)
     expect(gamepadArrowIsPreserved).toBe(false)
     expect(physicalDownLeavesInput).toBe(false)
+  })
+
+  it("marks controller focus after pointer input changes browser modality", () => {
+    // Given a stale controller target and a newly selected destination
+    const previous = document.createElement("button")
+    const destination = document.createElement("button")
+    previous.setAttribute("data-controller-focused", "true")
+    document.body.append(previous, destination)
+
+    // When joystick navigation selects the destination
+    markControllerFocus(destination)
+
+    // Then the destination owns the explicit controller focus marker
+    expect(previous.hasAttribute("data-controller-focused")).toBe(false)
+    expect(destination.getAttribute("data-controller-focused")).toBe("true")
+    previous.remove()
+    destination.remove()
   })
 
   it("repeats directional holds without repeating action buttons", () => {
