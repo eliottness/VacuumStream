@@ -42,9 +42,10 @@ export const PlayerView = ({
   source,
 }: PlayerViewProps) => {
   const [frameState, setFrameState] = useState<"error" | "loading" | "ready">("loading")
-  const [muted, setMuted] = useState(false)
-  const [paused, setPaused] = useState(false)
+  const [muted, setMuted] = useState(true)
+  const [paused, setPaused] = useState(true)
   const backButtonRef = useRef<HTMLButtonElement>(null)
+  const playbackButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
 
   useEffect(() => backButtonRef.current?.focus(), [])
@@ -89,8 +90,15 @@ export const PlayerView = ({
   const togglePlayback = (): void => {
     const player = playerRef.current
     if (player === undefined) return
-    if (player.isPaused()) {
-      player.play()
+    if (paused) {
+      const frame = document.querySelector<HTMLIFrameElement>("#twitch-player-root iframe")
+      if (frame === null) return
+      frame.focus()
+      void window.vacuumStream.system.activateEmbeddedPlayer().then((playbackStarted) => {
+        setMuted(player.getMuted())
+        if (playbackStarted) setPaused(false)
+        playbackButtonRef.current?.focus()
+      })
     } else {
       player.pause()
     }
@@ -130,6 +138,7 @@ export const PlayerView = ({
           data-focusable="true"
           disabled={frameState !== "ready"}
           onClick={togglePlayback}
+          ref={playbackButtonRef}
           type="button"
         >
           {paused ? <PlayIcon aria-hidden="true" /> : <PauseIcon aria-hidden="true" />}
