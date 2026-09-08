@@ -37,6 +37,10 @@ export const useAppController = () => {
   const [notice, setNotice] = useState("")
   const authEpoch = useRef(0)
   const catalogRequestEpoch = useRef(0)
+  const navigateHome = useCallback((): void => {
+    void window.vacuumStream.system.restoreShellFullscreen()
+    setScreen({ kind: "browse", route: "home" })
+  }, [])
   const updateAuth = useCallback((nextAuth: AuthSnapshot): void => {
     authEpoch.current += 1
     catalogRequestEpoch.current += 1
@@ -124,12 +128,12 @@ export const useAppController = () => {
       }
       if (event.key === "Escape" && shouldNavigateHomeOnBack(screen)) {
         event.preventDefault()
-        setScreen({ kind: "browse", route: "home" })
+        navigateHome()
       }
     }
     document.addEventListener("keydown", onShortcut)
     return () => document.removeEventListener("keydown", onShortcut)
-  }, [screen])
+  }, [navigateHome, screen])
 
   const openStream = (stream: StreamCard): void => {
     setScreen({
@@ -210,6 +214,7 @@ export const useAppController = () => {
     followed,
     live,
     navigate: (route: RouteName) => setScreen({ kind: "browse", route }),
+    navigateHome,
     notice,
     openChannel,
     openStream,

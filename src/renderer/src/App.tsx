@@ -44,7 +44,7 @@ export const App = () => {
             ? controller.screen.source.channel
             : controller.screen.source.videoId
         }
-        onBack={() => controller.navigate("home")}
+        onBack={controller.navigateHome}
         onPastBroadcasts={(userId) => void controller.showPastBroadcasts(userId)}
         onToggleFullscreen={() => void window.vacuumStream.system.toggleFullscreen()}
         source={controller.screen.source}
