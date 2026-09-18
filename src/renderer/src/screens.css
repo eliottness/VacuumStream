@@ -79,6 +79,31 @@
   max-inline-size: 55rem;
 }
 
+.virtual-keyboard {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: var(--space-2);
+  max-inline-size: 55rem;
+  margin-block-start: var(--space-5);
+  padding: 0;
+  border: 0;
+}
+
+.virtual-keyboard button {
+  min-inline-size: 0;
+  padding-inline: var(--space-2);
+}
+
+.virtual-keyboard__space {
+  grid-column: span 4;
+}
+
+.virtual-keyboard__backspace,
+.virtual-keyboard__clear,
+.virtual-keyboard__submit {
+  grid-column: span 2;
+}
+
 .channel-results,
 .video-grid {
   display: grid;
