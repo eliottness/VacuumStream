@@ -77,9 +77,9 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     return options.twitch.videos(VideosInputSchema.parse(input))
   })
-  ipcMain.handle(CHANNELS.systemActivateEmbeddedPlayer, async (event) => {
+  ipcMain.handle(CHANNELS.systemActivateEmbeddedPlayer, async (event, input: unknown) => {
     authorize(event)
-    return activateEmbeddedPlayer(options.mainWindow.webContents)
+    return activateEmbeddedPlayer(options.mainWindow.webContents, z.boolean().parse(input))
   })
   ipcMain.handle(CHANNELS.systemIsSteamGameMode, (event) => {
     authorize(event)

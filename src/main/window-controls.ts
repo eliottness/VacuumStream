@@ -21,7 +21,7 @@ const MediaSampleSchema = z.object({
 
 export const activateEmbeddedPlayer = async (
   webContents: ScriptWebContents,
-  audible = false,
+  audible: boolean,
 ): Promise<boolean> => {
   const playerFrame = webContents.mainFrame.frames.find(
     (frame) => URL.canParse(frame.url) && new URL(frame.url).origin === "https://player.twitch.tv",

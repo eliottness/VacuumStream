@@ -55,8 +55,10 @@ const api = {
         .then((value) => SettingsSnapshotSchema.parse(value)),
   },
   system: {
-    activateEmbeddedPlayer: () =>
-      ipcRenderer.invoke(CHANNELS.systemActivateEmbeddedPlayer).then((value) => Boolean(value)),
+    activateEmbeddedPlayer: (audible) =>
+      ipcRenderer
+        .invoke(CHANNELS.systemActivateEmbeddedPlayer, audible)
+        .then((value) => Boolean(value)),
     isSteamGameMode: () =>
       ipcRenderer.invoke(CHANNELS.systemIsSteamGameMode).then((value) => Boolean(value)),
     restoreShellFullscreen: () =>

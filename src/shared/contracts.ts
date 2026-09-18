@@ -140,7 +140,7 @@ export interface VacuumStreamApi {
     readonly snapshot: () => Promise<SettingsSnapshot>
   }
   readonly system: {
-    readonly activateEmbeddedPlayer: () => Promise<boolean>
+    readonly activateEmbeddedPlayer: (audible: boolean) => Promise<boolean>
     readonly isSteamGameMode: () => Promise<boolean>
     readonly restoreShellFullscreen: () => Promise<boolean>
     readonly toggleFullscreen: () => Promise<boolean>
