@@ -46,7 +46,7 @@ describe("spatial focus navigation", () => {
     button.remove()
   })
 
-  it("preserves physical input arrows but lets gamepad arrows leave the field", () => {
+  it("preserves caret arrows unless the input declares a directional escape", () => {
     // Given focus is inside a text input
     const inputHasFocus = true
 
@@ -54,11 +54,13 @@ describe("spatial focus navigation", () => {
     const physicalArrowIsPreserved = shouldPreserveInputArrow(inputHasFocus, true, "ArrowRight")
     const gamepadArrowIsPreserved = shouldPreserveInputArrow(inputHasFocus, false, "ArrowRight")
     const physicalDownLeavesInput = shouldPreserveInputArrow(inputHasFocus, true, "ArrowDown")
+    const linkedArrowLeavesInput = shouldPreserveInputArrow(inputHasFocus, true, "ArrowRight", true)
 
     // Then caret movement stays native while gamepad spatial navigation remains available
     expect(physicalArrowIsPreserved).toBe(true)
     expect(gamepadArrowIsPreserved).toBe(false)
     expect(physicalDownLeavesInput).toBe(false)
+    expect(linkedArrowLeavesInput).toBe(false)
   })
 
   it("marks controller focus after pointer input changes browser modality", () => {

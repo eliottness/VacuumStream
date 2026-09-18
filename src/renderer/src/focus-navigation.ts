@@ -143,7 +143,12 @@ export const shouldPreserveInputArrow = (
   inputHasFocus: boolean,
   eventIsTrusted: boolean,
   key: string,
-): boolean => inputHasFocus && eventIsTrusted && (key === "ArrowLeft" || key === "ArrowRight")
+  hasDirectionalOverride = false,
+): boolean =>
+  inputHasFocus &&
+  eventIsTrusted &&
+  !hasDirectionalOverride &&
+  (key === "ArrowLeft" || key === "ArrowRight")
 
 export const shouldRepeatControllerKey = (key: string | undefined): boolean =>
   key?.startsWith("Arrow") === true
@@ -188,11 +193,23 @@ export const useControllerNavigation = (): void => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const activeElement = document.activeElement
+      const directionByKey: Readonly<Record<string, FocusDirection | undefined>> = {
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+        ArrowUp: "up",
+      }
+      const direction = directionByKey[event.key]
+      const directionalOverride =
+        activeElement instanceof HTMLElement && direction !== undefined
+          ? focusDirectionalOverride(activeElement, direction)
+          : undefined
       if (
         shouldPreserveInputArrow(
           activeElement instanceof HTMLInputElement,
           event.isTrusted,
           event.key,
+          directionalOverride !== undefined,
         )
       ) {
         return
@@ -208,23 +225,14 @@ export const useControllerNavigation = (): void => {
         }
         return
       }
-      const directionByKey: Readonly<Record<string, FocusDirection | undefined>> = {
-        ArrowDown: "down",
-        ArrowLeft: "left",
-        ArrowRight: "right",
-        ArrowUp: "up",
-      }
-      const direction = directionByKey[event.key]
       if (direction === undefined) return
-      if (activeElement instanceof HTMLElement) {
-        const override = focusDirectionalOverride(activeElement, direction)
+      if (directionalOverride !== undefined) {
         if (
-          override !== undefined &&
-          !override.hasAttribute("disabled") &&
-          override.offsetParent !== null
+          !directionalOverride.hasAttribute("disabled") &&
+          directionalOverride.offsetParent !== null
         ) {
           event.preventDefault()
-          moveFocusTo(override)
+          moveFocusTo(directionalOverride)
           return
         }
       }
