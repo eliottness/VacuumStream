@@ -3,6 +3,7 @@ import { type ComponentProps, useEffect, useRef, useState } from "react"
 import type { ChannelCard } from "../../../shared/contracts"
 
 type SearchViewProps = {
+  readonly authenticated: boolean
   readonly busy: boolean
   readonly onOpen: (channel: ChannelCard) => void
   readonly onSearch: (query: string) => void
@@ -11,7 +12,7 @@ type SearchViewProps = {
 
 type SubmitHandler = NonNullable<ComponentProps<"form">["onSubmit"]>
 
-export const SearchView = ({ busy, onOpen, onSearch, results }: SearchViewProps) => {
+export const SearchView = ({ authenticated, busy, onOpen, onSearch, results }: SearchViewProps) => {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => inputRef.current?.focus(), [])
@@ -25,7 +26,11 @@ export const SearchView = ({ busy, onOpen, onSearch, results }: SearchViewProps)
       <header className="page-heading">
         <span>Find a channel</span>
         <h1>Search Twitch</h1>
-        <p>Signed-out searches can still open an exact Twitch channel name.</p>
+        <p>
+          {authenticated
+            ? "Search channels and categories across Twitch."
+            : "Signed-out searches can still open an exact Twitch channel name."}
+        </p>
       </header>
       <form className="search-form" onSubmit={submit}>
         <label htmlFor="channel-search">Channel or category</label>

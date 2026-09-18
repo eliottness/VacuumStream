@@ -125,10 +125,18 @@ export const App = () => {
               <p>Live channels from the Twitch account connected to this device.</p>
             </header>
             <StreamShelf
-              emptyActionFocusId="following-connect"
-              emptyActionLabel="Connect Twitch"
-              emptyMessage="Connect Twitch or follow channels to populate this shelf."
-              onEmptyAction={() => controller.navigate("settings")}
+              {...(controller.auth.kind === "authenticated"
+                ? {}
+                : {
+                    emptyActionFocusId: "following-connect",
+                    emptyActionLabel: "Connect Twitch",
+                    onEmptyAction: () => controller.navigate("settings"),
+                  })}
+              emptyMessage={
+                controller.auth.kind === "authenticated"
+                  ? "No followed channels are live right now."
+                  : "Connect Twitch to see live channels you follow."
+              }
               onSelect={controller.openStream}
               streams={controller.followed}
               title="Live from your follows"
@@ -137,6 +145,7 @@ export const App = () => {
         ) : null}
         {controller.screen.route === "search" ? (
           <SearchView
+            authenticated={controller.auth.kind === "authenticated"}
             busy={controller.busy}
             onOpen={controller.openChannel}
             onSearch={(query) => void controller.search(query)}
