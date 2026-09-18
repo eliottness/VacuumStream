@@ -19,12 +19,29 @@ import { TwitchAuth } from "./twitch-auth"
 import { ConfigurationError } from "./twitch-errors"
 import { createVideoSearchParams, shouldRefreshResponse } from "./twitch-requests"
 import {
+  mergeStreamProfiles,
   parseCategoriesResponse,
   parseChannelsResponse,
   parseStreamsResponse,
+  parseUsersResponse,
   parseVideosResponse,
 } from "./twitch-schemas"
 import type { TwitchCredentials } from "./twitch-session"
+
+type HelixSearch = URLSearchParams | Readonly<Record<string, string | number | undefined>>
+type ProfileLoader = () => Promise<ReadonlyMap<string, string>>
+
+export const enrichStreamProfiles = async (
+  streams: Page<StreamCard>,
+  loadProfiles: ProfileLoader,
+): Promise<Page<StreamCard>> => {
+  try {
+    return mergeStreamProfiles(streams, await loadProfiles())
+  } catch (error) {
+    if (error instanceof Error) return streams
+    throw error
+  }
+}
 
 export class TwitchService {
   readonly #auth: TwitchAuth
@@ -58,17 +75,13 @@ export class TwitchService {
   }
 
   public async live(input: CursorInput): Promise<Page<StreamCard>> {
-    return this.#helix("streams", CursorInputSchema.parse(input), parseStreamsResponse)
+    return this.#streams("streams", CursorInputSchema.parse(input))
   }
 
   public async followed(input: CursorInput): Promise<Page<StreamCard>> {
     const parsed = CursorInputSchema.parse(input)
     const { identity } = await this.#auth.credentials()
-    return this.#helix(
-      "streams/followed",
-      { ...parsed, user_id: identity.user_id },
-      parseStreamsResponse,
-    )
+    return this.#streams("streams/followed", { ...parsed, user_id: identity.user_id })
   }
 
   public async topCategories(input: CursorInput): Promise<Page<CategoryCard>> {
@@ -85,11 +98,22 @@ export class TwitchService {
     return this.#helix("videos", createVideoSearchParams(parsed), parseVideosResponse)
   }
 
-  async #helix<Item>(
+  async #streams(path: string, search: HelixSearch): Promise<Page<StreamCard>> {
+    const streams = await this.#helix(path, search, parseStreamsResponse)
+    if (streams.items.length === 0) return streams
+
+    const userSearch = new URLSearchParams()
+    for (const userId of new Set(streams.items.map((stream) => stream.userId))) {
+      userSearch.append("id", userId)
+    }
+    return enrichStreamProfiles(streams, () => this.#helix("users", userSearch, parseUsersResponse))
+  }
+
+  async #helix<Result>(
     path: string,
-    search: Readonly<Record<string, string | number | undefined>>,
-    parse: (input: unknown) => Page<Item>,
-  ): Promise<Page<Item>> {
+    search: HelixSearch,
+    parse: (input: unknown) => Result,
+  ): Promise<Result> {
     let credentials = await this.#auth.credentials()
     let response = await this.#request(path, search, credentials)
     if (shouldRefreshResponse(response.status)) {
@@ -103,11 +127,7 @@ export class TwitchService {
     return parse(payload)
   }
 
-  #request(
-    path: string,
-    search: Readonly<Record<string, string | number | undefined>>,
-    credentials: TwitchCredentials,
-  ): Promise<Response> {
+  #request(path: string, search: HelixSearch, credentials: TwitchCredentials): Promise<Response> {
     return ky.get(`https://api.twitch.tv/helix/${path}`, {
       headers: {
         Authorization: `Bearer ${credentials.token.accessToken}`,
