@@ -104,6 +104,18 @@ export const StreamShelf = ({
                 <span className="stream-card__identity">
                   <span aria-hidden="true" className="avatar">
                     {stream.userName.slice(0, 1)}
+                    {stream.profileImageUrl === undefined ? null : (
+                      <img
+                        alt=""
+                        height="48"
+                        key={stream.profileImageUrl}
+                        onError={(event) => {
+                          event.currentTarget.hidden = true
+                        }}
+                        src={stream.profileImageUrl}
+                        width="48"
+                      />
+                    )}
                   </span>
                   {stream.userName}
                 </span>
