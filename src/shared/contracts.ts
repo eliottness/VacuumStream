@@ -22,6 +22,7 @@ export const VideosInputSchema = CursorInputSchema.extend({
 export const StreamCardSchema = z.object({
   category: z.string(),
   id: z.string(),
+  profileImageUrl: z.url().optional(),
   startedAt: z.string(),
   tags: z.array(z.string()),
   thumbnailUrl: z.url(),

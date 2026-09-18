@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseStreamsResponse } from "./twitch-schemas"
+import { mergeStreamProfiles, parseStreamsResponse, parseUsersResponse } from "./twitch-schemas"
 
 describe("Twitch response parsing", () => {
   it("maps a Helix stream response into renderer-safe cards", () => {
@@ -59,5 +59,42 @@ describe("Twitch response parsing", () => {
 
     // Then malformed data cannot enter the application
     expect(parse).toThrow()
+  })
+
+  it("adds broadcaster profile images to live stream cards", () => {
+    // Given independently parsed stream and user payloads from Helix
+    const streams = parseStreamsResponse({
+      data: [
+        {
+          game_name: "Just Chatting",
+          id: "123",
+          started_at: "2026-09-05T12:00:00Z",
+          tags: [],
+          thumbnail_url: "https://static-cdn.jtvnw.net/previews/{width}x{height}.jpg",
+          title: "A live stream",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          viewer_count: 4200,
+        },
+      ],
+      pagination: {},
+    })
+    const profiles = parseUsersResponse({
+      data: [
+        {
+          id: "456",
+          profile_image_url: "https://static-cdn.jtvnw.net/jtv_user_pictures/streamer.png",
+        },
+      ],
+    })
+
+    // When profile data is joined to the stream page
+    const enriched = mergeStreamProfiles(streams, profiles)
+
+    // Then the home card receives the broadcaster's actual profile image
+    expect(enriched.items[0]?.profileImageUrl).toBe(
+      "https://static-cdn.jtvnw.net/jtv_user_pictures/streamer.png",
+    )
   })
 })

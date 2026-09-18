@@ -41,6 +41,11 @@ const HelixChannelSchema = z.object({
   title: z.string(),
 })
 
+const HelixUserSchema = z.object({
+  id: z.string(),
+  profile_image_url: z.url(),
+})
+
 const HelixVideoSchema = z.object({
   created_at: z.string(),
   duration: z.string(),
@@ -113,6 +118,22 @@ export const parseStreamsResponse = (input: unknown): Page<StreamCard> => {
     viewerCount: stream.viewer_count,
   }))
 }
+
+export const parseUsersResponse = (input: unknown): ReadonlyMap<string, string> => {
+  const response = z.object({ data: z.array(HelixUserSchema) }).parse(input)
+  return new Map(response.data.map((user) => [user.id, user.profile_image_url]))
+}
+
+export const mergeStreamProfiles = (
+  page: Page<StreamCard>,
+  profiles: ReadonlyMap<string, string>,
+): Page<StreamCard> => ({
+  cursor: page.cursor,
+  items: page.items.map((stream) => {
+    const profileImageUrl = profiles.get(stream.userId)
+    return profileImageUrl === undefined ? stream : { ...stream, profileImageUrl }
+  }),
+})
 
 export const parseCategoriesResponse = (input: unknown): Page<CategoryCard> => {
   const response = z
