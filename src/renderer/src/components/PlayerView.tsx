@@ -45,7 +45,6 @@ export const PlayerView = ({
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(true)
   const backButtonRef = useRef<HTMLButtonElement>(null)
-  const playbackButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
 
   useEffect(() => backButtonRef.current?.focus(), [])
@@ -97,7 +96,6 @@ export const PlayerView = ({
       void window.vacuumStream.system.activateEmbeddedPlayer().then((playbackStarted) => {
         setMuted(player.getMuted())
         if (playbackStarted) setPaused(false)
-        playbackButtonRef.current?.focus()
       })
     } else {
       player.pause()
@@ -138,7 +136,6 @@ export const PlayerView = ({
           data-focusable="true"
           disabled={frameState !== "ready"}
           onClick={togglePlayback}
-          ref={playbackButtonRef}
           type="button"
         >
           {paused ? <PlayIcon aria-hidden="true" /> : <PauseIcon aria-hidden="true" />}
@@ -181,10 +178,7 @@ export const PlayerView = ({
           <CornersOutIcon aria-hidden="true" />
         </button>
       </header>
-      <div className="player-frame">
-        {frameState === "loading" ? (
-          <div className="player-status">Loading Twitch player…</div>
-        ) : null}
+      <div aria-busy={frameState === "loading"} className="player-frame">
         {frameState === "error" ? (
           <div className="player-status" role="alert">
             Twitch player is offline or could not be loaded.
