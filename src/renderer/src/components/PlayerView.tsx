@@ -7,7 +7,7 @@ import {
   SpeakerHighIcon,
   SpeakerSimpleXIcon,
 } from "@phosphor-icons/react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   createTwitchPlayerOptions,
   loadTwitchPlayerApi,
@@ -44,13 +44,49 @@ export const PlayerView = ({
   const [frameState, setFrameState] = useState<"error" | "loading" | "ready">("loading")
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(true)
+  const autoStartGenerationRef = useRef(0)
+  const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
+
+  const cancelAutoStart = useCallback((): void => {
+    autoStartGenerationRef.current += 1
+    if (autoStartTimerRef.current !== undefined) {
+      clearTimeout(autoStartTimerRef.current)
+      autoStartTimerRef.current = undefined
+    }
+  }, [])
 
   useEffect(() => backButtonRef.current?.focus(), [])
   useEffect(() => {
     let active = true
+    const autoStartGeneration = autoStartGenerationRef.current + 1
+    autoStartGenerationRef.current = autoStartGeneration
+    let autoStartDeadline = 0
+    let autoStartStarted = false
     let player: TwitchPlayerInstance | undefined
+    const attemptAutoStart = (): void => {
+      void window.vacuumStream.system.activateEmbeddedPlayer(true).then((playbackStarted) => {
+        if (
+          !active ||
+          autoStartGenerationRef.current !== autoStartGeneration ||
+          player === undefined
+        ) {
+          return
+        }
+        if (playbackStarted) {
+          player.setMuted(false)
+          setMuted(false)
+          setPaused(false)
+          return
+        }
+        if (Date.now() >= autoStartDeadline) {
+          setPaused(true)
+          return
+        }
+        autoStartTimerRef.current = setTimeout(attemptAutoStart, 500)
+      })
+    }
     void loadTwitchPlayerApi()
       .then((api) => {
         if (!active) return
@@ -61,6 +97,11 @@ export const PlayerView = ({
           setFrameState("ready")
           setMuted(player.getMuted())
           setPaused(player.isPaused())
+          if (!autoStartStarted) {
+            autoStartStarted = true
+            autoStartDeadline = Date.now() + 20_000
+            attemptAutoStart()
+          }
         })
         player.addEventListener(api.Player.PLAY, () => {
           if (active) setPaused(false)
@@ -80,20 +121,22 @@ export const PlayerView = ({
       })
     return () => {
       active = false
+      cancelAutoStart()
       player?.pause()
       playerRef.current = undefined
       document.querySelector("#twitch-player-root")?.replaceChildren()
     }
-  }, [source])
+  }, [source, cancelAutoStart])
 
   const togglePlayback = (): void => {
+    cancelAutoStart()
     const player = playerRef.current
     if (player === undefined) return
     if (paused) {
       const frame = document.querySelector<HTMLIFrameElement>("#twitch-player-root iframe")
       if (frame === null) return
       frame.focus()
-      void window.vacuumStream.system.activateEmbeddedPlayer().then((playbackStarted) => {
+      void window.vacuumStream.system.activateEmbeddedPlayer(false).then((playbackStarted) => {
         setMuted(player.getMuted())
         if (playbackStarted) setPaused(false)
       })
@@ -103,6 +146,7 @@ export const PlayerView = ({
   }
 
   const toggleMuted = (): void => {
+    cancelAutoStart()
     const player = playerRef.current
     if (player === undefined) return
     const nextMuted = !player.getMuted()
