@@ -11,7 +11,7 @@ describe("interactive Twitch player options", () => {
 
     // Then the official API receives a responsive local-parent configuration
     expect(options).toEqual({
-      autoplay: false,
+      autoplay: true,
       channel: "twitch",
       height: "100%",
       muted: true,
