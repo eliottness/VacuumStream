@@ -68,6 +68,9 @@ const createWindow = async (): Promise<void> => {
     encrypt: (value) => safeStorage.encryptString(value),
     isAvailable: () => safeStorage.isEncryptionAvailable(),
   })
+  if (!tokenVault.isSecure) {
+    console.warn("Secure OAuth token storage unavailable; using mode-0600 file fallback")
+  }
   registerIpc({
     mainWindow,
     rendererOrigin,

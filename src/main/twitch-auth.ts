@@ -40,7 +40,7 @@ export class TwitchAuth {
 
   public async settingsSnapshot(): Promise<SettingsSnapshot> {
     const settings = await this.#settings.load()
-    return { clientId: settings.clientId, secureStorage: this.#vault.isPersistent }
+    return { clientId: settings.clientId, secureStorage: this.#vault.isSecure }
   }
 
   public async saveClientId(clientId: string): Promise<SettingsSnapshot> {
@@ -51,7 +51,7 @@ export class TwitchAuth {
       await this.#clearAndRevoke(previous.clientId)
     }
     const settings = await this.#settings.saveClientId(parsedClientId)
-    return { clientId: settings.clientId, secureStorage: this.#vault.isPersistent }
+    return { clientId: settings.clientId, secureStorage: this.#vault.isSecure }
   }
 
   public async begin(): Promise<DeviceChallenge> {
