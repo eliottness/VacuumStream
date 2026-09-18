@@ -63,7 +63,8 @@ For personalized discovery:
 1. Open **Connect Twitch** or **Settings**.
 2. Leave the built-in Client ID unchanged. There is no developer registration step.
 3. Choose **Sign in on another device**.
-4. Open the Twitch activation address displayed by the app and enter its code.
+4. Scan the QR code or open the Twitch activation address displayed by the app, then enter its
+   code.
 5. Approve access on Twitch and return to VacuumStream.
 
 Following shows followed channels that are live. If none are live, an empty list is normal.
@@ -71,7 +72,8 @@ Sign-in also enables live catalog, category, channel, and VOD discovery.
 
 Device authorization authenticates discovery, **not the embedded player**. Twitch may show
 advertisements and its own offline, regional, or error screens. Browser cookies are not imported.
-Without an available secure keyring, sign-in is session-only and you must reconnect after closing.
+VacuumStream prefers the Linux keyring. If none is available, it stores the token in its private
+application-data directory with owner-only file permissions and logs a security warning.
 
 ## Controls
 

@@ -81,9 +81,11 @@ The main process polls at Twitch's interval, validates sessions on startup and h
 serializes refresh through one in-flight promise so concurrent failures cannot reuse a
 one-time refresh token.
 
-`TokenVault` persists only when `safeStorage.isEncryptionAvailable()` is true and the Linux
-backend is not `basic_text`. Encrypted writes use a temporary file and atomic rename. Without
-a secure backend, the token remains in process memory and disappears on exit.
+`TokenVault` prefers Electron `safeStorage` when encryption is available and the Linux backend is
+not `basic_text`. Without a secure backend, it falls back to unencrypted JSON under Electron's
+per-user application-data directory and emits a main-process warning. Both paths use an owner-only
+temporary file, atomic rename, and an explicit `0600` final mode. A later secure session migrates
+the fallback into encrypted storage.
 
 ## Packaging
 

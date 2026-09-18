@@ -8,10 +8,13 @@ Check your connection and system clock. Keep the built-in public Client ID unles
 different registered application. If a device code expires, start sign-in again; do not reuse
 an expired code. Never share device codes, access tokens, or Client Secrets in an issue.
 
-## Sign-in disappears after closing
+## Logs mention an OAuth token file fallback
 
-Look for the secure-keyring warning in Settings. Unlock or configure your desktop's Secret
-Service/KWallet keyring. VacuumStream deliberately avoids storing tokens in plaintext.
+Unlock or configure your desktop's Secret Service/KWallet keyring to use encrypted storage.
+Without one, VacuumStream keeps sign-in across restarts in an unencrypted `oauth-token.json` file
+inside its per-user application-data directory. The file is restricted with mode `0600`, while
+Flatpak installations add sandbox isolation around that directory. Other processes running as the
+same user may still read it. Never copy or share it.
 
 ## Player is offline, shows ads, or reports an error
 

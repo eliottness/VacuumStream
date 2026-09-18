@@ -14,8 +14,9 @@ without posting vulnerability details.
 ## Data handling
 
 - Twitch OAuth requests `user:read:follows`. Tokens stay in Electron's main process.
-- Tokens persist encrypted only when a secure Linux keyring is available; otherwise sign-in
-  lasts until the application closes. Settings, including a custom public Client ID, are local.
+- Tokens persist encrypted when a secure Linux keyring is available. Otherwise VacuumStream logs
+  a warning and uses an unencrypted `oauth-token.json` file with mode `0600` inside its private
+  application-data directory. Settings, including a custom public Client ID, are local.
 - The official Twitch player and Twitch APIs contact Twitch and its infrastructure directly.
   Their privacy policies apply. VacuumStream has no application analytics backend.
 - Device sign-in does not share browser cookies or authenticate the embedded player.
