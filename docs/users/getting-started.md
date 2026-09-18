@@ -19,7 +19,7 @@ If you downloaded only one asset, `sha256sum --check --ignore-missing SHA256SUMS
 the downloaded file. A checksum failure means you should not run that download.
 Checksums detect corruption, not impersonation; download only from the project's releases.
 
-The examples below use `0.1.1`; substitute the version you downloaded.
+The examples below use `0.1.2`; substitute the version you downloaded.
 
 ### Flatpak
 
@@ -27,7 +27,7 @@ Requires Flatpak 1.16 or newer for gamepad device permissions. In Desktop Mode:
 
 ```bash
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./VacuumStream-0.1.1-x86_64.flatpak
+flatpak install --user ./VacuumStream-0.1.2-x86_64.flatpak
 flatpak run io.github.eliottness.VacuumStream
 ```
 
@@ -40,14 +40,14 @@ the public build does not migrate their settings or tokens. Sign in again rather
 ### AppImage
 
 ```bash
-chmod +x VacuumStream-0.1.1-x86_64.AppImage
-./VacuumStream-0.1.1-x86_64.AppImage
+chmod +x VacuumStream-0.1.2-x86_64.AppImage
+./VacuumStream-0.1.2-x86_64.AppImage
 ```
 
 If FUSE is unavailable:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./VacuumStream-0.1.1-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./VacuumStream-0.1.2-x86_64.AppImage
 ```
 
 Linux must permit Chromium's sandbox. Do not work around startup failures using `--no-sandbox`;
