@@ -1,4 +1,5 @@
 import { CheckCircleIcon, CopyIcon, SignInIcon, SignOutIcon } from "@phosphor-icons/react"
+import { QRCodeSVG } from "qrcode.react"
 import { type ComponentProps, useEffect, useState } from "react"
 import type { AuthSnapshot, SettingsSnapshot } from "../../../shared/contracts"
 
@@ -163,9 +164,26 @@ export const SettingsPanel = ({
         ) : null}
         {auth.kind === "authorizing" ? (
           <div className="device-code">
-            <span>Enter this code at Twitch</span>
-            <strong>{auth.challenge.userCode}</strong>
-            <span>{auth.challenge.verificationUri}</span>
+            <div className="device-code__challenge">
+              <div>
+                <span>Enter this code at Twitch</span>
+                <strong>{auth.challenge.userCode}</strong>
+                <span>{auth.challenge.verificationUri}</span>
+              </div>
+              <div
+                aria-label="Scan Twitch activation QR code"
+                className="device-code__qr"
+                role="img"
+              >
+                <QRCodeSVG
+                  level="M"
+                  marginSize={4}
+                  size={192}
+                  title="Twitch activation link"
+                  value={auth.challenge.verificationUri}
+                />
+              </div>
+            </div>
             <button
               data-focus-id="settings-open-activation"
               data-focus-up="settings-save"
@@ -177,12 +195,6 @@ export const SettingsPanel = ({
               Open Twitch activation
             </button>
           </div>
-        ) : null}
-        {!settings.secureStorage ? (
-          <p className="warning">
-            A secure Linux keyring is unavailable. Your sign-in will stay in memory and expire when
-            VacuumStream closes.
-          </p>
         ) : null}
       </section>
       {error !== "" ? <p className="error-message">{error}</p> : null}
