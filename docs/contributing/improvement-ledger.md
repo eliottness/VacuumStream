@@ -47,7 +47,8 @@ are out of scope and are rejected without review.
 | --- | --- | --- | --- |
 | 1 | [Add controller-native VOD seeking](#cycle-1--add-controller-native-vod-seeking) | feature | Landed |
 | 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | Landed |
-| 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | In progress |
+| 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
+| 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -158,3 +159,46 @@ Acceptance criteria:
 Not in scope: fallback artwork, retries, cache-busting, tolerating empty thumbnail fields, and the
 presentation `width`/`height` attributes on the recording cards, which are deliberately unrelated
 to the requested image size.
+
+Landed in `dfab93b`. Hardware testing showed past-broadcast previews rendering across the grid,
+with one exception: the newest recording, an archive still in progress, for which Twitch has not
+generated artwork yet. So the cycle-1 blank card was most likely an in-progress archive rather
+than a consequence of the wrong size, and this change stands on documented-contract compliance
+rather than on having fixed that incident.
+
+Two defects were observed and deliberately left for later cycles: a channel with no archives
+renders an entirely empty Past broadcasts screen with no empty-state message, and the videos
+parser accepts an empty thumbnail string that the shared contract then rejects as a URL.
+
+### Cycle 4 — Refresh and paginate Home and Following
+
+The two primary live shelves cannot be trusted to answer "who is live now". They load exactly once
+per authentication change, inside a single `Promise.all` that also fetches categories, so any one
+failure prevents its successful siblings from being installed. They request twenty streams and
+throw the cursor away, so nothing beyond the first page is reachable, and there is no refresh
+action anywhere — returning from playback shows the same snapshot. Cycle 2 already built the
+pattern this needs: per-request generations, cursor forwarding, deduplication by stream ID, and
+focus-preserving controls.
+
+Target: entering Home or Following loads a fresh page, a Refresh action stays reachable while
+browsing, and Load more appends further streams while a cursor exists. Refreshing replaces the
+listing, paging appends unique streams, and populated cards stay usable during requests and
+recoverable failures.
+
+Acceptance criteria:
+
+1. Route entry and Refresh each fetch a first page with no `after`, replacing rather than
+   accumulating, without restarting authentication.
+2. Load more forwards the exact cursor, renders one card per stream ID across overlapping pages,
+   and disappears once the cursor is exhausted; Following keeps its `user_id` parameter.
+3. Initial, refresh and pagination failures are independently recoverable, Retry repeats the
+   operation that failed, and a sibling request's failure no longer discards successful results.
+4. Obsolete responses settling after navigation, refresh, logout or an account change install no
+   stale cards, cursors or errors; guests issue no authenticated request; repeated activation
+   cannot duplicate an in-flight operation.
+5. On the target hardware, arrows alone refresh, load a second page and recover from a failure,
+   with visible focus retained when the exhausted Load more control disappears.
+6. `bun run verify` passes in one run with existing suites intact.
+
+Not in scope: timer-based or background refresh, EventSub notifications, an offline channel
+directory, category or search pagination, and any player change.
