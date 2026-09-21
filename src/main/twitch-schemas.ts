@@ -10,11 +10,17 @@ import type {
 
 const PaginationSchema = z.object({ cursor: z.string().optional() })
 
+// Twitch sends `tags: null` for channels without tags, which `.default([])` does not cover.
+const HelixTagsSchema = z
+  .array(z.string())
+  .nullish()
+  .transform((tags) => tags ?? [])
+
 const HelixStreamSchema = z.object({
   game_name: z.string(),
   id: z.string(),
   started_at: z.string(),
-  tags: z.array(z.string()).default([]),
+  tags: HelixTagsSchema,
   thumbnail_url: z.url(),
   title: z.string(),
   user_id: z.string(),
@@ -36,7 +42,7 @@ const HelixChannelSchema = z.object({
   game_name: z.string(),
   id: z.string(),
   is_live: z.boolean(),
-  tags: z.array(z.string()).default([]),
+  tags: HelixTagsSchema,
   thumbnail_url: z.url(),
   title: z.string(),
 })

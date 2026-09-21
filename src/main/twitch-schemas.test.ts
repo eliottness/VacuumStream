@@ -50,6 +50,32 @@ describe("Twitch response parsing", () => {
     })
   })
 
+  it("accepts streams whose tags Twitch reports as null", () => {
+    // Given a live page where Twitch sends null tags, as observed on a second category page
+    const stream = {
+      game_name: "Just Chatting",
+      id: "123",
+      started_at: "2026-09-05T12:00:00Z",
+      tags: null,
+      thumbnail_url:
+        "https://static-cdn.jtvnw.net/previews-ttv/live_user_name-{width}x{height}.jpg",
+      title: "A live stream",
+      user_id: "456",
+      user_login: "streamer",
+      user_name: "Streamer",
+      viewer_count: 4200,
+    }
+
+    // When the payload crosses the parser boundary, with and without the field present
+    const nullTags = parseStreamsResponse({ data: [stream], pagination: {} })
+    const { tags: _omitted, ...withoutTags } = stream
+    const missingTags = parseStreamsResponse({ data: [withoutTags], pagination: {} })
+
+    // Then the page parses and the renderer receives an empty tag list either way
+    expect(nullTags.items[0]?.tags).toEqual([])
+    expect(missingTags.items[0]?.tags).toEqual([])
+  })
+
   it("rejects malformed Helix response data", () => {
     // Given an untrusted payload with an invalid viewer count
     const response = { data: [{ viewer_count: -1 }], pagination: {} }
