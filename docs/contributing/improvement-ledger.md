@@ -48,7 +48,7 @@ are out of scope and are rejected without review.
 | 1 | [Add controller-native VOD seeking](#cycle-1--add-controller-native-vod-seeking) | feature | Landed |
 | 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | Landed |
 | 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
-| 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | In progress |
+| 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -203,6 +203,13 @@ Acceptance criteria:
 
 Not in scope: timer-based or background refresh, EventSub notifications, an offline channel
 directory, category or search pagination, and any player change.
+
+Landed in `90f0aff`. Rather than copying the category machinery, both shelves and the category
+screen now share a `useStreamCatalog` hook holding items, cursor, status, error, the operation
+that failed, a generation counter and a pending-operation ref. Refresh may supersede an in-flight
+page load while re-activating the same operation is ignored. Verified with `bun run verify`
+(151 tests) and on the HTPC, where one arrow from the navigation reaches Refresh and Load more
+appends a page without losing focus.
 
 ## Observed but not yet scheduled
 
