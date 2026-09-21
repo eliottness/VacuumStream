@@ -49,6 +49,7 @@ are out of scope and are rejected without review.
 | 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | Landed |
 | 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
+| 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -210,6 +211,40 @@ that failed, a generation counter and a pending-operation ref. Refresh may super
 page load while re-activating the same operation is ignored. Verified with `bun run verify`
 (151 tests) and on the HTPC, where one arrow from the navigation reaches Refresh and Load more
 appends a page without losing focus.
+
+### Cycle 5 — Add controller-native playback quality selection
+
+The shell owns the player instance and its controls but never asks Twitch what resolutions are
+available. On an HTPC that matters twice over: a weak GPU or a thin connection needs a lower
+rendition, and the viewer has no way to ask for one without a mouse. Twitch documents
+`getQualities()`, `getQuality()` and `setQuality()` on the player it already embeds, so this needs
+no second playback path and no new permission.
+
+Target: a Quality action in the player toolbar opens a compact chooser listing exactly the
+qualities Twitch reports, including Auto or Source when offered. Arrows reach it, Enter selects,
+Close returns focus to Quality, and the embed is never covered.
+
+Two traps this must respect. Qualities can be empty at READY and only arrive once playback starts,
+so the list is read again on PLAYING and when the chooser opens. And `getQuality()` reports the
+effective resolution even under Auto, so the viewer's requested mode is tracked separately rather
+than inferred from it.
+
+Acceptance criteria:
+
+1. Only player-returned qualities appear, labels normalize for both documented shapes, and an
+   empty list at READY becomes usable once PLAYING supplies options.
+2. Quality, every option and Close are reachable with arrows; Enter selects the intended ID once
+   and focus never enters the iframe.
+3. Selecting calls `setQuality` with the exact returned ID and constructs no second player, seeks,
+   or changes play/pause/mute intent.
+4. Empty options, source replacement, offline and late callbacks are all handled; a previous
+   channel's options never appear on a replacement player and Back stays reachable.
+5. On the target hardware a real stream's quality is lowered and returned to Auto or Source, with
+   the change confirmed through `getQuality()` rather than the shell label alone.
+6. `bun run verify` passes in one run with existing suites intact.
+
+Not in scope: a persisted quality preference, audio-only mode, codec selection, and any reuse or
+extension of the private-DOM autoplay injection.
 
 ## Observed but not yet scheduled
 
