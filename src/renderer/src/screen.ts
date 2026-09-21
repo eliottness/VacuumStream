@@ -3,6 +3,7 @@ import type { PlayerSource } from "./components/PlayerView"
 
 export type Screen =
   | { readonly kind: "browse"; readonly route: RouteName }
+  | { readonly id: string; readonly kind: "category"; readonly name: string }
   | { readonly kind: "player"; readonly source: PlayerSource }
   | { readonly kind: "videos" }
 
@@ -13,6 +14,8 @@ export const screenEntryFocusId = (screen: Screen): string => {
   switch (screen.kind) {
     case "browse":
       return screen.route === "search" ? "search-input" : `nav-${screen.route}`
+    case "category":
+      return "category-back"
     case "player":
       return "player-back"
     case "videos":

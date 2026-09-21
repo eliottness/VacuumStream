@@ -13,11 +13,16 @@ describe("controller back navigation", () => {
     expect(navigatesHome).toBe(true)
   })
 
+  it("returns from a category to Home", () => {
+    expect(shouldNavigateHomeOnBack({ id: "33214", kind: "category", name: "Fortnite" })).toBe(true)
+  })
+
   it("assigns deterministic focus targets when screens change", () => {
-    // Given browse, player, and VOD screens
+    // Given browse, category, player, and VOD screens
     const screens = [
       { kind: "browse", route: "home" },
       { kind: "browse", route: "search" },
+      { id: "33214", kind: "category", name: "Fortnite" },
       { kind: "player", source: { channel: "twitch", kind: "live", title: "Live", userId: "1" } },
       { kind: "videos" },
     ] as const
@@ -26,6 +31,12 @@ describe("controller back navigation", () => {
     const targets = screens.map(screenEntryFocusId)
 
     // Then each screen has a six-key starting point
-    expect(targets).toEqual(["nav-home", "search-input", "player-back", "videos-back"])
+    expect(targets).toEqual([
+      "nav-home",
+      "search-input",
+      "category-back",
+      "player-back",
+      "videos-back",
+    ])
   })
 })

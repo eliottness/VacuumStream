@@ -14,7 +14,7 @@ export const CategoryShelf = ({ categories, onSelect }: CategoryShelfProps) => (
     <div className="category-reel">
       {categories.map((category) => (
         <button
-          aria-label={`Search ${category.name}`}
+          aria-label={`Browse ${category.name}`}
           className="category-card"
           data-focus-id={`category-${category.id}`}
           data-focusable="true"

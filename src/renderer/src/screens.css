@@ -1,3 +1,32 @@
+.category-view .page-heading {
+  align-items: start;
+}
+
+.category-view__heading {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.category-view__back {
+  flex-shrink: 0;
+}
+
+.category-view__results {
+  display: grid;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.category-view .shelf__reel {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+}
+
+.category-view__action {
+  justify-self: start;
+}
+
 .settings-panel,
 .search-view {
   max-inline-size: 80rem;

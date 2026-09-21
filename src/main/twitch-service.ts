@@ -5,6 +5,7 @@ import type {
   ChannelCard,
   CursorInput,
   DeviceChallenge,
+  LiveInput,
   Page,
   SearchInput,
   SettingsSnapshot,
@@ -12,12 +13,21 @@ import type {
   VideoCard,
   VideosInput,
 } from "../shared/contracts"
-import { CursorInputSchema, SearchInputSchema, VideosInputSchema } from "../shared/contracts"
+import {
+  CursorInputSchema,
+  LiveInputSchema,
+  SearchInputSchema,
+  VideosInputSchema,
+} from "../shared/contracts"
 import type { SettingsStore } from "./settings-store"
 import type { TokenVault } from "./token-vault"
 import { TwitchAuth } from "./twitch-auth"
 import { ConfigurationError } from "./twitch-errors"
-import { createVideoSearchParams, shouldRefreshResponse } from "./twitch-requests"
+import {
+  createLiveSearchParams,
+  createVideoSearchParams,
+  shouldRefreshResponse,
+} from "./twitch-requests"
 import {
   mergeStreamProfiles,
   parseCategoriesResponse,
@@ -74,8 +84,8 @@ export class TwitchService {
     return this.#auth.activationUrl(flowId)
   }
 
-  public async live(input: CursorInput): Promise<Page<StreamCard>> {
-    return this.#streams("streams", CursorInputSchema.parse(input))
+  public async live(input: LiveInput): Promise<Page<StreamCard>> {
+    return this.#streams("streams", createLiveSearchParams(LiveInputSchema.parse(input)))
   }
 
   public async followed(input: CursorInput): Promise<Page<StreamCard>> {

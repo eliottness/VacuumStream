@@ -1,5 +1,11 @@
 export const TWITCH_SCOPES = "user:read:follows"
 
+type ParsedLiveInput = {
+  readonly after?: string | undefined
+  readonly first: number
+  readonly gameId?: string | undefined
+}
+
 type ParsedVideosInput = {
   readonly after?: string | undefined
   readonly first: number
@@ -13,6 +19,14 @@ export const createDeviceTokenBody = (clientId: string, deviceCode: string): URL
     grant_type: "urn:ietf:params:oauth:grant-type:device_code",
     scopes: TWITCH_SCOPES,
   })
+
+export const createLiveSearchParams = (
+  input: ParsedLiveInput,
+): Readonly<Record<string, string | number>> => ({
+  ...(input.after === undefined ? {} : { after: input.after }),
+  first: input.first,
+  ...(input.gameId === undefined ? {} : { game_id: input.gameId }),
+})
 
 export const createVideoSearchParams = (
   input: ParsedVideosInput,

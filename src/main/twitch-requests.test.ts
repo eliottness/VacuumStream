@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   createDeviceTokenBody,
+  createLiveSearchParams,
   createVideoSearchParams,
   isAllowedActivationUrl,
   isIdentityCacheCurrent,
@@ -17,6 +18,26 @@ describe("Twitch request contracts", () => {
 
     // Then Twitch receives the documented scope set
     expect(body.get("scopes")).toBe("user:read:follows")
+  })
+
+  it("maps category live input to game_id without leaking gameId", () => {
+    expect(createLiveSearchParams({ first: 20, gameId: "33214" })).toEqual({
+      first: 20,
+      game_id: "33214",
+    })
+    expect(createLiveSearchParams({ after: "next+/=", first: 20, gameId: "33214" })).toEqual({
+      after: "next+/=",
+      first: 20,
+      game_id: "33214",
+    })
+  })
+
+  it("keeps unfiltered live parameters unchanged", () => {
+    expect(createLiveSearchParams({ first: 20 })).toEqual({ first: 20 })
+    expect(createLiveSearchParams({ after: "cursor", first: 20 })).toEqual({
+      after: "cursor",
+      first: 20,
+    })
   })
 
   it("maps VOD input without leaking camel-case parameters", () => {

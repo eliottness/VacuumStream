@@ -1,7 +1,12 @@
 import { type BrowserWindow, type IpcMainInvokeEvent, ipcMain, shell } from "electron"
 import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
-import { CursorInputSchema, SearchInputSchema, VideosInputSchema } from "../shared/contracts"
+import {
+  CursorInputSchema,
+  LiveInputSchema,
+  SearchInputSchema,
+  VideosInputSchema,
+} from "../shared/contracts"
 import type { TwitchService } from "./twitch-service"
 import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
@@ -59,7 +64,7 @@ export const registerIpc = (options: IpcOptions): void => {
   })
   ipcMain.handle(CHANNELS.catalogLive, async (event, input: unknown) => {
     authorize(event)
-    return options.twitch.live(CursorInputSchema.parse(input))
+    return options.twitch.live(LiveInputSchema.parse(input))
   })
   ipcMain.handle(CHANNELS.catalogFollowed, async (event, input: unknown) => {
     authorize(event)

@@ -11,6 +11,20 @@ import type { RouteName } from "./components/Navigation"
 import { PREVIEW_CATEGORIES, PREVIEW_STREAMS } from "./demo-data"
 import { type Screen, shouldNavigateHomeOnBack } from "./screen"
 
+type CategoryCatalog = {
+  readonly cursor: string | undefined
+  readonly error: string
+  readonly items: readonly StreamCard[]
+  readonly status: "error" | "loading" | "ready"
+}
+
+const EMPTY_CATEGORY: CategoryCatalog = {
+  cursor: undefined,
+  error: "",
+  items: [],
+  status: "ready",
+}
+
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred"
 
@@ -31,16 +45,21 @@ export const useAppController = () => {
   const [live, setLive] = useState<readonly StreamCard[]>(PREVIEW_STREAMS)
   const [followed, setFollowed] = useState<readonly StreamCard[]>([])
   const [categories, setCategories] = useState<readonly CategoryCard[]>(PREVIEW_CATEGORIES)
+  const [categoryCatalog, setCategoryCatalog] = useState<CategoryCatalog>(EMPTY_CATEGORY)
   const [searchResults, setSearchResults] = useState<readonly ChannelCard[]>([])
   const [videos, setVideos] = useState<readonly VideoCard[]>([])
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState("")
   const authEpoch = useRef(0)
   const catalogRequestEpoch = useRef(0)
+  const navigate = useCallback((route: RouteName): void => {
+    catalogRequestEpoch.current += 1
+    setScreen({ kind: "browse", route })
+  }, [])
   const navigateHome = useCallback((): void => {
     void window.vacuumStream.system.restoreShellFullscreen()
-    setScreen({ kind: "browse", route: "home" })
-  }, [])
+    navigate("home")
+  }, [navigate])
   const updateAuth = useCallback((nextAuth: AuthSnapshot): void => {
     authEpoch.current += 1
     catalogRequestEpoch.current += 1
@@ -48,6 +67,10 @@ export const useAppController = () => {
       setFollowed([])
       setSearchResults([])
       setVideos([])
+      setCategoryCatalog(EMPTY_CATEGORY)
+      setScreen((current) =>
+        current.kind === "category" ? { kind: "browse", route: "settings" } : current,
+      )
     }
     setAuth(nextAuth)
   }, [])
@@ -72,6 +95,7 @@ export const useAppController = () => {
       })
     return () => {
       active = false
+      catalogRequestEpoch.current += 1
     }
   }, [updateAuth])
 
@@ -120,11 +144,11 @@ export const useAppController = () => {
       const editingText = document.activeElement instanceof HTMLInputElement
       if (event.key === "/" && !editingText) {
         event.preventDefault()
-        setScreen({ kind: "browse", route: "search" })
+        navigate("search")
       }
       if (event.key === "F10") {
         event.preventDefault()
-        setScreen({ kind: "browse", route: "settings" })
+        navigate("settings")
       }
       if (event.key === "Escape" && shouldNavigateHomeOnBack(screen)) {
         event.preventDefault()
@@ -133,9 +157,70 @@ export const useAppController = () => {
     }
     document.addEventListener("keydown", onShortcut)
     return () => document.removeEventListener("keydown", onShortcut)
-  }, [navigateHome, screen])
+  }, [navigate, navigateHome, screen])
+
+  const loadCategoryPage = async (gameId: string, after?: string): Promise<void> => {
+    const requestEpoch = authEpoch.current
+    const requestId = catalogRequestEpoch.current + 1
+    catalogRequestEpoch.current = requestId
+    const isCurrent = (): boolean =>
+      requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current
+    setCategoryCatalog((current) => ({ ...current, error: "", status: "loading" }))
+    try {
+      const page = await window.vacuumStream.catalog.live({
+        ...(after === undefined ? {} : { after }),
+        first: 20,
+        gameId,
+      })
+      if (!isCurrent()) return
+      setCategoryCatalog((current) => ({
+        cursor: page.cursor,
+        error: "",
+        items: [
+          ...new Map(
+            [...(after === undefined ? [] : current.items), ...page.items].map((stream) => [
+              stream.id,
+              stream,
+            ]),
+          ).values(),
+        ],
+        status: "ready",
+      }))
+    } catch (error) {
+      if (!isCurrent()) return
+      setCategoryCatalog((current) => ({
+        ...current,
+        error: errorMessage(error),
+        status: "error",
+      }))
+    }
+  }
+
+  const showCategory = async (category: CategoryCard): Promise<void> => {
+    if (auth.kind !== "authenticated") {
+      setNotice("Sign in to browse live streams by category")
+      navigate("settings")
+      return
+    }
+    setNotice("")
+    setCategoryCatalog(EMPTY_CATEGORY)
+    setScreen({ id: category.id, kind: "category", name: category.name })
+    await loadCategoryPage(category.id)
+  }
+
+  const loadMoreCategory = async (): Promise<void> => {
+    if (
+      auth.kind !== "authenticated" ||
+      screen.kind !== "category" ||
+      categoryCatalog.status === "loading"
+    ) {
+      return
+    }
+    await loadCategoryPage(screen.id, categoryCatalog.cursor)
+  }
 
   const openStream = (stream: StreamCard): void => {
+    catalogRequestEpoch.current += 1
     setScreen({
       kind: "player",
       source: {
@@ -211,9 +296,11 @@ export const useAppController = () => {
     auth,
     busy,
     categories,
+    categoryCatalog,
     followed,
     live,
-    navigate: (route: RouteName) => setScreen({ kind: "browse", route }),
+    loadMoreCategory,
+    navigate,
     navigateHome,
     notice,
     openChannel,
@@ -223,6 +310,7 @@ export const useAppController = () => {
     searchResults,
     setAuth: updateAuth,
     settings,
+    showCategory,
     showPastBroadcasts,
     updateSettings: (nextSettings: SettingsSnapshot, resetAuth: boolean) => {
       setSettings(nextSettings)

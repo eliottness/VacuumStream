@@ -70,6 +70,12 @@ For personalized discovery:
 Following shows followed channels that are live. If none are live, an empty list is normal.
 Sign-in also enables live catalog, category, channel, and VOD discovery.
 
+On Home, choose a card under **Top categories** to browse that game's live streams.
+Use the arrows and Enter to choose a stream, or **Load more** to see the next page.
+If loading fails, **Retry** keeps any streams already shown. An empty category means no
+channels are live there right now. **Back** or Escape returns to Home. Guests choosing a
+category are sent to Settings to sign in first.
+
 Device authorization authenticates discovery, **not the embedded player**. Twitch may show
 advertisements and its own offline, regional, or error screens. Browser cookies are not imported.
 VacuumStream prefers the Linux keyring. If none is available, it stores the token in its private

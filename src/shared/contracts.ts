@@ -11,6 +11,10 @@ export const CursorInputSchema = z.object({
   first: z.number().int().min(1).max(100).default(20),
 })
 
+export const LiveInputSchema = CursorInputSchema.extend({
+  gameId: z.string().min(1).max(64).optional(),
+})
+
 export const SearchInputSchema = CursorInputSchema.extend({
   query: z.string().trim().min(1).max(100),
 })
@@ -111,6 +115,7 @@ export type ChannelCard = z.infer<typeof ChannelCardSchema>
 export type ClientId = z.infer<typeof ClientIdSchema>
 export type CursorInput = z.input<typeof CursorInputSchema>
 export type DeviceChallenge = z.infer<typeof DeviceChallengeSchema>
+export type LiveInput = z.input<typeof LiveInputSchema>
 export type Page<Item> = {
   readonly cursor: string | undefined
   readonly items: readonly Item[]
@@ -130,7 +135,7 @@ export interface VacuumStreamApi {
   }
   readonly catalog: {
     readonly followed: (input: CursorInput) => Promise<Page<StreamCard>>
-    readonly live: (input: CursorInput) => Promise<Page<StreamCard>>
+    readonly live: (input: LiveInput) => Promise<Page<StreamCard>>
     readonly search: (input: SearchInput) => Promise<Page<ChannelCard>>
     readonly topCategories: (input: CursorInput) => Promise<Page<CategoryCard>>
     readonly videos: (input: VideosInput) => Promise<Page<VideoCard>>

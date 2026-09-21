@@ -1,6 +1,7 @@
 import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
 import { useEffect, useLayoutEffect } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
+import { CategoryView } from "./components/CategoryView"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
 import { SearchView } from "./components/SearchView"
@@ -26,7 +27,9 @@ export const App = () => {
       ? ROUTE_TITLES[controller.screen.route]
       : controller.screen.kind === "player"
         ? controller.screen.source.title
-        : "Past broadcasts"
+        : controller.screen.kind === "category"
+          ? controller.screen.name
+          : "Past broadcasts"
 
   useEffect(() => {
     document.title = `${screenTitle} · VacuumStream`
@@ -62,6 +65,8 @@ export const App = () => {
     )
   }
 
+  const route = controller.screen.kind === "browse" ? controller.screen.route : undefined
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
@@ -70,10 +75,22 @@ export const App = () => {
       <p aria-live="polite" className="visually-hidden">
         {screenTitle}
       </p>
-      <Navigation active={controller.screen.route} onNavigate={controller.navigate} />
+      <Navigation active={route ?? "home"} onNavigate={controller.navigate} />
       <div className="app-shell__content">
         {controller.notice !== "" ? <div className="notice">{controller.notice}</div> : null}
-        {controller.screen.route === "home" ? (
+        {controller.screen.kind === "category" ? (
+          <CategoryView
+            cursor={controller.categoryCatalog.cursor}
+            error={controller.categoryCatalog.error}
+            name={controller.screen.name}
+            onBack={controller.navigateHome}
+            onLoadMore={() => void controller.loadMoreCategory()}
+            onSelect={controller.openStream}
+            status={controller.categoryCatalog.status}
+            streams={controller.categoryCatalog.items}
+          />
+        ) : null}
+        {route === "home" ? (
           <main className="browse-view" id="main-content" tabIndex={-1}>
             <header className="home-heading">
               <div>
@@ -110,14 +127,11 @@ export const App = () => {
             />
             <CategoryShelf
               categories={controller.categories}
-              onSelect={(category) => {
-                controller.navigate("search")
-                void controller.search(category.name)
-              }}
+              onSelect={(category) => void controller.showCategory(category)}
             />
           </main>
         ) : null}
-        {controller.screen.route === "following" ? (
+        {route === "following" ? (
           <main className="browse-view" id="main-content" tabIndex={-1}>
             <header className="page-heading">
               <span>Your channels</span>
@@ -143,7 +157,7 @@ export const App = () => {
             />
           </main>
         ) : null}
-        {controller.screen.route === "search" ? (
+        {route === "search" ? (
           <SearchView
             authenticated={controller.auth.kind === "authenticated"}
             busy={controller.busy}
@@ -152,7 +166,7 @@ export const App = () => {
             results={controller.searchResults}
           />
         ) : null}
-        {controller.screen.route === "settings" ? (
+        {route === "settings" ? (
           <SettingsPanel
             auth={controller.auth}
             onAuthChange={controller.setAuth}
