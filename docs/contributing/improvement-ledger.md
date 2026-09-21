@@ -161,10 +161,11 @@ presentation `width`/`height` attributes on the recording cards, which are delib
 to the requested image size.
 
 Landed in `dfab93b`. Hardware testing showed past-broadcast previews rendering across the grid,
-with one exception: the newest recording, an archive still in progress, for which Twitch has not
-generated artwork yet. So the cycle-1 blank card was most likely an in-progress archive rather
-than a consequence of the wrong size, and this change stands on documented-contract compliance
-rather than on having fixed that incident.
+and a card activating into the official player with the cycle-1 seek controls intact. One card is
+still blank on each channel checked: always the newest, still-in-progress archive. Across three
+channels that pattern held, which points at Twitch not having generated the artwork yet, but the
+original cycle-1 blank card was on a channel that was not revisited, so its recovery is unverified
+and is not claimed. This change stands on documented-contract compliance alone.
 
 Two defects were observed and deliberately left for later cycles: a channel with no archives
 renders an entirely empty Past broadcasts screen with no empty-state message, and the videos
