@@ -203,3 +203,17 @@ Acceptance criteria:
 
 Not in scope: timer-based or background refresh, EventSub notifications, an offline channel
 directory, category or search pagination, and any player change.
+
+## Observed but not yet scheduled
+
+Defects and debts found during cycle work or review, recorded here instead of being folded into
+an unrelated change. Each is a candidate for a future cycle.
+
+| Observation | Where | How it was found |
+| --- | --- | --- |
+| A channel with no archives renders an empty Past broadcasts screen: heading and Back only, no empty-state message | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3 |
+| The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL, so preload would throw | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; synthetic, not a captured live failure |
+| Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
+| Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
+| Search and past-broadcast handlers guard obsolete successes but not obsolete failures, unlike the category handlers | `src/renderer/src/useAppController.ts` | Gate review |
+| `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
