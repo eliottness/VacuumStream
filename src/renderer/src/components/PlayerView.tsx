@@ -35,6 +35,23 @@ type PlayerViewProps = {
   readonly source: PlayerSource
 }
 
+const SEEK_ACTIONS = [
+  { id: "player-seek-back-5m", label: "Back 5 minutes", seconds: -300 },
+  { id: "player-seek-back-30s", label: "Back 30 seconds", seconds: -30 },
+  { id: "player-seek-forward-30s", label: "Forward 30 seconds", seconds: 30 },
+  { id: "player-seek-forward-5m", label: "Forward 5 minutes", seconds: 300 },
+] as const
+
+const formatTime = (seconds: number | undefined, showHours: boolean): string => {
+  if (seconds === undefined) return "--:--"
+  const wholeSeconds = Math.floor(Math.max(0, seconds))
+  const minutes = Math.floor(wholeSeconds / 60)
+  const remainder = String(wholeSeconds % 60).padStart(2, "0")
+  return showHours
+    ? `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}:${remainder}`
+    : `${minutes}:${remainder}`
+}
+
 export const PlayerView = ({
   onBack,
   onPastBroadcasts,
@@ -44,6 +61,8 @@ export const PlayerView = ({
   const [frameState, setFrameState] = useState<"error" | "loading" | "ready">("loading")
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(true)
+  const [position, setPosition] = useState<number | undefined>(undefined)
+  const [duration, setDuration] = useState<number | undefined>(undefined)
   const autoStartGenerationRef = useRef(0)
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
@@ -60,11 +79,24 @@ export const PlayerView = ({
   useEffect(() => backButtonRef.current?.focus(), [])
   useEffect(() => {
     let active = true
+    let ready = false
+    let timelineTimer: ReturnType<typeof setInterval> | undefined
+    setFrameState("loading")
+    setPosition(undefined)
+    setDuration(undefined)
     const autoStartGeneration = autoStartGenerationRef.current + 1
     autoStartGenerationRef.current = autoStartGeneration
     let autoStartDeadline = 0
     let autoStartStarted = false
     let player: TwitchPlayerInstance | undefined
+    const refreshTimeline = (): void => {
+      // User intent cancels autoplay, not sampling; the mounted player owns this lifecycle.
+      if (!active || !ready || source.kind !== "video" || player === undefined) return
+      const currentTime = player.getCurrentTime()
+      const totalTime = player.getDuration()
+      setPosition(Number.isFinite(currentTime) ? currentTime : undefined)
+      setDuration(Number.isFinite(totalTime) && totalTime > 0 ? totalTime : undefined)
+    }
     const attemptAutoStart = (): void => {
       void window.vacuumStream.system.activateEmbeddedPlayer(true).then((playbackStarted) => {
         if (
@@ -94,7 +126,14 @@ export const PlayerView = ({
         playerRef.current = player
         player.addEventListener(api.Player.READY, () => {
           if (!active || player === undefined) return
+          ready = true
           setFrameState("ready")
+          if (source.kind === "video") {
+            refreshTimeline()
+            if (timelineTimer === undefined) {
+              timelineTimer = setInterval(refreshTimeline, 1000)
+            }
+          }
           setMuted(player.getMuted())
           setPaused(player.isPaused())
           if (!autoStartStarted) {
@@ -103,6 +142,10 @@ export const PlayerView = ({
             attemptAutoStart()
           }
         })
+        if (source.kind === "video") {
+          player.addEventListener(api.Player.PLAYING, refreshTimeline)
+          player.addEventListener(api.Player.SEEK, refreshTimeline)
+        }
         player.addEventListener(api.Player.PLAY, () => {
           if (active) setPaused(false)
         })
@@ -113,7 +156,11 @@ export const PlayerView = ({
           if (active) setPaused(true)
         })
         player.addEventListener(api.Player.OFFLINE, () => {
-          if (active) setFrameState("error")
+          if (!active) return
+          ready = false
+          clearInterval(timelineTimer)
+          timelineTimer = undefined
+          setFrameState("error")
         })
       })
       .catch(() => {
@@ -121,6 +168,7 @@ export const PlayerView = ({
       })
     return () => {
       active = false
+      clearInterval(timelineTimer)
       cancelAutoStart()
       player?.pause()
       playerRef.current = undefined
@@ -154,10 +202,23 @@ export const PlayerView = ({
     setMuted(nextMuted)
   }
 
+  const seekRelative = (seconds: number): void => {
+    cancelAutoStart()
+    const player = playerRef.current
+    if (source.kind !== "video" || frameState !== "ready" || player === undefined) return
+    const currentTime = player.getCurrentTime()
+    const totalTime = player.getDuration()
+    if (!Number.isFinite(currentTime) || !Number.isFinite(totalTime) || totalTime <= 0) return
+    player.seek(Math.min(totalTime, Math.max(0, currentTime + seconds)))
+  }
+
+  const showHours = duration !== undefined && duration >= 3600
+
   return (
-    <main className="player-view">
+    <main className={source.kind === "video" ? "player-view player-view--video" : "player-view"}>
       <header className="player-toolbar">
         <button
+          data-focus-down={source.kind === "video" ? "player-seek-back-5m" : undefined}
           data-focus-id="player-back"
           data-focus-right="player-playback"
           data-focusable="true"
@@ -222,6 +283,28 @@ export const PlayerView = ({
           <CornersOutIcon aria-hidden="true" />
         </button>
       </header>
+      {source.kind === "video" ? (
+        <section aria-label="Past broadcast seeking" className="player-transport">
+          {SEEK_ACTIONS.map((action, index) => (
+            <button
+              data-focus-id={action.id}
+              data-focus-left={SEEK_ACTIONS[index - 1]?.id ?? action.id}
+              data-focus-right={SEEK_ACTIONS[index + 1]?.id ?? action.id}
+              data-focus-up="player-back"
+              data-focusable="true"
+              disabled={frameState !== "ready" || duration === undefined}
+              key={action.id}
+              onClick={() => seekRelative(action.seconds)}
+              type="button"
+            >
+              {action.label}
+            </button>
+          ))}
+          <output aria-label="Playback position" aria-live="off" className="player-transport__time">
+            {formatTime(position, showHours)} / {formatTime(duration, showHours)}
+          </output>
+        </section>
+      ) : null}
       <div aria-busy={frameState === "loading"} className="player-frame">
         {frameState === "error" ? (
           <div className="player-status" role="alert">

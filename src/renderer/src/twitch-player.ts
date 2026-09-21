@@ -12,10 +12,13 @@ export type TwitchPlayerOptions = {
 
 export interface TwitchPlayerInstance {
   readonly addEventListener: (event: string, listener: () => void) => void
+  readonly getCurrentTime: () => number
+  readonly getDuration: () => number
   readonly getMuted: () => boolean
   readonly isPaused: () => boolean
   readonly pause: () => void
   readonly play: () => void
+  readonly seek: (seconds: number) => void
   readonly setMuted: (muted: boolean) => void
 }
 
@@ -25,7 +28,9 @@ type TwitchPlayerConstructor = {
   readonly PAUSE: string
   readonly PLAY: string
   readonly PLAYBACK_BLOCKED: string
+  readonly PLAYING: string
   readonly READY: string
+  readonly SEEK: string
 }
 
 type TwitchPlayerApi = {

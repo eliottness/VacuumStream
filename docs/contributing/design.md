@@ -121,10 +121,11 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 ### PlayerStage
 
-- **Structure**: official interactive Twitch player, local Back, play/pause, mute, VOD, and fullscreen controls, loading/error surface.
-- **States**: local loading, ready, paused, muted, offline, and script/player load error.
-- **Accessibility**: all playback actions use Arrow keys and Enter; local controls remain separate from Twitch's unobscured player.
-- **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport.
+- **Structure**: official interactive Twitch player, local Back, play/pause, mute, VOD, and fullscreen controls, loading/error surface; VOD-only transport row with elapsed/total time and ±30-second/±5-minute jumps.
+- **States**: local loading, ready, paused, muted, offline, and script/player load error; jumps disabled until ready with a finite positive duration.
+- **Accessibility**: all playback actions use Arrow keys and Enter; Down from Back enters the jumps, Left/Right chooses, and Up returns to Back. Seeking retains focus and cancels autoplay retries without changing play/pause or mute.
+- **Playback**: VOD jumps use the official Player API and clamp to recording bounds; live controls remain unchanged. Time refreshes on READY, PLAYING, SEEK, and once per second while a ready VOD is mounted.
+- **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport; local toolbar and transport remain outside Twitch's unobscured player.
 
 ### Primitive Showcase
 

@@ -88,6 +88,11 @@ Left/Right edit text while a field is focused. Search text uses normal keyboard 
 On the player screen, focus the separate play/pause or mute button and press Enter.
 Optional shortcuts: `/` opens Search, `F10` opens Settings.
 
+Past broadcasts show elapsed/total time and jumps back or forward by 30 seconds or 5 minutes.
+Press Down from Back to reach the jumps, Left/Right to choose, and Enter to seek; Up returns
+to Back. Seeking keeps focus on the jump without changing play/pause or mute. Jumps become
+available when Twitch reports a ready recording and its duration. Live streams have no jumps.
+
 Native gamepads map D-pad/left stick to arrows, A to Enter, and B to Escape. If the controller
 is not detected, use the same mapping in Steam Input.
 
