@@ -6,6 +6,7 @@ coverage/
 .flatpak-repository/
 .flatpak-builder/
 .playwright-mcp/
+.omo/
 *.log
 .env
 .env.*

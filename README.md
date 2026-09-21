@@ -35,6 +35,7 @@ If there is no published release yet, use the [source setup](docs/contributing/d
 | Report a bug or contribute | [Contributing](CONTRIBUTING.md) |
 | Run or change the source | [Development](docs/contributing/development.md) |
 | Understand the security boundaries | [Architecture](docs/contributing/architecture.md) |
+| See what is being worked on and why | [Improvement ledger](docs/contributing/improvement-ledger.md) |
 | Change the interface | [Design contract](docs/contributing/design.md) |
 | Publish a version | [Maintainer release guide](docs/maintainers/releases.md) |
 | Report a vulnerability | [Security policy](SECURITY.md) |
