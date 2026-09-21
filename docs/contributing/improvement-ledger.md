@@ -46,7 +46,8 @@ are out of scope and are rejected without review.
 | Cycle | Item | Type | Status |
 | --- | --- | --- | --- |
 | 1 | [Add controller-native VOD seeking](#cycle-1--add-controller-native-vod-seeking) | feature | Landed |
-| 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | In progress |
+| 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | Landed |
+| 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -123,3 +124,37 @@ general discovery refresh, and any player change.
 Also observed during cycle 1 hardware testing and kept for a later cycle: the first past-broadcast
 card rendered with a blank thumbnail, consistent with `src/main/twitch-schemas.ts` substituting
 640x360 where Helix documents 320x180 for video thumbnails.
+
+Landed in `ac3c6e6`. Hardware testing then exposed a latent parser defect that only pagination
+could reach: Twitch reports `tags: null` for some channels, and `z.array(z.string()).default([])`
+covers a missing field but not a null one, so the second page of a category failed validation with
+`expected array, received null`. Every fixture in the suite supplied tags, so nothing caught it.
+Fixed separately in `b4c75c6` with a shared nullish-tolerant tag schema for both the stream and
+channel parsers. The failure did confirm the error path: rendered cards stayed on screen, the
+message was readable, and Retry remained reachable.
+
+### Cycle 3 \u2014 Correct VOD thumbnail dimensions
+
+Twitch's Get Videos endpoint returns `thumbnail_url` containing `%{width}` and `%{height}` and
+documents 320x180 as the substitution; the videos parser substituted 640x360. The live-stream
+(640x360) and category box-art (384x512) mappings are separate and correct.
+
+This was motivated by the blank past-broadcast card seen in cycle 1, but that link is unproven:
+Twitch's own documentation-example image answers at both sizes, so a wrong size does not by itself
+explain a missing preview. The change is justified as documented-contract compliance, and the
+hardware check records what previews actually do rather than assuming a fix.
+
+Acceptance criteria:
+
+1. A `%{width}x%{height}` template resolves to exactly `320x180` with no leftover placeholder and
+   unchanged metadata and cursor; the assertion fails against the previous implementation.
+2. An already-resolved thumbnail URL passes through untouched and an empty videos page parses,
+   both validated through the real `PageSchema(VideoCardSchema)` that preload uses.
+3. Live thumbnails still resolve to 640x360 and category box art to 384x512.
+4. On the target hardware, past broadcasts render visible previews, and a card still opens in the
+   official player with the cycle-1 seek controls.
+5. `bun run verify` passes in one run.
+
+Not in scope: fallback artwork, retries, cache-busting, tolerating empty thumbnail fields, and the
+presentation `width`/`height` attributes on the recording cards, which are deliberately unrelated
+to the requested image size.
