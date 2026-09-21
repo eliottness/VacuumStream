@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { mergeStreamProfiles, parseStreamsResponse, parseUsersResponse } from "./twitch-schemas"
+import { CategoryCardSchema, PageSchema, VideoCardSchema } from "../shared/contracts"
+import {
+  mergeStreamProfiles,
+  parseCategoriesResponse,
+  parseStreamsResponse,
+  parseUsersResponse,
+  parseVideosResponse,
+} from "./twitch-schemas"
 
 describe("Twitch response parsing", () => {
   it("maps a Helix stream response into renderer-safe cards", () => {
@@ -74,6 +81,128 @@ describe("Twitch response parsing", () => {
     // Then the page parses and the renderer receives an empty tag list either way
     expect(nullTags.items[0]?.tags).toEqual([])
     expect(missingTags.items[0]?.tags).toEqual([])
+  })
+
+  it("maps a Helix videos response into renderer-safe cards with 320x180 thumbnails", () => {
+    // Given a valid Helix videos response with a replaceable thumbnail template
+    const response = {
+      data: [
+        {
+          created_at: "2026-09-05T12:00:00Z",
+          duration: "1h2m3s",
+          id: "789",
+          published_at: "2026-09-05T12:05:00Z",
+          thumbnail_url:
+            "https://static-cdn.jtvnw.net/cf_vods/d2c5f3e6/video-789-%{width}x%{height}.jpg",
+          title: "A past broadcast",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 9876,
+        },
+      ],
+      pagination: { cursor: "next-videos" },
+    }
+
+    // When the untrusted payload crosses the parser boundary
+    const page = PageSchema(VideoCardSchema).parse(parseVideosResponse(response))
+
+    // Then renderer data is camel-cased and receives Twitch's documented VOD image size
+    expect(page).toEqual({
+      cursor: "next-videos",
+      items: [
+        {
+          createdAt: "2026-09-05T12:00:00Z",
+          duration: "1h2m3s",
+          id: "789",
+          publishedAt: "2026-09-05T12:05:00Z",
+          thumbnailUrl: "https://static-cdn.jtvnw.net/cf_vods/d2c5f3e6/video-789-320x180.jpg",
+          title: "A past broadcast",
+          userId: "456",
+          userLogin: "streamer",
+          userName: "Streamer",
+          viewCount: 9876,
+        },
+      ],
+    })
+    expect(page.items[0]?.thumbnailUrl).toContain("320x180")
+    expect(page.items[0]?.thumbnailUrl).not.toContain("%{")
+  })
+
+  it("preserves an already-resolved video thumbnail URL", () => {
+    // Given a valid Helix videos response with a concrete thumbnail URL
+    const response = {
+      data: [
+        {
+          created_at: "2026-09-05T12:00:00Z",
+          duration: "30m",
+          id: "790",
+          published_at: "2026-09-05T12:05:00Z",
+          thumbnail_url: "https://static-cdn.jtvnw.net/cf_vods/video-790-320x180.jpg",
+          title: "An already resolved broadcast",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 12,
+        },
+      ],
+      pagination: { cursor: "next-resolved" },
+    }
+
+    // When the untrusted payload crosses the parser boundary
+    const page = PageSchema(VideoCardSchema).parse(parseVideosResponse(response))
+
+    // Then the concrete URL passes through unchanged
+    expect(page).toEqual({
+      cursor: "next-resolved",
+      items: [
+        {
+          createdAt: "2026-09-05T12:00:00Z",
+          duration: "30m",
+          id: "790",
+          publishedAt: "2026-09-05T12:05:00Z",
+          thumbnailUrl: "https://static-cdn.jtvnw.net/cf_vods/video-790-320x180.jpg",
+          title: "An already resolved broadcast",
+          userId: "456",
+          userLogin: "streamer",
+          userName: "Streamer",
+          viewCount: 12,
+        },
+      ],
+    })
+  })
+
+  it("parses an empty Helix videos page", () => {
+    // Given an empty videos page from Helix
+    const response = { data: [], pagination: {} }
+
+    // When the untrusted payload crosses the parser boundary
+    const page = PageSchema(VideoCardSchema).parse(parseVideosResponse(response))
+
+    // Then the renderer receives an empty page
+    expect(page).toEqual({ cursor: undefined, items: [] })
+  })
+
+  it("keeps category box-art thumbnails at 384x512", () => {
+    // Given a valid Helix category response with a replaceable box-art template
+    const response = {
+      data: [
+        {
+          box_art_url: "https://static-cdn.jtvnw.net/ttv-boxart/509658-{width}x{height}.jpg",
+          id: "509658",
+          name: "Just Chatting",
+        },
+      ],
+      pagination: { cursor: "next-categories" },
+    }
+
+    // When the untrusted payload crosses the parser boundary
+    const page = PageSchema(CategoryCardSchema).parse(parseCategoriesResponse(response))
+
+    // Then category cards retain their documented box-art dimensions
+    expect(page.items[0]?.boxArtUrl).toBe(
+      "https://static-cdn.jtvnw.net/ttv-boxart/509658-384x512.jpg",
+    )
   })
 
   it("rejects malformed Helix response data", () => {
