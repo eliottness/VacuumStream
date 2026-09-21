@@ -120,6 +120,56 @@ describe("Twitch category streams", () => {
   })
 })
 
+describe.each(["live", "followed"] as const)("Twitch %s shelf pages", (endpoint) => {
+  it("keeps first-page wire parameters, forwards the opaque cursor and batches broadcaster profiles", async () => {
+    requests
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            wireStream,
+            { ...wireStream, id: "stream-2", user_id: "user-2" },
+            { ...wireStream, id: "stream-3" },
+          ],
+          pagination: { cursor: "opaque+/=cursor" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            { id: "user-1", profile_image_url: "https://example.com/one.png" },
+            { id: "user-2", profile_image_url: "https://example.com/two.png" },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: [], pagination: {} }))
+    const service = makeService()
+    const first = await service[endpoint]({ first: 20 })
+    const second = await service[endpoint]({ after: first.cursor, first: 20 })
+    const path = endpoint === "live" ? "streams" : "streams/followed"
+    const identity = endpoint === "live" ? "" : "&user_id=viewer-id"
+    expect(sentRequests().map((request) => [request.method, request.url])).toEqual([
+      ["GET", `https://api.twitch.tv/helix/${path}?first=20${identity}`],
+      ["GET", "https://api.twitch.tv/helix/users?id=user-1&id=user-2"],
+      [
+        "GET",
+        `https://api.twitch.tv/helix/${path}?after=opaque%2B%2F%3Dcursor&first=20${identity}`,
+      ],
+    ])
+    expect(first.cursor).toBe("opaque+/=cursor")
+    expect(first.items.map((stream) => stream.profileImageUrl)).toEqual([
+      "https://example.com/one.png",
+      "https://example.com/two.png",
+      "https://example.com/one.png",
+    ])
+    expect(second).toEqual({ cursor: undefined, items: [] })
+    expect(
+      sentRequests().every(
+        (request) => request.headers.get("Authorization") === "Bearer existing-user-token",
+      ),
+    ).toBe(true)
+  })
+})
+
 describe("Twitch stream enrichment", () => {
   it("preserves streams when optional profile enrichment fails", async () => {
     // Given a valid stream page and an unavailable secondary profile request

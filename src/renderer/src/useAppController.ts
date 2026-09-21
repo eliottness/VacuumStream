@@ -3,30 +3,87 @@ import type {
   AuthSnapshot,
   CategoryCard,
   ChannelCard,
+  LiveInput,
   SettingsSnapshot,
   StreamCard,
   VideoCard,
 } from "../../shared/contracts"
 import type { RouteName } from "./components/Navigation"
-import { PREVIEW_CATEGORIES, PREVIEW_STREAMS } from "./demo-data"
+import { PREVIEW_CATEGORIES } from "./demo-data"
 import { type Screen, shouldNavigateHomeOnBack } from "./screen"
 
-type CategoryCatalog = {
+type ShelfRoute = "following" | "home"
+type CatalogOperation = "more" | "refresh"
+
+type StreamCatalog = {
   readonly cursor: string | undefined
   readonly error: string
   readonly items: readonly StreamCard[]
+  // Retained on failure so Retry repeats the failed operation, not the stored cursor.
+  readonly operation: CatalogOperation
   readonly status: "error" | "loading" | "ready"
 }
 
-const EMPTY_CATEGORY: CategoryCatalog = {
+const EMPTY_CATALOG: StreamCatalog = {
   cursor: undefined,
   error: "",
   items: [],
+  operation: "refresh",
   status: "ready",
 }
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred"
+
+const useStreamCatalog = (endpoint: "followed" | "live") => {
+  const [catalog, setCatalog] = useState(EMPTY_CATALOG)
+  const generation = useRef(0)
+  const pending = useRef<CatalogOperation | undefined>(undefined)
+  const invalidate = useCallback((): void => {
+    generation.current += 1
+    pending.current = undefined
+  }, [])
+  const reset = useCallback((): void => {
+    invalidate()
+    setCatalog(EMPTY_CATALOG)
+  }, [invalidate])
+  useEffect(() => invalidate, [invalidate])
+
+  const load = useCallback(
+    async (input: LiveInput): Promise<void> => {
+      const operation = input.after === undefined ? "refresh" : "more"
+      if (pending.current === "refresh" || pending.current === operation) return
+      const requestId = ++generation.current
+      pending.current = operation
+      setCatalog((current) => ({ ...current, error: "", operation, status: "loading" }))
+      try {
+        const page = await window.vacuumStream.catalog[endpoint](input)
+        if (requestId !== generation.current) return
+        setCatalog((current) => ({
+          cursor: page.cursor,
+          error: "",
+          items: [
+            ...new Map(
+              [...(operation === "refresh" ? [] : current.items), ...page.items].map((stream) => [
+                stream.id,
+                stream,
+              ]),
+            ).values(),
+          ],
+          operation,
+          status: "ready",
+        }))
+      } catch (error) {
+        if (requestId !== generation.current) return
+        setCatalog((current) => ({ ...current, error: errorMessage(error), status: "error" }))
+      } finally {
+        if (requestId === generation.current) pending.current = undefined
+      }
+    },
+    [endpoint],
+  )
+  return { catalog, invalidate, load, reset }
+}
 
 const directChannel = (query: string): ChannelCard => ({
   category: "Twitch channel",
@@ -42,38 +99,84 @@ export const useAppController = () => {
   const [auth, setAuth] = useState<AuthSnapshot>({ kind: "guest" })
   const [settings, setSettings] = useState<SettingsSnapshot>({ clientId: "", secureStorage: false })
   const [screen, setScreen] = useState<Screen>({ kind: "browse", route: "home" })
-  const [live, setLive] = useState<readonly StreamCard[]>(PREVIEW_STREAMS)
-  const [followed, setFollowed] = useState<readonly StreamCard[]>([])
+  const {
+    catalog: live,
+    invalidate: invalidateLive,
+    load: loadLive,
+    reset: resetLive,
+  } = useStreamCatalog("live")
+  const {
+    catalog: followed,
+    invalidate: invalidateFollowed,
+    load: loadFollowed,
+    reset: resetFollowed,
+  } = useStreamCatalog("followed")
+  const {
+    catalog: categoryCatalog,
+    invalidate: invalidateCategory,
+    load: loadCategory,
+    reset: resetCategory,
+  } = useStreamCatalog("live")
   const [categories, setCategories] = useState<readonly CategoryCard[]>(PREVIEW_CATEGORIES)
-  const [categoryCatalog, setCategoryCatalog] = useState<CategoryCatalog>(EMPTY_CATEGORY)
   const [searchResults, setSearchResults] = useState<readonly ChannelCard[]>([])
   const [videos, setVideos] = useState<readonly VideoCard[]>([])
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState("")
   const authEpoch = useRef(0)
   const catalogRequestEpoch = useRef(0)
-  const navigate = useCallback((route: RouteName): void => {
-    catalogRequestEpoch.current += 1
-    setScreen({ kind: "browse", route })
-  }, [])
+  const currentScreen = useRef(screen)
+  const currentIdentity = useRef<string | undefined>(undefined)
+  const identity = auth.kind === "authenticated" ? auth.login : undefined
+  const activeShelf =
+    screen.kind === "browse" && (screen.route === "home" || screen.route === "following")
+      ? screen.route
+      : undefined
+  const changeScreen = useCallback(
+    (next: Screen): void => {
+      const current = currentScreen.current
+      if (next.kind === "browse" && current.kind === "browse" && next.route === current.route)
+        return
+      catalogRequestEpoch.current += 1
+      invalidateLive()
+      invalidateFollowed()
+      invalidateCategory()
+      setBusy(false)
+      currentScreen.current = next
+      setScreen(next)
+    },
+    [invalidateCategory, invalidateFollowed, invalidateLive],
+  )
+  const navigate = useCallback(
+    (route: RouteName): void => {
+      changeScreen({ kind: "browse", route })
+    },
+    [changeScreen],
+  )
   const navigateHome = useCallback((): void => {
     void window.vacuumStream.system.restoreShellFullscreen()
     navigate("home")
   }, [navigate])
-  const updateAuth = useCallback((nextAuth: AuthSnapshot): void => {
-    authEpoch.current += 1
-    catalogRequestEpoch.current += 1
-    if (nextAuth.kind !== "authenticated") {
-      setFollowed([])
-      setSearchResults([])
-      setVideos([])
-      setCategoryCatalog(EMPTY_CATEGORY)
-      setScreen((current) =>
-        current.kind === "category" ? { kind: "browse", route: "settings" } : current,
-      )
-    }
-    setAuth(nextAuth)
-  }, [])
+  const updateAuth = useCallback(
+    (nextAuth: AuthSnapshot): void => {
+      const nextIdentity = nextAuth.kind === "authenticated" ? nextAuth.login : undefined
+      if (nextIdentity !== currentIdentity.current) {
+        currentIdentity.current = nextIdentity
+        authEpoch.current += 1
+        catalogRequestEpoch.current += 1
+        resetLive()
+        resetFollowed()
+        resetCategory()
+        setCategories(PREVIEW_CATEGORIES)
+        setSearchResults([])
+        setVideos([])
+        setBusy(false)
+        setNotice("")
+        if (currentScreen.current.kind === "category") navigate("settings")
+      }
+      setAuth(nextAuth)
+    },
+    [navigate, resetCategory, resetFollowed, resetLive],
+  )
 
   useEffect(() => {
     let active = true
@@ -113,31 +216,27 @@ export const useAppController = () => {
   }, [auth, updateAuth])
 
   useEffect(() => {
-    if (auth.kind !== "authenticated") return
+    if (identity === undefined || activeShelf === undefined) return
+    void (activeShelf === "home" ? loadLive : loadFollowed)({ first: 20 })
+    return activeShelf === "home" ? invalidateLive : invalidateFollowed
+  }, [activeShelf, identity, invalidateFollowed, invalidateLive, loadFollowed, loadLive])
+
+  useEffect(() => {
+    if (identity === undefined) return
+    const requestEpoch = authEpoch.current
     let active = true
-    setBusy(true)
-    void Promise.all([
-      window.vacuumStream.catalog.live({ first: 20 }),
-      window.vacuumStream.catalog.followed({ first: 20 }),
-      window.vacuumStream.catalog.topCategories({ first: 20 }),
-    ])
-      .then(([livePage, followedPage, categoryPage]) => {
-        if (active) {
-          setLive(livePage.items)
-          setFollowed(followedPage.items)
-          setCategories(categoryPage.items)
-        }
+    void window.vacuumStream.catalog
+      .topCategories({ first: 20 })
+      .then((page) => {
+        if (active && requestEpoch === authEpoch.current) setCategories(page.items)
       })
       .catch((error: unknown) => {
-        if (active) setNotice(errorMessage(error))
-      })
-      .finally(() => {
-        if (active) setBusy(false)
+        if (active && requestEpoch === authEpoch.current) setNotice(errorMessage(error))
       })
     return () => {
       active = false
     }
-  }, [auth.kind])
+  }, [identity])
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent): void => {
@@ -159,41 +258,15 @@ export const useAppController = () => {
     return () => document.removeEventListener("keydown", onShortcut)
   }, [navigate, navigateHome, screen])
 
-  const loadCategoryPage = async (gameId: string, after?: string): Promise<void> => {
-    const requestEpoch = authEpoch.current
-    const requestId = catalogRequestEpoch.current + 1
-    catalogRequestEpoch.current = requestId
-    const isCurrent = (): boolean =>
-      requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current
-    setCategoryCatalog((current) => ({ ...current, error: "", status: "loading" }))
-    try {
-      const page = await window.vacuumStream.catalog.live({
-        ...(after === undefined ? {} : { after }),
-        first: 20,
-        gameId,
-      })
-      if (!isCurrent()) return
-      setCategoryCatalog((current) => ({
-        cursor: page.cursor,
-        error: "",
-        items: [
-          ...new Map(
-            [...(after === undefined ? [] : current.items), ...page.items].map((stream) => [
-              stream.id,
-              stream,
-            ]),
-          ).values(),
-        ],
-        status: "ready",
-      }))
-    } catch (error) {
-      if (!isCurrent()) return
-      setCategoryCatalog((current) => ({
-        ...current,
-        error: errorMessage(error),
-        status: "error",
-      }))
-    }
+  const loadShelf = (route: ShelfRoute, operation: CatalogOperation | "retry"): Promise<void> => {
+    if (identity === undefined || activeShelf !== route) return Promise.resolve()
+    const catalog = route === "home" ? live : followed
+    const requested = operation === "retry" ? catalog.operation : operation
+    if (requested === "more" && catalog.cursor === undefined) return Promise.resolve()
+    return (route === "home" ? loadLive : loadFollowed)({
+      ...(requested === "more" ? { after: catalog.cursor } : {}),
+      first: 20,
+    })
   }
 
   const showCategory = async (category: CategoryCard): Promise<void> => {
@@ -203,9 +276,9 @@ export const useAppController = () => {
       return
     }
     setNotice("")
-    setCategoryCatalog(EMPTY_CATEGORY)
-    setScreen({ id: category.id, kind: "category", name: category.name })
-    await loadCategoryPage(category.id)
+    changeScreen({ id: category.id, kind: "category", name: category.name })
+    resetCategory()
+    await loadCategory({ first: 20, gameId: category.id })
   }
 
   const loadMoreCategory = async (): Promise<void> => {
@@ -216,12 +289,15 @@ export const useAppController = () => {
     ) {
       return
     }
-    await loadCategoryPage(screen.id, categoryCatalog.cursor)
+    await loadCategory({
+      ...(categoryCatalog.cursor === undefined ? {} : { after: categoryCatalog.cursor }),
+      first: 20,
+      gameId: screen.id,
+    })
   }
 
   const openStream = (stream: StreamCard): void => {
-    catalogRequestEpoch.current += 1
-    setScreen({
+    changeScreen({
       kind: "player",
       source: {
         channel: stream.userLogin,
@@ -233,7 +309,7 @@ export const useAppController = () => {
   }
 
   const openChannel = (channel: ChannelCard): void => {
-    setScreen({
+    changeScreen({
       kind: "player",
       source: {
         channel: channel.login,
@@ -263,16 +339,20 @@ export const useAppController = () => {
         setNotice("Signed-out search needs an exact Twitch channel name")
       }
     } catch (error) {
-      setNotice(errorMessage(error))
+      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
+        setNotice(errorMessage(error))
+      }
     } finally {
-      setBusy(false)
+      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
+        setBusy(false)
+      }
     }
   }
 
   const showPastBroadcasts = async (userId: string): Promise<void> => {
     if (auth.kind !== "authenticated" || userId === "0") {
       setNotice("Sign in to load past broadcasts for this channel")
-      setScreen({ kind: "browse", route: "settings" })
+      navigate("settings")
       return
     }
     setBusy(true)
@@ -283,12 +363,16 @@ export const useAppController = () => {
       const items = (await window.vacuumStream.catalog.videos({ first: 30, userId })).items
       if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
         setVideos(items)
-        setScreen({ kind: "videos" })
+        changeScreen({ kind: "videos" })
       }
     } catch (error) {
-      setNotice(errorMessage(error))
+      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
+        setNotice(errorMessage(error))
+      }
     } finally {
-      setBusy(false)
+      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
+        setBusy(false)
+      }
     }
   }
 
@@ -300,11 +384,14 @@ export const useAppController = () => {
     followed,
     live,
     loadMoreCategory,
+    loadMoreShelf: (route: ShelfRoute) => loadShelf(route, "more"),
     navigate,
     navigateHome,
     notice,
     openChannel,
     openStream,
+    refreshShelf: (route: ShelfRoute) => loadShelf(route, "refresh"),
+    retryShelf: (route: ShelfRoute) => loadShelf(route, "retry"),
     screen,
     search,
     searchResults,
@@ -318,7 +405,7 @@ export const useAppController = () => {
     },
     videos,
     viewVideo: (video: VideoCard) =>
-      setScreen({
+      changeScreen({
         kind: "player",
         source: {
           kind: "video",

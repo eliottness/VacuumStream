@@ -10,6 +10,7 @@ export type RouteName = "following" | "home" | "search" | "settings"
 
 type NavigationProps = {
   readonly active: RouteName
+  readonly entryFocusId?: string | undefined
   readonly onNavigate: (route: RouteName) => void
 }
 
@@ -26,7 +27,7 @@ const routeEntryTarget: Readonly<Record<RouteName, string>> = {
   settings: "settings-client-id",
 }
 
-export const Navigation = ({ active, onNavigate }: NavigationProps) => (
+export const Navigation = ({ active, entryFocusId, onNavigate }: NavigationProps) => (
   <nav className="navigation" aria-label="Primary">
     <div className="navigation__brand" title="VacuumStream">
       <TwitchLogoIcon aria-hidden="true" weight="fill" />
@@ -37,9 +38,11 @@ export const Navigation = ({ active, onNavigate }: NavigationProps) => (
         <button
           aria-current={active === route ? "page" : undefined}
           className="navigation__item"
-          data-focus-down={active === route ? routeEntryTarget[route] : undefined}
+          data-focus-down={active === route ? (entryFocusId ?? routeEntryTarget[route]) : undefined}
           data-focus-id={`nav-${route}`}
-          data-focus-right={active === route ? routeEntryTarget[route] : undefined}
+          data-focus-right={
+            active === route ? (entryFocusId ?? routeEntryTarget[route]) : undefined
+          }
           data-focusable="true"
           key={route}
           onClick={() => onNavigate(route)}

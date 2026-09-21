@@ -70,6 +70,16 @@ For personalized discovery:
 Following shows followed channels that are live. If none are live, an empty list is normal.
 Sign-in also enables live catalog, category, channel, and VOD discovery.
 
+While signed in, Home and Following load a fresh first page when you enter them, including
+Home when you return from playback. Choose **Refresh** to update the shelf without leaving it,
+or **Load more** for the next page. There is no automatic background refresh. Existing cards
+stay available while loading or after an error; **Retry** repeats the request that failed.
+When there are no more pages, Load more disappears and focus returns to Refresh.
+
+Use the arrows to move from navigation to Refresh, then Down to the cards and Load more or
+Retry. Press Enter to activate an action. Refresh starts over with the current live channels;
+it does not ask you to sign in again.
+
 On Home, choose a card under **Top categories** to browse that game's live streams.
 Use the arrows and Enter to choose a stream, or **Load more** to see the next page.
 If loading fails, **Retry** keeps any streams already shown. An empty category means no

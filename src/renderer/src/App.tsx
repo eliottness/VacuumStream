@@ -8,6 +8,7 @@ import { SearchView } from "./components/SearchView"
 import { SettingsPanel } from "./components/SettingsPanel"
 import { StreamShelf } from "./components/StreamShelf"
 import { VideoShelf } from "./components/VideoShelf"
+import { PREVIEW_STREAMS } from "./demo-data"
 import { useControllerNavigation } from "./focus-navigation"
 import { screenEntryFocusId } from "./screen"
 import { useAppController } from "./useAppController"
@@ -75,7 +76,15 @@ export const App = () => {
       <p aria-live="polite" className="visually-hidden">
         {screenTitle}
       </p>
-      <Navigation active={route ?? "home"} onNavigate={controller.navigate} />
+      <Navigation
+        active={route ?? "home"}
+        entryFocusId={
+          controller.auth.kind === "authenticated" && (route === "home" || route === "following")
+            ? `${route}-refresh`
+            : undefined
+        }
+        onNavigate={controller.navigate}
+      />
       <div className="app-shell__content">
         {controller.notice !== "" ? <div className="notice">{controller.notice}</div> : null}
         {controller.screen.kind === "category" ? (
@@ -100,7 +109,7 @@ export const App = () => {
                     : "Guest viewing"}
                 </span>
                 <h1>Live now</h1>
-                <p>{controller.busy ? "Refreshing Twitch…" : "Pick a signal and settle in."}</p>
+                <p>Pick a signal and settle in.</p>
               </div>
               {controller.auth.kind !== "authenticated" ? (
                 <button
@@ -120,9 +129,25 @@ export const App = () => {
               )}
             </header>
             <StreamShelf
+              {...(controller.auth.kind === "authenticated"
+                ? {
+                    cursor: controller.live.cursor,
+                    error: controller.live.error,
+                    focusPrefix: "home",
+                    onLoadMore: () => void controller.loadMoreShelf("home"),
+                    onRefresh: () => void controller.refreshShelf("home"),
+                    onRetry: () => void controller.retryShelf("home"),
+                    refreshing:
+                      controller.live.status === "loading" &&
+                      controller.live.operation === "refresh",
+                    state: controller.live.status,
+                  }
+                : {})}
               emptyMessage="No live channels are available right now."
               onSelect={controller.openStream}
-              streams={controller.live}
+              streams={
+                controller.auth.kind === "authenticated" ? controller.live.items : PREVIEW_STREAMS
+              }
               title={controller.auth.kind === "authenticated" ? "Recommended live" : "Quick watch"}
             />
             <CategoryShelf
@@ -140,7 +165,18 @@ export const App = () => {
             </header>
             <StreamShelf
               {...(controller.auth.kind === "authenticated"
-                ? {}
+                ? {
+                    cursor: controller.followed.cursor,
+                    error: controller.followed.error,
+                    focusPrefix: "following",
+                    onLoadMore: () => void controller.loadMoreShelf("following"),
+                    onRefresh: () => void controller.refreshShelf("following"),
+                    onRetry: () => void controller.retryShelf("following"),
+                    refreshing:
+                      controller.followed.status === "loading" &&
+                      controller.followed.operation === "refresh",
+                    state: controller.followed.status,
+                  }
                 : {
                     emptyActionFocusId: "following-connect",
                     emptyActionLabel: "Connect Twitch",
@@ -152,7 +188,7 @@ export const App = () => {
                   : "Connect Twitch to see live channels you follow."
               }
               onSelect={controller.openStream}
-              streams={controller.followed}
+              streams={controller.followed.items}
               title="Live from your follows"
             />
           </main>

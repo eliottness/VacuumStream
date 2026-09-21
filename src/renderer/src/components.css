@@ -88,6 +88,16 @@
   color: var(--color-text-muted);
 }
 
+.shelf__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.shelf__action {
+  margin-block-start: var(--space-4);
+}
+
 .shelf__reel,
 .category-reel {
   display: grid;
