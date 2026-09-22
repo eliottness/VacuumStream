@@ -51,7 +51,7 @@ are out of scope and are rejected without review.
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
-| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed |
+| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed, one criterion failing |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -339,6 +339,19 @@ Acceptance criteria:
 Not in scope: composing messages, scrolling chat history with the controller, third-party emotes,
 VOD chat replay, and any change to the autoplay mechanism.
 
+**Hardware testing failed this cycle's real-surface criterion, and the gap is recorded rather than
+glossed over.** The pane renders Twitch's cookie and advertising consent dialog instead of chat,
+and it survives a reload. That dialog lives inside the cross-origin iframe, which this feature
+deliberately keeps out of controller navigation, so a gamepad-only viewer on a fresh profile can
+show, reload and hide chat but can never dismiss the gate and never sees a message. Everything
+else held: the video measured 768x640 beside a 512x640 pane at 1280x720, well above Twitch's
+400x300 minimum, and hiding restored the full-width player. The next cycle should decide how a
+controller-only viewer consents — or whether an embed can serve this purpose at all.
+
+A smaller inconsistency also surfaced: with chat open, ArrowRight from Hide chat skips Reload and
+lands on Fullscreen, because the toggle's right link still points past the newly inserted button.
+Reload is still reachable with ArrowDown, so nothing is stranded.
+
 Landed in `970d67c`, with the logic in a `usePlayerChat` hook so the player component barely grew.
 The pane resets during render when the source changes, so a returning channel cannot revive its
 old frame, and Reload simply re-keys the iframe. Readability is a transform on the frame's
@@ -359,4 +372,7 @@ an unrelated change. Each is a candidate for a future cycle.
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
 | ~~A channel with no archives renders an empty Past broadcasts screen~~ — closed in cycle 6 with a status element and reachable Back | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3; fixed cycle 6 |
 | Cursor exhaustion on a live shelf and an induced shelf request failure cannot be staged against real Twitch data, so both remain test-only rather than hardware-verified | `src/renderer/src/components/StreamShelf.tsx` | Cycle 4 hardware QA; recorded as a verification limit, not a defect |
+| Chat's consent gate is unreachable without pointer input, so the pane shows a dialog instead of messages for a controller-only viewer | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; observed, blocks the feature's purpose |
+| With chat open, ArrowRight from Hide chat skips Reload and reaches Fullscreen; Reload is only on the down axis | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA |
+| The HTPC test account is signed out after an in-app Client ID change during QA; Device Code Flow needs the user, so authenticated hardware checks are paused | n/a | Cycle 6 hardware QA |
 | `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
