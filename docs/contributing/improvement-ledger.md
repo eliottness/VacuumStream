@@ -63,6 +63,7 @@ are out of scope and are rejected without review.
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
+| 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -912,6 +913,40 @@ slice becomes official playback and audio commands with narrowed residual gate h
 deletion additionally needs either a documented gate-acknowledgement mechanism or a pointer-free
 route for the viewer to operate the gate on every input path — and replacing automatic dismissal
 with explicit consent is an interaction change to be stated, not shipped silently as "autoplay".
+
+### Cycle 19 — Make account sign-in controller-first
+
+Settings loses controller focus whenever an account transition replaces the focused button. A
+read-only probe of the real components reproduced it: with Sign in focused, resolving the device
+challenge drops `document.activeElement` to `BODY`, after which Down selects `nav-home` rather
+than any account control. A challenge expiring and a sign-out completing do the same. On top of
+that, Settings navigation points into the developer Client ID editor, and the application
+configuration card sits before the account card even though a public Client ID ships built in —
+so the first thing a new TV viewer reaches is the field they are least likely to need.
+
+This is the same defect class cycle 18 fixed in Search: focus lost because an active control is
+replaced during an asynchronous state transition. Three mutually exclusive buttons become one
+persistent account button whose label and handler follow authentication state, so the node
+survives guest -> authorizing -> authenticated -> guest.
+
+Acceptance criteria:
+
+1. One directional move from the selected Settings nav reaches the current account action, and the
+   account card precedes application configuration.
+2. The same button node AND the same focused element survive every authentication transition,
+   including expiry and error, driven by controlled promises.
+3. Repeated activation during one pending request issues exactly one bridge call; rejection leaves
+   an announced error and a reachable retry; and authentication changes never steal focus from
+   someone editing the Client ID or from another screen.
+4. The returned challenge is used unchanged, activation receives its exact flow ID, and ordinary
+   sign-in neither saves the Client ID nor constructs a player.
+5. Signed-out hardware evidence at both sizes with honest 1080p captures, the gamepad override
+   labelled synthetic, and no active code left in the evidence.
+6. `bun run verify` passes in one run.
+
+Not in scope: cancellation policy, token storage, polling policy, scopes, embedded-player
+authentication, and any collapse of the Client ID editor into a new advanced-settings subsystem.
+Device Code Flow endpoints stay exactly as they are.
 
 ## Device QA evidence: a capture error and its corrections
 
