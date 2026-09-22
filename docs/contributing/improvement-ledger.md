@@ -59,7 +59,7 @@ are out of scope and are rejected without review.
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
-| 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | In progress |
+| 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -708,6 +708,17 @@ Acceptance criteria:
 
 Not in scope: polling, forced reloads, guaranteed automatic playback, and any change to the
 activation injection.
+
+Landed in `e063e3a`. The two facts are now separate locals, and the READY handler carries the
+rule in a comment: initialization cannot override an observed live outage; only ONLINE can.
+Recovery reads state rather than commanding it, so a viewer who deliberately paused or muted is
+not overridden by a channel blip.
+
+Verified on the HTPC against a channel that was genuinely offline, so the outage was real and
+only the return was simulated — a QA-only wrapper captured the callbacks the app registers with
+the official SDK (all seven: ready, playing, play, pause, playbackBlocked, online, offline) and
+invoked `online`. The alert cleared and playback re-enabled around the SAME iframe with the count
+still 1. Recorded as an injected transition, not proof of a real broadcaster restart.
 
 ## Autoplay injection: investigated, deferred with conditions
 
