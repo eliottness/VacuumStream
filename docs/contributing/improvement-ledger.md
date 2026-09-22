@@ -60,7 +60,7 @@ are out of scope and are rejected without review.
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
-| 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | In progress |
+| 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -756,6 +756,19 @@ Acceptance criteria:
 
 Not in scope: Twitch follow management, notifications, artwork, sorting controls, import/export,
 cross-device sync, and any player change.
+
+Landed in `0d0c06d` (store, contract, IPC) and `a8ebaae` (Search action and Home shelf). Verified
+on the device across a genuine process restart: saved from guest search, relaunched the app, and
+the shelf still listed the channel under the caption "Local to this installation, shared across
+accounts. Not your Twitch follows." Opening it reached the official player without retyping;
+removing it emptied both the shelf and the on-disk file and left focus on an existing control.
+
+Two traps worth remembering. `FavouritesLimitError` does **not** survive Electron IPC — only the
+message crosses — so the renderer detects the cap through the shared `FAVOURITES_LIMIT_ERROR`
+marker, and the test rejects with a plain `Error` shaped like a real transport; a test throwing
+the class would have passed against a broken `instanceof` check. And the first implementation
+regressed four pre-existing tests by reading Home-only state on every route; the fix was to gate
+those reads behind `route === "home"`, not to edit the assertions.
 
 ## Autoplay injection: investigated, deferred with conditions
 
