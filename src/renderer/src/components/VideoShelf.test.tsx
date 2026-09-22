@@ -184,6 +184,26 @@ describe("VideoShelf", () => {
     expect(updatedImage?.getAttribute("src")).toBe(changedVideo.thumbnailUrl)
   })
 
+  it("D-cycle-13-1 preserves controller focus and card identity through artwork failure and replacement", async () => {
+    await act(async () => root?.render(<Harness videos={[video]} />))
+    const recording = button("video-recording")
+    const failedImage = recording.querySelector<HTMLImageElement>("img")
+    if (failedImage === null) throw new Error("Missing recording thumbnail")
+
+    recording.focus()
+    expect(document.activeElement).toBe(recording)
+    await act(async () => failedImage.dispatchEvent(new Event("error")))
+    expect(button("video-recording")).toBe(recording)
+    expect(document.activeElement).toBe(recording)
+
+    const changedVideo = { ...video, thumbnailUrl: "https://example.com/replaced-recording.jpg" }
+    await act(async () => root?.render(<Harness videos={[changedVideo]} />))
+    const replacement = button("video-recording")
+    expect(replacement).toBe(recording)
+    expect(document.activeElement).toBe(recording)
+    expect(replacement.querySelector("img")?.getAttribute("src")).toBe(changedVideo.thumbnailUrl)
+  })
+
   it("keeps a validated recording without artwork selectable", async () => {
     await act(async () => root?.render(<Harness videos={[missingArtworkVideo]} />))
     const back = button("videos-back")

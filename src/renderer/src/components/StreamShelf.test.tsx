@@ -55,6 +55,32 @@ describe("stream shelf", () => {
     )
   })
 
+  it("D-cycle-17-2: preserves the independently specified default card edges", () => {
+    const markup = renderToStaticMarkup(
+      <>
+        <button data-focus-id="shelf-upper" data-focusable="true" type="button">
+          Previous shelf
+        </button>
+        <StreamShelf
+          emptyMessage="Empty"
+          entryUpperFocusId="shelf-upper"
+          onSelect={() => undefined}
+          streams={PREVIEW_STREAMS}
+          title="Live"
+        />
+      </>,
+    )
+    const card = (id: string) =>
+      markup.match(new RegExp(`<button[^>]*data-focus-id="stream-${id}"[^>]*>`))?.[0]
+
+    expect(card("preview-twitch")).toContain('data-focus-up="shelf-upper"')
+    for (const stream of PREVIEW_STREAMS.slice(1)) {
+      expect(card(stream.id)).not.toMatch(/data-focus-(?:down|left|right|up)=/)
+    }
+    expect(markup).not.toContain('data-focus-id="shelf-upper-refresh"')
+    expect(markup).not.toContain('class="shelf__action"')
+  })
+
   it("renders broadcaster profile images on stream cards", () => {
     // Given a live stream enriched with its broadcaster profile image
     const stream = {

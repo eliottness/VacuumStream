@@ -1,4 +1,8 @@
-import { EventEmitter } from "node:events"
+import { spawn } from "node:child_process"
+import { EventEmitter, once } from "node:events"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const deferred = <Value>() => {
@@ -285,6 +289,74 @@ describe("profile ownership at the real main entry point", () => {
     expect(fixture.window.focus).toHaveBeenCalledTimes(4)
     expect(fixture.window.setFullScreen).not.toHaveBeenCalled()
     expect(fixture.app.quit).not.toHaveBeenCalled()
+  }, 5000)
+
+  it("D-cycle-20-1 keeps a real Electron profile owned by one process across a competing launch and relaunch", async () => {
+    const userData = await mkdtemp(join(tmpdir(), "vacuumstream-profile-lock-"))
+    const lockProbe = join(userData, "profile-lock.cjs")
+    await writeFile(
+      lockProbe,
+      [
+        'const { app } = require("electron")',
+        'app.setPath("userData", process.env.VACUUMSTREAM_TEST_USER_DATA)',
+        "const ownsProfile = app.requestSingleInstanceLock()",
+        'process.stdout.write((ownsProfile ? "owner" : "contender") + "\\n")',
+        "if (!ownsProfile) app.quit()",
+      ].join("\n"),
+    )
+
+    const launch = () =>
+      spawn(
+        join(process.cwd(), "node_modules/electron/dist/electron"),
+        ["--headless", "--no-sandbox", lockProbe],
+        {
+          env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: undefined,
+            VACUUMSTREAM_TEST_USER_DATA: userData,
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      )
+    const profileResult = (process: ReturnType<typeof launch>) =>
+      new Promise<string>((resolve, reject) => {
+        process.stdout.once("data", (chunk: Buffer) => resolve(chunk.toString().trim()))
+        process.once("error", reject)
+        process.once("exit", (code, signal) =>
+          reject(
+            new Error(
+              `Electron profile probe exited before reporting ownership (${code}, ${signal})`,
+            ),
+          ),
+        )
+      })
+    const stop = async (process: ReturnType<typeof launch>) => {
+      if (process.exitCode === null) {
+        const exited = once(process, "exit")
+        process.kill()
+        await exited
+      }
+    }
+
+    let owner: ReturnType<typeof launch> | undefined
+    let replacement: ReturnType<typeof launch> | undefined
+    try {
+      owner = launch()
+      expect(await profileResult(owner)).toBe("owner")
+
+      const contender = launch()
+      const contenderExited = once(contender, "exit")
+      expect(await profileResult(contender)).toBe("contender")
+      expect(await contenderExited).toEqual([0, null])
+      expect(owner.exitCode).toBeNull()
+
+      await stop(owner)
+      replacement = launch()
+      expect(await profileResult(replacement)).toBe("owner")
+    } finally {
+      await Promise.all([owner, replacement].filter((process) => process !== undefined).map(stop))
+      await rm(userData, { force: true, recursive: true })
+    }
   }, 5000)
 
   it.each([false, true])(

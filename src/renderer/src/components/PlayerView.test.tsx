@@ -982,6 +982,39 @@ describe("controller playback quality", () => {
     await act(async () => root.unmount())
   })
 
+  it("D-cycle-05-1 applies and restores official quality through getQuality reports", async () => {
+    const quality = { available: ["auto", "chunked"], current: "chunked" }
+    const harness = installPlayerHarness([true], undefined, quality)
+    harness.setQuality.mockImplementation((nextQuality: string) => {
+      quality.current = nextQuality
+    })
+    const { container, root } = await mountPlayer()
+    await act(async () => harness.emit("ready"))
+    const control = buttonById(container, "player-quality")
+    const player = harness.instances[0]
+    if (player === undefined) throw new Error("Missing player")
+    expect(player.getQuality()).toBe("chunked")
+
+    await act(async () => control.click())
+    await act(async () => buttonById(container, "player-quality-option-auto").click())
+    expect(player.getQuality()).toBe("auto")
+    await act(async () => harness.emit("playing"))
+    expect(control.getAttribute("data-player-quality")).toBe("auto")
+
+    await act(async () => buttonById(container, "player-quality-option-chunked").click())
+    expect(player.getQuality()).toBe("chunked")
+    await act(async () => harness.emit("playing"))
+    expect(control.getAttribute("data-player-quality")).toBe("chunked")
+
+    await act(async () => harness.emit("offline"))
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    expect(control.hasAttribute("data-player-quality")).toBe(false)
+    await act(async () => harness.emit("ready"))
+    expect(player.getQuality()).toBe("chunked")
+    expect(control.getAttribute("data-player-quality")).toBe("chunked")
+    await act(async () => root.unmount())
+  })
+
   it("revalidates a removed quality at selection and recovers focus without sending a stale id", async () => {
     const quality = { available: ["old-id", "auto"], current: "old-id" }
     const harness = installPlayerHarness([true], undefined, quality)
@@ -1229,6 +1262,42 @@ describe("controller captions", () => {
       expect(harness.disableCaptions).toHaveBeenCalledTimes(1)
     },
   )
+
+  it("D-cycle-12-1 shows and hides captions in the official player frame", async () => {
+    const harness = installPlayerHarness([true])
+    const { container, root } = await mountPlayer(source)
+    await act(async () => harness.emit("ready"))
+    const frame = container.querySelector<HTMLIFrameElement>("#twitch-player-root iframe")
+    const frameDocument = frame?.contentDocument
+    if (frameDocument === null || frameDocument === undefined)
+      throw new Error("Missing player frame document")
+    const captionLine = frameDocument.createElement("p")
+    captionLine.setAttribute("data-caption-line", "true")
+    frameDocument.body.append(captionLine)
+    const renderCaptions = (visible: boolean): void => {
+      captionLine.hidden = !visible
+      captionLine.textContent = visible ? "Confirmed caption line" : ""
+    }
+    renderCaptions(false)
+    harness.enableCaptions.mockImplementation(() => {
+      renderCaptions(true)
+    })
+    harness.disableCaptions.mockImplementation(() => {
+      renderCaptions(false)
+    })
+
+    await act(async () => buttonById(container, "player-captions").click())
+    expect(captionLine.hidden).toBe(true)
+    expect(captionLine.textContent).toBe("")
+    await act(async () => buttonById(container, "player-captions-show").click())
+    expect(captionLine.hidden).toBe(false)
+    expect(captionLine.textContent).toBe("Confirmed caption line")
+    await act(async () => buttonById(container, "player-captions-hide").click())
+    expect(captionLine.hidden).toBe(true)
+    expect(captionLine.textContent).toBe("")
+    expect(buttonById(container, "player-captions-hide").getAttribute("aria-pressed")).toBe("true")
+    await act(async () => root.unmount())
+  })
 
   it.each([source, videoSource])(
     "walks the caption toolbar and chooser in both directions for $kind without playback or data side effects",
@@ -1584,6 +1653,107 @@ describe("live chat sidebar", () => {
     expect(harness.restoreShellFullscreen).not.toHaveBeenCalled()
     expect(harness.chatNotifications.size).toBe(0)
     expect(outerClick).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it("D-cycle-21-2 delivers Tab traversal and Enter activation to the chat child frame", async () => {
+    const harness = installPlayerHarness([])
+    const frame = installNativeChatSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "stream-preview-twitch").click())
+    await act(async () => buttonById(container, "player-chat").click())
+    const chat = chatFrame(container)
+    const chatDocument = chat.contentDocument
+    if (chatDocument === null) throw new Error("Missing chat document")
+    const chatBody =
+      chatDocument.body ?? chatDocument.appendChild(chatDocument.createElement("body"))
+    chatBody.innerHTML =
+      '<button id="first" type="button">First</button><button id="second" type="button">Second</button>'
+    const first = chatDocument.querySelector<HTMLButtonElement>("#first")
+    const second = chatDocument.querySelector<HTMLButtonElement>("#second")
+    if (first === null || second === null) throw new Error("Missing chat controls")
+    const seenKeys: string[] = []
+    const activations: string[] = []
+    const cycle = [first, second]
+    let activeIndex = 0
+    const markActive = (index: number): void => {
+      activeIndex = index
+      for (const [buttonIndex, button] of cycle.entries()) {
+        button.setAttribute("data-active", buttonIndex === activeIndex ? "true" : "false")
+      }
+    }
+    markActive(0)
+    chatDocument.addEventListener("keydown", (event) => {
+      seenKeys.push(`down:${event.key}:${event.shiftKey ? "shift" : "plain"}`)
+    })
+    chatDocument.addEventListener("keyup", (event) => {
+      seenKeys.push(`up:${event.key}:${event.shiftKey ? "shift" : "plain"}`)
+    })
+    first.addEventListener("click", () => activations.push("first"))
+    second.addEventListener("click", () => activations.push("second"))
+    harness.chatDebugger.sendCommand.mockImplementation(
+      async (method: string, params: unknown): Promise<unknown> => {
+        if (method !== "Input.dispatchKeyEvent") return {}
+        const event = params as {
+          key: string
+          modifiers?: number
+          type: "keyDown" | "keyUp"
+        }
+        const shiftKey = ((event.modifiers ?? 0) & 8) !== 0
+        const target = cycle[activeIndex]
+        if (target === undefined) throw new Error("Missing active chat control")
+        target.dispatchEvent(
+          new KeyboardEvent(event.type === "keyDown" ? "keydown" : "keyup", {
+            bubbles: true,
+            key: event.key,
+            shiftKey,
+          }),
+        )
+        if (event.type === "keyDown" && event.key === "Tab") {
+          const nextIndex = shiftKey
+            ? (activeIndex + cycle.length - 1) % cycle.length
+            : (activeIndex + 1) % cycle.length
+          markActive(nextIndex)
+        }
+        if (event.type === "keyDown" && event.key === "Enter") {
+          const activeControl = cycle[activeIndex]
+          if (activeControl === undefined) throw new Error("Missing active chat control")
+          activeControl.click()
+        }
+        chat.focus()
+        return {}
+      },
+    )
+
+    buttonById(container, "player-chat-enter").focus()
+    await frame(1, [0])
+    expect(document.activeElement).toBe(chat)
+    expect(first.getAttribute("data-active")).toBe("true")
+
+    await frame(501, [0])
+    await frame(502)
+    await frame(503, [13])
+    await frame(504)
+    await frame(505, [0])
+    await frame(506)
+    await frame(507, [12])
+    await frame(508)
+
+    expect(seenKeys).toEqual([
+      "down:Tab:plain",
+      "up:Tab:plain",
+      "down:Enter:plain",
+      "up:Enter:plain",
+      "down:Tab:shift",
+      "up:Tab:shift",
+    ])
+    expect(activations).toEqual(["second"])
+    expect(first.getAttribute("data-active")).toBe("true")
+    expect(second.getAttribute("data-active")).toBe("false")
+    expect(document.activeElement).toBe(chat)
     await act(async () => root.unmount())
   })
 
@@ -2357,6 +2527,45 @@ describe("VOD controller seeking", () => {
       buttonById(container, "player-seek-forward-5m").click()
     })
     expect(harness.seek.mock.calls).toEqual([[0], [0], [3600], [3600]])
+    await act(async () => root.unmount())
+  })
+
+  it("D-cycle-01-3 applies stateful seek boundaries to readout and preserves transport focus", async () => {
+    const timeline = { currentTime: 10, duration: 3600 }
+    const harness = installPlayerHarness([true], timeline)
+    harness.seek.mockImplementation((destination: number) => {
+      timeline.currentTime = destination
+      harness.emit("seek")
+    })
+    const { container, root } = await mountNavigablePlayer(videoSource)
+    await act(async () => harness.emit("ready"))
+    harness.activateEmbeddedPlayer.mockClear()
+    harness.play.mockClear()
+    harness.pause.mockClear()
+    harness.setMuted.mockClear()
+
+    expect(container.querySelector("output")?.textContent).toBe("0:00:10 / 1:00:00")
+    await pressKey(container, "ArrowDown")
+    const backFive = buttonById(container, "player-seek-back-5m")
+    expect(document.activeElement).toBe(backFive)
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(backFive)
+    expect(container.querySelector("output")?.textContent).toBe("0:00:00 / 1:00:00")
+
+    timeline.currentTime = 3590
+    await pressKey(container, "ArrowRight")
+    await pressKey(container, "ArrowRight")
+    const forwardThirty = buttonById(container, "player-seek-forward-30s")
+    expect(document.activeElement).toBe(forwardThirty)
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(forwardThirty)
+    expect(container.querySelector("output")?.textContent).toBe("1:00:00 / 1:00:00")
+    expect(harness.seek.mock.calls).toEqual([[0], [3600]])
+    expect(harness.activateEmbeddedPlayer).not.toHaveBeenCalled()
+    expect(harness.play).not.toHaveBeenCalled()
+    expect(harness.pause).not.toHaveBeenCalled()
+    expect(harness.setMuted).not.toHaveBeenCalled()
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
     await act(async () => root.unmount())
   })
 

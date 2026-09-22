@@ -466,4 +466,66 @@ describe("native gamepad Search editing", () => {
     expect(document.activeElement).toBe(input())
     expect(onOpen).not.toHaveBeenCalled()
   })
+
+  it("D-cycle-18-2: exercises pending search state with disabled submit controls and focus preservation", async () => {
+    // Given a Search view with no results
+    await render(false)
+    await typeQuery("test")
+
+    // When a search is submitted from the main submit button
+    target("search-submit").focus()
+    await act(async () => target("search-submit").click())
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith("test")
+
+    // And the search enters pending state with busy=true
+    await render(true)
+
+    // Then submit controls are disabled and cannot be activated
+    expect(target("search-submit")).toHaveProperty("disabled", true)
+    expect(target("search-key-submit")).toHaveProperty("disabled", true)
+
+    // And the input field remains present and navigation graph is intact
+    expect(input()).toBeInstanceOf(HTMLInputElement)
+    expect(target("search-input").getAttribute("data-focus-right")).toBe("search-submit")
+    expect(target("search-submit").getAttribute("data-focus-down")).toBeTruthy()
+
+    // When the search completes with results
+    await render(false)
+
+    // Then the results are rendered and submit controls are re-enabled
+    expect(target("search-submit")).toHaveProperty("disabled", false)
+    expect(target("search-key-submit")).toHaveProperty("disabled", false)
+    const result = target("channel-123")
+    expect(result).not.toBeNull()
+    expect(result.textContent).toContain("Broadcaster")
+  })
+
+  it("D-cycle-18-2: exercises pending search from keyboard submit with focus restoration", async () => {
+    // Given a Search view with keyboard submit button focused
+    await render(false)
+    await typeQuery("query")
+    target("search-key-submit").focus()
+
+    // When the keyboard submit is clicked
+    await act(async () => target("search-key-submit").click())
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith("query")
+
+    // And the search enters pending state
+    await render(true)
+
+    // Then the keyboard submit button is disabled
+    expect(target("search-key-submit")).toHaveProperty("disabled", true)
+
+    // And the main submit button is also disabled
+    expect(target("search-submit")).toHaveProperty("disabled", true)
+
+    // When the search completes
+    await render(false)
+
+    // Then both buttons are enabled and results are present
+    expect(target("search-key-submit")).toHaveProperty("disabled", false)
+    expect(target("search-submit")).toHaveProperty("disabled", false)
+    const resultButton = target("channel-123")
+    expect(resultButton.textContent).toContain("Broadcaster")
+  })
 })

@@ -399,6 +399,33 @@ describe("startup attempt lifecycle", () => {
     },
   )
 
+  it("D-cycle-14-1 recovers after a second download failure when the replacement player becomes READY", async () => {
+    const harness = installHarness()
+    const { container } = await mountPlayer()
+
+    await act(async () => currentScript().dispatchEvent(new Event("error")))
+    await act(async () => buttonById("player-retry").click())
+    await act(async () => currentScript().dispatchEvent(new Event("error")))
+
+    expect(container.querySelector(".player-load-status[role=alert]")).not.toBeNull()
+    expect(buttonById("player-playback").disabled).toBe(true)
+    expect(container.querySelectorAll("#twitch-player-root iframe")).toHaveLength(0)
+
+    await act(async () => buttonById("player-retry").click())
+    await act(async () => {
+      harness.publishApi()
+      currentScript().dispatchEvent(new Event("load"))
+    })
+    await act(async () => harness.emit("ready"))
+
+    expect(container.querySelector(".player-load-status[role=alert]")).toBeNull()
+    expect(container.querySelector(".player-retry")).toBeNull()
+    expect(buttonById("player-playback").disabled).toBe(false)
+    expect(buttonById("player-muted").disabled).toBe(false)
+    expect(container.querySelectorAll("#twitch-player-root iframe")).toHaveLength(1)
+    expect(document.activeElement).toBe(buttonById("player-back"))
+  })
+
   it("leaves a failed pre-READY VOD download without saving or clearing its selected bookmark", async () => {
     const harness = installHarness(bookmark)
     const { root } = await mountPlayer(videoSource)

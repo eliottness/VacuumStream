@@ -302,4 +302,15 @@ describe("favourites store", () => {
     expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(envelope([favourite]))
     await expect(filesystem.readFile(`${path}.tmp`)).rejects.toMatchObject({ code: "ENOENT" })
   })
+
+  it.fails("D-cycle-16-2: surfaces failed chmod after successful rename, preserves prior bytes and permits a later mutation", async () => {
+    const store = new FavouritesStore(directory)
+    await store.add(favourite)
+    const contents = await filesystem.readFile(path, "utf8")
+    const failure = new Error("Chmod permission denied")
+    vi.mocked(filesystem.chmod).mockRejectedValueOnce(failure)
+    await expect(store.add({ login: "alpha" })).rejects.toBe(failure)
+    expect(await filesystem.readFile(path, "utf8")).toBe(contents)
+    await expect(filesystem.readFile(`${path}.tmp`)).rejects.toMatchObject({ code: "ENOENT" })
+  })
 })

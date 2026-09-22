@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
+import { Showcase } from "../Showcase"
 import { VideoResumePrompt } from "./VideoResumePrompt"
 
 beforeEach(() => {
@@ -15,12 +16,18 @@ beforeEach(() => {
   vi.stubGlobal("cancelAnimationFrame", vi.fn())
   vi.stubGlobal("matchMedia", () => ({ matches: true }))
   vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockReturnValue(document.body)
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollFeedback,
+    writable: true,
+  })
 })
 
 afterEach(() => {
   document.body.replaceChildren()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
 })
 
 const mountPrompt = async (mode: "bookmark" | "error" | "loading" = "bookmark") => {
@@ -50,6 +57,8 @@ const mountPrompt = async (mode: "bookmark" | "error" | "loading" = "bookmark") 
 const press = async (key: string): Promise<void> => {
   await act(async () => dispatchControllerKey(key))
 }
+
+const scrollFeedback = vi.fn()
 
 describe("VideoResumePrompt", () => {
   it("exposes stable focus links and activates all three choices with arrows and Enter", async () => {
@@ -114,6 +123,44 @@ describe("VideoResumePrompt", () => {
     expect(actions.start).toHaveBeenCalledTimes(1)
     expect(actions.back).toHaveBeenCalledTimes(1)
     expect(actions.resume).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it.fails("D-cycle-10-2: allows focus to leave prompt via controller when mounted in Showcase", async () => {
+    // Mount Showcase component which includes VideoResumePrompt with other controls
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<Showcase />))
+
+    // Find the first VideoResumePrompt button (with focusPrefix="showcase-resume")
+    const firstPromptButton = container.querySelector<HTMLElement>(
+      '[data-focus-id="showcase-resume-resume"]',
+    )
+    expect(firstPromptButton).not.toBeNull()
+    const firstPromptSection = firstPromptButton?.closest("section.video-resume")
+    expect(firstPromptSection).not.toBeNull()
+
+    // Focus the button to enter the prompt
+    await act(async () => {
+      firstPromptButton?.focus()
+      firstPromptButton?.setAttribute("data-controller-focused", "true")
+    })
+    expect(document.activeElement).toBe(firstPromptButton)
+
+    // Navigate down from the prompt using controller
+    await press("ArrowDown")
+
+    // Verify that focus moved to an element outside the first prompt
+    const focusedElement = document.activeElement
+    expect(focusedElement).not.toBeNull()
+    const focusedParentPrompt = (focusedElement as HTMLElement)?.closest("section.video-resume")
+    // The focused element should either not be in any prompt, or be in a different prompt
+    if (focusedParentPrompt !== null) {
+      // If still in a prompt section, verify it's NOT the first prompt
+      expect(focusedParentPrompt).not.toBe(firstPromptSection)
+    }
+
     await act(async () => root.unmount())
   })
 })

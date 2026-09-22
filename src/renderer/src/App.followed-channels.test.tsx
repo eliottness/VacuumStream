@@ -140,7 +140,8 @@ const makeBridge = (auth: AuthSnapshot) =>
 
 type Bridge = ReturnType<typeof makeBridge>
 const constructedPlayer = vi.fn<(options: twitchPlayer.TwitchPlayerOptions) => void>()
-// Exercise the real PlayerView and options boundary, without network or READY-triggered timers.
+const playerListeners = new Map<string, () => void>()
+// Exercise the real PlayerView and options boundary, without network; READY is emitted explicitly.
 class Player implements twitchPlayer.TwitchPlayerInstance {
   static OFFLINE = "offline"
   static ONLINE = "online"
@@ -150,10 +151,13 @@ class Player implements twitchPlayer.TwitchPlayerInstance {
   static PLAYING = "playing"
   static READY = "ready"
   static SEEK = "seek"
-  constructor(_elementId: string, options: twitchPlayer.TwitchPlayerOptions) {
+  constructor(elementId: string, options: twitchPlayer.TwitchPlayerOptions) {
     constructedPlayer(options)
+    document.getElementById(elementId)?.append(document.createElement("iframe"))
   }
-  addEventListener = vi.fn()
+  addEventListener = (event: string, listener: () => void): void => {
+    playerListeners.set(event, listener)
+  }
   disableCaptions = vi.fn()
   enableCaptions = vi.fn()
   getCurrentTime = () => 0
@@ -189,6 +193,7 @@ beforeEach(() => {
   })
   vi.spyOn(twitchPlayer, "loadTwitchPlayerApi").mockResolvedValue({ Player })
   constructedPlayer.mockClear()
+  playerListeners.clear()
   container = document.createElement("div")
   document.body.append(container)
 })
@@ -217,6 +222,11 @@ const key = async (input: string): Promise<void> => {
 const activate = async (id: string): Promise<void> => {
   button(id).focus()
   await key("Enter")
+}
+const emitPlayerEvent = async (event: string): Promise<void> => {
+  const listener = playerListeners.get(event)
+  if (listener === undefined) throw new Error(`Missing player listener ${event}`)
+  await act(async () => listener())
 }
 const mount = async (
   configure: (bridge: Bridge) => void = () => undefined,
@@ -378,7 +388,7 @@ describe("All channels in the mounted App", () => {
     )
   })
 
-  it("opens an offline broadcaster's archives by exact userId without a player until a recording is chosen", async () => {
+  it("D-cycle-13-2 opens failed-artwork archives in the official player while preserving shell focus", async () => {
     const archives = deferred<Page<VideoCard>>()
     const bridge = await enterDirectory((api) =>
       api.catalog.videos.mockReturnValueOnce(archives.promise),
@@ -402,9 +412,24 @@ describe("All channels in the mounted App", () => {
     expect(constructedPlayer).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ video: "recording" }),
     )
+    expect(controller().screen).toEqual({
+      kind: "player",
+      source: {
+        kind: "video",
+        title: "An archived stream",
+        userId: "offline",
+        videoId: "recording",
+      },
+    })
+    expect(container.querySelectorAll("#twitch-player-root iframe")).toHaveLength(1)
+    expect(document.activeElement).toBe(button("player-back"))
+    bridge.system.activateEmbeddedPlayer.mockResolvedValue(true)
+    await emitPlayerEvent(Player.READY)
+    expect(container.querySelector('.player-frame[aria-busy="false"]')).not.toBeNull()
+    expect(document.activeElement).toBe(button("player-back"))
   })
 
-  it("keeps mixed archives available until the selected recording starts the player", async () => {
+  it("D-cycle-09-2 routes mixed archives to the selected PlayerView and mounts its official root", async () => {
     const bridge = await enterDirectory((api) =>
       api.catalog.videos.mockResolvedValueOnce(mixedArchivePage),
     )
@@ -417,6 +442,17 @@ describe("All channels in the mounted App", () => {
     expect(constructedPlayer).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ video: "recording-without-artwork" }),
     )
+    expect(controller().screen).toEqual({
+      kind: "player",
+      source: {
+        kind: "video",
+        title: "A recording without artwork",
+        userId: "offline",
+        videoId: "recording-without-artwork",
+      },
+    })
+    expect(container.querySelector(".player-view")).not.toBeNull()
+    expect(container.querySelector("#twitch-player-root")).not.toBeNull()
   })
 
   it("renders an empty archive as a status with reachable Back", async () => {

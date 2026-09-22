@@ -258,6 +258,26 @@ describe("native gamepad Search shortcuts in App", () => {
     ])
   })
 
+  it("D-cycle-22-2 renders an overlapping delete-and-submit response and reaches its channel by direction", async () => {
+    const request = deferred<Page<ChannelCard>>()
+    await mount({ displayName: "Viewer", kind: "authenticated", login: "viewer" }, (bridge) =>
+      bridge.catalog.search.mockReturnValueOnce(request.promise),
+    )
+    await activate("nav-search")
+    await typeQuery("twitchx")
+    for (const buttons of [[2, 3], [2, 3], [3]]) await frame(buttons)
+    await frame([3], 1000)
+    expect(container.querySelector(".channel-result")).toBeNull()
+
+    await act(async () => request.resolve({ cursor: undefined, items: [result] }))
+    const channel = target("channel-12826")
+    expect(channel.classList.contains("channel-result")).toBe(true)
+    target("search-submit").focus()
+    channel.scrollIntoView = vi.fn()
+    await act(async () => dispatchControllerKey("ArrowDown"))
+    expect(document.activeElement).toBe(channel)
+  })
+
   it("submits the authenticated trimmed query once and consumes presses until the deferred request settles", async () => {
     const { bridge, constructed } = await mount({
       displayName: "Viewer",

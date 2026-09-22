@@ -257,6 +257,68 @@ describe("Twitch response parsing", () => {
     expect(parse).toThrow(z.ZodError)
   })
 
+  it.each([
+    {
+      created_at: "2026-09-05T12:00:00Z",
+      duration: "30m",
+      id: "791",
+      published_at: "2026-09-05T12:05:00Z",
+      thumbnail_url: null,
+      title: "A malformed broadcast",
+      user_id: "456",
+      user_login: "streamer",
+      user_name: "Streamer",
+      view_count: 12,
+    },
+    {
+      created_at: "2026-09-05T12:00:00Z",
+      duration: "30m",
+      id: "791",
+      published_at: "2026-09-05T12:05:00Z",
+      thumbnail_url: "https://example.com/thumb.jpg",
+      title: "A malformed broadcast",
+      user_id: "456",
+      user_login: "streamer",
+      user_name: "Streamer",
+      view_count: "12",
+    },
+    {
+      created_at: "2026-09-05T12:00:00Z",
+      duration: "30m",
+      id: "791",
+      published_at: "2026-09-05T12:05:00Z",
+      thumbnail_url: "https://example.com/thumb.jpg",
+      title: "A malformed broadcast",
+      user_id: "456",
+      user_login: "streamer",
+      user_name: "Streamer",
+      view_count: -1,
+    },
+    {
+      created_at: "2026-09-05T12:00:00Z",
+      duration: "30m",
+      id: "791",
+      published_at: "2026-09-05T12:05:00Z",
+      thumbnail_url: "https://example.com/thumb.jpg",
+      title: "A malformed broadcast",
+      user_id: "456",
+      user_login: "streamer",
+      user_name: "Streamer",
+      view_count: 3.5,
+    },
+  ])("D-cycle-09-1: rejects malformed video field types %j", (malformedVideo) => {
+    // Given a Helix videos response with invalid field type
+    const response = {
+      data: [malformedVideo],
+      pagination: {},
+    }
+
+    // When the untrusted payload crosses the parser boundary
+    const parse = (): unknown => parseVideosResponse(response)
+
+    // Then malformed field types are rejected with a ZodError
+    expect(parse).toThrow(z.ZodError)
+  })
   it("preserves a mixed videos page when one recording has no thumbnail", () => {
     // Given a Helix page containing templated, resolved, and empty artwork values
     const response = {

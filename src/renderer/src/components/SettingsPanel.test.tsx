@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
 
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { AuthSnapshot, DeviceChallenge, SettingsSnapshot } from "../../../shared/contracts"
+import { SettingsStore } from "../../../main/settings-store"
+import type {
+  AuthSnapshot,
+  DeviceChallenge,
+  SettingsSnapshot,
+  VacuumStreamApi,
+} from "../../../shared/contracts"
+import { App } from "../App"
 import { SettingsPanel } from "./SettingsPanel"
 
 const challenge: DeviceChallenge = {
@@ -319,4 +329,258 @@ describe("settings account focus continuity", () => {
       expect(begin).not.toHaveBeenCalled()
     },
   )
+})
+
+type MountedBridge = ReturnType<typeof makeMountedBridge>["bridge"]
+
+const makeMountedBridge = (
+  store: SettingsStore,
+  getAuth: () => AuthSnapshot,
+  setAuth: (auth: AuthSnapshot) => void,
+) => {
+  const persistClientId = async (clientId: string): Promise<SettingsSnapshot> => {
+    const previous = await store.load()
+    const saved = await store.saveClientId(clientId)
+    if (saved.clientId !== previous.clientId) setAuth({ kind: "guest" })
+    return { clientId: saved.clientId, secureStorage: false }
+  }
+  const bridge = {
+    auth: {
+      begin: vi.fn<VacuumStreamApi["auth"]["begin"]>(),
+      logout: vi.fn<VacuumStreamApi["auth"]["logout"]>().mockResolvedValue(undefined),
+      openActivation: vi
+        .fn<VacuumStreamApi["auth"]["openActivation"]>()
+        .mockResolvedValue(undefined),
+      snapshot: vi
+        .fn<VacuumStreamApi["auth"]["snapshot"]>()
+        .mockImplementation(async () => getAuth()),
+    },
+    catalog: {
+      followed: vi
+        .fn<VacuumStreamApi["catalog"]["followed"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+      followedChannels: vi
+        .fn<VacuumStreamApi["catalog"]["followedChannels"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+      live: vi
+        .fn<VacuumStreamApi["catalog"]["live"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+      search: vi
+        .fn<VacuumStreamApi["catalog"]["search"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+      topCategories: vi
+        .fn<VacuumStreamApi["catalog"]["topCategories"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+      videos: vi
+        .fn<VacuumStreamApi["catalog"]["videos"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
+    },
+    chatInput: {
+      begin: vi.fn<VacuumStreamApi["chatInput"]["begin"]>().mockResolvedValue(undefined),
+      end: vi.fn<VacuumStreamApi["chatInput"]["end"]>().mockResolvedValue(undefined),
+      onEscape: vi.fn<VacuumStreamApi["chatInput"]["onEscape"]>().mockReturnValue(() => undefined),
+      press: vi.fn<VacuumStreamApi["chatInput"]["press"]>().mockResolvedValue(undefined),
+    },
+    favourites: {
+      add: vi.fn<VacuumStreamApi["favourites"]["add"]>().mockResolvedValue([]),
+      list: vi.fn<VacuumStreamApi["favourites"]["list"]>().mockResolvedValue([]),
+      remove: vi.fn<VacuumStreamApi["favourites"]["remove"]>().mockResolvedValue([]),
+    },
+    playbackProgress: {
+      get: vi.fn<VacuumStreamApi["playbackProgress"]["get"]>().mockResolvedValue(undefined),
+      list: vi.fn<VacuumStreamApi["playbackProgress"]["list"]>().mockResolvedValue([]),
+      remove: vi.fn<VacuumStreamApi["playbackProgress"]["remove"]>().mockResolvedValue(undefined),
+      save: vi.fn<VacuumStreamApi["playbackProgress"]["save"]>().mockResolvedValue(undefined),
+    },
+    settings: {
+      saveClientId: vi
+        .fn<VacuumStreamApi["settings"]["saveClientId"]>()
+        .mockImplementation(persistClientId),
+      snapshot: vi.fn<VacuumStreamApi["settings"]["snapshot"]>().mockImplementation(async () => {
+        const current = await store.load()
+        return { clientId: current.clientId, secureStorage: false }
+      }),
+    },
+    system: {
+      activateEmbeddedPlayer: vi
+        .fn<VacuumStreamApi["system"]["activateEmbeddedPlayer"]>()
+        .mockResolvedValue(false),
+      isSteamGameMode: vi
+        .fn<VacuumStreamApi["system"]["isSteamGameMode"]>()
+        .mockResolvedValue(false),
+      restoreShellFullscreen: vi
+        .fn<VacuumStreamApi["system"]["restoreShellFullscreen"]>()
+        .mockResolvedValue(false),
+      toggleFullscreen: vi
+        .fn<VacuumStreamApi["system"]["toggleFullscreen"]>()
+        .mockResolvedValue(false),
+    },
+  } satisfies VacuumStreamApi
+  return { bridge, persistClientId }
+}
+
+describe("Settings persistence through the mounted App", () => {
+  let container: HTMLDivElement
+  let root: Root | undefined
+  let directory: string
+  let store: SettingsStore
+  let authState: AuthSnapshot
+
+  beforeEach(async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    )
+    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query !== "(width < 45rem)",
+    }))
+    vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockReturnValue(document.body)
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
+    directory = await mkdtemp(join(tmpdir(), "vacuumstream-settings-panel-"))
+    store = new SettingsStore(directory)
+    await store.saveClientId(settings.clientId)
+    authState = authenticated
+    container = document.createElement("div")
+    document.body.append(container)
+  })
+
+  afterEach(async () => {
+    await act(async () => root?.unmount())
+    root = undefined
+    document.body.replaceChildren()
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView")
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+    await rm(directory, { force: true, recursive: true })
+  })
+
+  const target = <Element extends HTMLElement = HTMLElement>(id: string): Element => {
+    const element = container.querySelector<Element>(`[data-focus-id="${id}"]`)
+    if (element === null) throw new Error(`Missing mounted App target ${id}`)
+    return element
+  }
+  const mount = async (bridge: MountedBridge) => {
+    vi.stubGlobal("vacuumStream", bridge)
+    root = createRoot(container)
+    await act(async () => root?.render(<App />))
+    await act(async () => {
+      await bridge.settings.snapshot()
+      await bridge.auth.snapshot()
+    })
+  }
+  const openSettings = async () => {
+    await act(async () => target<HTMLButtonElement>("nav-settings").click())
+  }
+  const setClientId = async (value: string) => {
+    const input = target<HTMLInputElement>("settings-client-id")
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+    if (setter === undefined) throw new Error("Missing native input setter")
+    await act(async () => {
+      setter.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+      input.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+    return input
+  }
+
+  it.each([false, true])(
+    "D-cycle-19-3 saves through mounted App (changed: %s), resets account state, keeps Save focused, and reads the Client ID back from the store",
+    async (changed) => {
+      const nextClientId = changed ? "differentclientidentifier1234" : settings.clientId
+      const { bridge } = makeMountedBridge(
+        store,
+        () => authState,
+        (next) => {
+          authState = next
+        },
+      )
+      await mount(bridge)
+      await openSettings()
+      await setClientId(nextClientId)
+      const save = target<HTMLButtonElement>("settings-save")
+      save.focus()
+      const settled = deferred<void>()
+      const persisted = deferred<void>()
+      bridge.settings.saveClientId.mockImplementationOnce(async (clientId) => {
+        await settled.promise
+        const saved = await store.saveClientId(clientId)
+        if (saved.clientId !== settings.clientId) authState = { kind: "guest" }
+        persisted.resolve(undefined)
+        return { clientId: saved.clientId, secureStorage: false }
+      })
+
+      await act(async () => save.click())
+      expect(document.activeElement).toBe(save)
+      expect(save.disabled).toBe(true)
+      expect(bridge.settings.saveClientId).toHaveBeenCalledWith(nextClientId)
+      await act(async () => {
+        settled.resolve(undefined)
+        await persisted.promise
+      })
+
+      expect(target<HTMLInputElement>("settings-client-id").value).toBe(nextClientId)
+      const account = target<HTMLButtonElement>(changed ? "settings-sign-in" : "settings-logout")
+      expect(account.textContent).toContain(changed ? "Sign in" : "Sign out")
+      expect(document.activeElement).toBe(save)
+      expect((await store.load()).clientId).toBe(nextClientId)
+
+      await act(async () => root?.unmount())
+      root = undefined
+      await mount(bridge)
+      await openSettings()
+      expect(target<HTMLInputElement>("settings-client-id").value).toBe(nextClientId)
+      expect(target(changed ? "settings-sign-in" : "settings-logout")).not.toBeNull()
+    },
+  )
+
+  it("D-cycle-22-3 ignores an obsolete mounted-App save after a newer auth/settings remount, preserving the account and Client ID", async () => {
+    const newerAuth: AuthSnapshot = {
+      displayName: "New Fixture Viewer",
+      kind: "authenticated",
+      login: "new_fixture_viewer",
+    }
+    const newerClientId = "newerclientidentifier1234"
+    const staleClientId = "staleclientidentifier1234"
+    const { bridge } = makeMountedBridge(
+      store,
+      () => authState,
+      (next) => {
+        authState = next
+      },
+    )
+    await mount(bridge)
+    await openSettings()
+    await setClientId(staleClientId)
+    const pending = deferred<SettingsSnapshot>()
+    bridge.settings.saveClientId.mockReturnValueOnce(pending.promise)
+    const save = target<HTMLButtonElement>("settings-save")
+    save.focus()
+    await act(async () => save.click())
+    expect(save.disabled).toBe(true)
+
+    await store.saveClientId(newerClientId)
+    authState = newerAuth
+    await act(async () => root?.unmount())
+    root = undefined
+    await mount(bridge)
+    await openSettings()
+    expect(container.querySelector(".account-status")?.textContent).toContain(
+      "Signed in as New Fixture Viewer",
+    )
+    expect(target<HTMLInputElement>("settings-client-id").value).toBe(newerClientId)
+
+    await act(async () => pending.resolve({ clientId: staleClientId, secureStorage: false }))
+    expect(container.querySelector(".account-status")?.textContent).toContain(
+      "Signed in as New Fixture Viewer",
+    )
+    expect(target<HTMLInputElement>("settings-client-id").value).toBe(newerClientId)
+    expect((await store.load()).clientId).toBe(newerClientId)
+  })
 })
