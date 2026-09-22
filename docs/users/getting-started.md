@@ -97,6 +97,31 @@ advertisements and its own offline, regional, or error screens. Browser cookies 
 VacuumStream prefers the Linux keyring. If none is available, it stores the token in its private
 application-data directory with owner-only file permissions and logs a security warning.
 
+## Favourite channels
+
+In Search, choose **Save favourite** beside a channel's open action. Saving does not start
+playback or require Twitch sign-in. A saved result shows **Saved favourite**. Guests can save
+an exact channel login; signed-in search also preserves the broadcaster ID for Past broadcasts.
+
+Home shows **Favourite channels** between Continue Watching and Recommended live (or guest
+Quick watch) when entries exist. Choose **Open channel** to use the official player, or the
+separate **Remove favourite** action. Entries show logins, not live status: saving a channel
+does not check whether it is broadcasting.
+
+Favourites are **local to this installation, shared across Twitch accounts, and not Twitch
+follows**. Signing in, signing out, or switching accounts does not clear them. They are sorted
+alphabetically and limited to 50 channels. At the limit, a visible message asks you to remove
+one on Home; Escape returns there without saving or evicting anything.
+
+From Search's Search button, Down reaches results; Right from a result reaches Save favourite,
+and Left returns to Open. On Home, Right from navigation (Down on the compact bar) reaches
+Continue Watching when present, otherwise favourites. Down from Continue Watching's actions
+reaches favourites; Left/Right moves between favourite entries, Down reaches Remove favourite,
+then the live shelf controls. Up travels back through those controls. After removal, focus moves
+to a surviving neighbour, or an existing Home control when the last entry disappears. Failed
+saves and removals keep their prior state and offer a retry on the same action; a failed initial
+read offers **Retry favourites**. Escape leaves Search even when a save fails.
+
 ## Controls
 
 | Input | Action |
@@ -164,7 +189,8 @@ Resume / Start over / Back choices; nothing plays before you choose. The shelf d
 whether a recording is still available on Twitch.
 
 From Home navigation, Right (Down on the compact navigation bar) reaches the first entry.
-Left/Right moves between entries; Down reaches **Forget progress**, then the live shelf controls.
+Left/Right moves between entries; Down reaches **Forget progress**, then favourites when present,
+then the live shelf controls.
 Up returns in the opposite direction. **Forget progress deletes the saved position**, not just
 its card. Focus moves to the next surviving entry, or a Home control when none remain. A failed
 delete keeps the entry and offers **Retry forget progress**; a failed read offers **Retry Continue

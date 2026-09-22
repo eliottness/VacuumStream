@@ -1,11 +1,15 @@
 import { MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react"
 import { type ComponentProps, useEffect, useRef, useState } from "react"
 import type { ChannelCard } from "../../../shared/contracts"
+import type { FavouritesState } from "../useFavourites"
 
 type SearchViewProps = {
   readonly authenticated: boolean
   readonly busy: boolean
+  readonly favourites: FavouritesState
   readonly onOpen: (channel: ChannelCard) => void
+  readonly onRetryFavourites: () => void
+  readonly onSave: (channel: ChannelCard) => void
   readonly onSearch: (query: string) => void
   readonly results: readonly ChannelCard[]
 }
@@ -19,10 +23,27 @@ const KEY_ROWS = [
 
 type SubmitHandler = NonNullable<ComponentProps<"form">["onSubmit"]>
 
-export const SearchView = ({ authenticated, busy, onOpen, onSearch, results }: SearchViewProps) => {
+export const SearchView = ({
+  authenticated,
+  busy,
+  favourites,
+  onOpen,
+  onRetryFavourites,
+  onSave,
+  onSearch,
+  results,
+}: SearchViewProps) => {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const failureRef = useRef<HTMLParagraphElement>(null)
+  const firstResultId = results[0] === undefined ? undefined : `channel-${results[0].id}`
+  const resultsEntryId = favourites.status === "error" ? "search-favourites-retry" : firstResultId
   useEffect(() => inputRef.current?.focus(), [])
+  useEffect(() => {
+    if (favourites.mutationError?.operation === "add") {
+      failureRef.current?.scrollIntoView({ behavior: "instant", block: "nearest" })
+    }
+  }, [favourites.mutationError])
   const submit: SubmitHandler = (event) => {
     event.preventDefault()
     onSearch(query.trim())
@@ -55,8 +76,8 @@ export const SearchView = ({ authenticated, busy, onOpen, onSearch, results }: S
             value={query}
           />
           <button
+            data-focus-down={resultsEntryId ?? "search-key-q"}
             data-focus-id="search-submit"
-            data-focus-down="search-key-q"
             data-focus-up="search-input"
             data-focusable="true"
             disabled={busy}
@@ -114,6 +135,7 @@ export const SearchView = ({ authenticated, busy, onOpen, onSearch, results }: S
         </button>
         <button
           className="virtual-keyboard__submit"
+          data-focus-down={resultsEntryId}
           data-focus-id="search-key-submit"
           data-focusable="true"
           disabled={busy}
@@ -123,25 +145,95 @@ export const SearchView = ({ authenticated, busy, onOpen, onSearch, results }: S
           Search
         </button>
       </fieldset>
-      <div className="channel-results" aria-live="polite">
-        {results.map((channel) => (
+      {favourites.status === "loading" ? <p role="status">Loading local favourites...</p> : null}
+      {favourites.status === "error" ? (
+        <div className="favourites__error">
+          <p className="error-message" role="alert">
+            {favourites.error}
+          </p>
           <button
-            className="channel-result"
-            data-focus-id={`channel-${channel.id}`}
+            data-focus-down={firstResultId}
+            data-focus-id="search-favourites-retry"
+            data-focus-left="nav-search"
+            data-focus-right={firstResultId}
+            data-focus-up="search-submit"
             data-focusable="true"
-            key={channel.id}
-            onClick={() => onOpen(channel)}
+            onClick={() => {
+              document.querySelector<HTMLElement>('[data-focus-id="search-submit"]')?.focus()
+              onRetryFavourites()
+            }}
             type="button"
           >
-            <img alt="" height="96" src={channel.thumbnailUrl} width="96" />
-            <span>
-              <strong>{channel.displayName}</strong>
-              <span>{channel.isLive ? `Live in ${channel.category}` : "Channel"}</span>
-              <span>{channel.title}</span>
-            </span>
-            <PlayIcon aria-hidden="true" weight="fill" />
+            Retry favourites
           </button>
-        ))}
+        </div>
+      ) : null}
+      <div aria-live="polite" className="channel-results">
+        {results.map((channel, index) => {
+          const saved = favourites.items.some(
+            (entry) => entry.login === channel.login.toLowerCase(),
+          )
+          const saving =
+            favourites.pending?.operation === "add" &&
+            favourites.pending.login === channel.login.toLowerCase()
+          const failed =
+            favourites.mutationError?.operation === "add" &&
+            favourites.mutationError.login === channel.login.toLowerCase()
+          const previous = results[index - 1]
+          const next = results[index + 1]
+          const upId = previous === undefined ? "search-submit" : `channel-${previous.id}`
+          const downId = next === undefined ? "search-key-submit" : `channel-${next.id}`
+          return (
+            <article className="channel-result-actions" key={channel.id}>
+              <button
+                className="channel-result"
+                data-focus-down={downId}
+                data-focus-id={`channel-${channel.id}`}
+                data-focus-left="nav-search"
+                data-focus-right={`channel-${channel.id}-save`}
+                data-focus-up={upId}
+                data-focusable="true"
+                onClick={() => onOpen(channel)}
+                type="button"
+              >
+                <img alt="" height="96" src={channel.thumbnailUrl} width="96" />
+                <span>
+                  <strong>{channel.displayName}</strong>
+                  <span>{channel.isLive ? `Live in ${channel.category}` : "Channel"}</span>
+                  <span>{channel.title}</span>
+                </span>
+                <PlayIcon aria-hidden="true" weight="fill" />
+              </button>
+              <button
+                aria-disabled={saved || favourites.pending !== undefined}
+                aria-label={`${saved ? "Saved favourite" : failed ? "Retry saving" : "Save favourite"} ${channel.login}`}
+                aria-pressed={saved}
+                data-focus-down={downId}
+                data-focus-id={`channel-${channel.id}-save`}
+                data-focus-left={`channel-${channel.id}`}
+                data-focus-up={upId}
+                data-focusable="true"
+                onClick={() => {
+                  if (!saved && favourites.pending === undefined) onSave(channel)
+                }}
+                type="button"
+              >
+                {saved
+                  ? "Saved favourite"
+                  : saving
+                    ? "Saving..."
+                    : failed
+                      ? "Retry save favourite"
+                      : "Save favourite"}
+              </button>
+              {failed ? (
+                <p className="error-message" ref={failureRef} role="alert">
+                  {favourites.mutationError?.message}
+                </p>
+              ) : null}
+            </article>
+          )
+        })}
       </div>
     </main>
   )

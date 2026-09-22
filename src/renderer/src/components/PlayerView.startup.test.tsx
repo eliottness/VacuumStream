@@ -69,6 +69,11 @@ const installHarness = (saved?: PlaybackBookmark) => {
     configurable: true,
     value: {
       auth: { snapshot: async () => ({ kind: "guest" }) },
+      favourites: {
+        add: vi.fn<VacuumStreamApi["favourites"]["add"]>().mockResolvedValue([]),
+        list: vi.fn<VacuumStreamApi["favourites"]["list"]>().mockResolvedValue([]),
+        remove: vi.fn<VacuumStreamApi["favourites"]["remove"]>().mockResolvedValue([]),
+      },
       playbackProgress: progress,
       settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },

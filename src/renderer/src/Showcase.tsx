@@ -1,6 +1,7 @@
 import type { PlaybackBookmark, VideoCard } from "../../shared/contracts"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { ContinueWatchingShelf } from "./components/ContinueWatchingShelf"
+import { FavouritesShelf } from "./components/FavouritesShelf"
 import { StreamShelf } from "./components/StreamShelf"
 import { VideoResumePrompt } from "./components/VideoResumePrompt"
 import { VideoShelf } from "./components/VideoShelf"
@@ -119,6 +120,44 @@ export const Showcase = () => {
           </div>
         ),
       )}
+      {(["populated", "empty", "loading", "error", "removal-error"] as const).map((fixture) => (
+        <div className="showcase__favourites" key={fixture}>
+          <h2>Favourites: {fixture}</h2>
+          <FavouritesShelf
+            error={fixture === "error" ? "Could not read local favourites." : ""}
+            fallbackFocusId={`showcase-favourites-${fixture}-home`}
+            focusPrefix={`showcase-favourites-${fixture}`}
+            items={
+              fixture === "populated" || fixture === "removal-error"
+                ? [{ login: "twitch" }, { login: "very_long_channel_login_25", userId: "123" }]
+                : []
+            }
+            lowerFocusId={`showcase-favourites-${fixture}-home`}
+            mutationError={
+              fixture === "removal-error"
+                ? {
+                    login: "twitch",
+                    message: "Could not remove this favourite. Try again.",
+                    operation: "remove",
+                  }
+                : undefined
+            }
+            onOpen={() => undefined}
+            onRemove={() => undefined}
+            onRetry={() => undefined}
+            pending={undefined}
+            status={fixture === "loading" ? "loading" : fixture === "error" ? "error" : "ready"}
+            upperFocusId={`showcase-favourites-${fixture}-home`}
+          />
+          <button
+            data-focus-id={`showcase-favourites-${fixture}-home`}
+            data-focusable="true"
+            type="button"
+          >
+            Home control
+          </button>
+        </div>
+      ))}
       <StreamShelf
         emptyMessage="No live channels are available."
         onSelect={() => undefined}

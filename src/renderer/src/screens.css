@@ -112,6 +112,41 @@
   inline-size: 100%;
 }
 
+.favourite-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-4);
+  border-radius: 1rem;
+  background: var(--color-rail);
+  scroll-snap-align: start;
+}
+
+.favourite-card strong {
+  overflow-wrap: anywhere;
+}
+
+.favourite-card > button {
+  font-size: 1.125rem;
+}
+
+.favourites > p {
+  color: var(--color-text-muted);
+}
+
+.favourites__error,
+.showcase__favourites {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.showcase__favourites > .shelf {
+  inline-size: 100%;
+}
+
 .videos-view {
   block-size: 100dvb;
   align-content: start;
@@ -163,7 +198,8 @@
   border-color: var(--color-error);
 }
 
-.continue-card .error-message {
+.continue-card .error-message,
+.favourite-card .error-message {
   grid-column: 1 / -1;
   overflow-wrap: anywhere;
 }
@@ -234,6 +270,23 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(22rem, 100%), 1fr));
   gap: var(--space-4);
+}
+
+.channel-result-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.channel-results:has(.channel-result-actions) {
+  grid-template-columns: 1fr;
+}
+
+.channel-result-actions > .error-message {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
 }
 
 .channel-result {
@@ -570,6 +623,10 @@
 }
 
 @media (width < 45rem) {
+  .channel-result-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .settings-card {
     grid-template-columns: 1fr;
     gap: var(--space-6);
