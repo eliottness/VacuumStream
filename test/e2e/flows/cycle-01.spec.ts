@@ -1,5 +1,6 @@
 import { expect, test } from "../support/fixtures"
 import { flowTest } from "../support/ledger-test"
+import { waitForPlayerReady } from "../support/twitch"
 
 const PUBLIC_VOD_ID = "2877678922"
 const PUBLIC_VOD_DURATION = 47 * 60 * 60 + 59 * 60 + 57
@@ -37,6 +38,7 @@ const waitForVOD = async (
   await controller.waitForFocus("video-resume-resume")
   await controller.press("Enter")
   await controller.waitForFocus("player-back")
+  await waitForPlayerReady(window)
   await window.waitForFunction(
     () => {
       const output = document.querySelector<HTMLOutputElement>(".player-transport__time")

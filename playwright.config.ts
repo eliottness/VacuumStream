@@ -16,6 +16,7 @@ export default defineConfig({
     screenshot: "off",
     trace: "retain-on-failure",
   },
-  // Each worker owns an Electron process and an X client; more than two contend for the WM.
-  workers: E2E_WORKERS === undefined ? 2 : Number(E2E_WORKERS),
+  // Every test drives a real Electron window against one X display and one live Twitch session;
+  // parallel workers steal focus from each other, so the suite runs serially unless asked not to.
+  workers: E2E_WORKERS === undefined ? 1 : Number(E2E_WORKERS),
 })
