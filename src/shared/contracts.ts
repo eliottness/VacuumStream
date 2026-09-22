@@ -17,6 +17,29 @@ export const LiveInputSchema = CursorInputSchema.extend({
   gameId: z.string().min(1).max(64).optional(),
 })
 
+export const PlaybackProgressGetInputSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine((videoId) => videoId !== "__proto__", { message: "Invalid video id" })
+export const PlaybackProgressRemoveInputSchema = PlaybackProgressGetInputSchema
+
+export const PlaybackBookmarkValueSchema = z
+  .strictObject({
+    duration: z.number().positive(),
+    position: z.number().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
+  })
+  .refine((bookmark) => bookmark.position <= bookmark.duration, {
+    message: "Playback position must not exceed duration",
+    path: ["position"],
+  })
+
+export const PlaybackBookmarkSchema = PlaybackBookmarkValueSchema.safeExtend({
+  videoId: PlaybackProgressGetInputSchema,
+})
+export const PlaybackProgressSaveInputSchema = PlaybackBookmarkSchema
+
 export const SearchInputSchema = CursorInputSchema.extend({
   query: z.string().trim().min(1).max(100),
 })
@@ -131,6 +154,7 @@ export type Page<Item> = {
   readonly cursor: string | undefined
   readonly items: readonly Item[]
 }
+export type PlaybackBookmark = z.infer<typeof PlaybackBookmarkSchema>
 export type SearchInput = z.input<typeof SearchInputSchema>
 export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
 export type StreamCard = z.infer<typeof StreamCardSchema>
@@ -156,6 +180,11 @@ export interface VacuumStreamApi {
     readonly begin: (session: string) => Promise<void>
     readonly end: (session: string) => Promise<void>
     readonly onEscape: (listener: (session: string) => void) => () => void
+  }
+  readonly playbackProgress: {
+    readonly get: (videoId: string) => Promise<PlaybackBookmark | undefined>
+    readonly remove: (videoId: string) => Promise<void>
+    readonly save: (bookmark: PlaybackBookmark) => Promise<void>
   }
   readonly settings: {
     readonly saveClientId: (clientId: string) => Promise<SettingsSnapshot>

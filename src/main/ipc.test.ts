@@ -5,6 +5,7 @@ import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
 import type { VacuumStreamApi } from "../shared/contracts"
 import { InvalidIpcSenderError, registerIpc } from "./ipc"
+import type { PlaybackProgressStore } from "./playback-progress-store"
 import { SettingsStore } from "./settings-store"
 import { TokenVault } from "./token-vault"
 import { TwitchService } from "./twitch-service"
@@ -33,6 +34,11 @@ const event = { sender: webContents, senderFrame: mainFrame } as IpcMainInvokeEv
 const followedChannels = vi.fn<TwitchService["followedChannels"]>()
 const live = vi.fn<TwitchService["live"]>()
 const chatInput = { begin: vi.fn(), cancel: vi.fn(), end: vi.fn() }
+const playbackProgress = {
+  get: vi.fn<PlaybackProgressStore["get"]>(),
+  remove: vi.fn<PlaybackProgressStore["remove"]>(),
+  save: vi.fn<PlaybackProgressStore["save"]>(),
+}
 
 const invokeLive = (input: unknown, sender = event): Promise<unknown> => {
   const handler = handlers.get(CHANNELS.catalogLive)
@@ -53,11 +59,16 @@ beforeEach(() => {
   chatInput.end.mockReset()
   followedChannels.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   live.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
+  playbackProgress.get.mockReset().mockResolvedValue(undefined)
+  playbackProgress.remove.mockReset().mockResolvedValue(undefined)
+  playbackProgress.save.mockReset().mockResolvedValue(undefined)
+  preload.invoke.mockReset()
   vi.spyOn(TwitchService.prototype, "followedChannels").mockImplementation(followedChannels)
   vi.spyOn(TwitchService.prototype, "live").mockImplementation(live)
   registerIpc({
     chatInput,
     mainWindow: { webContents } as BrowserWindow,
+    playbackProgress,
     rendererOrigin: "https://localhost:1234",
     runningInSteamGameMode: false,
     twitch: new TwitchService(
@@ -148,7 +159,14 @@ describe("chat input capability", () => {
     const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
     if (api === undefined) throw new Error("Preload did not expose its API")
     expect(preload.exposeInMainWorld.mock.calls[0]?.[0]).toBe("vacuumStream")
-    expect(Object.keys(api)).toEqual(["auth", "catalog", "chatInput", "settings", "system"])
+    expect(Object.keys(api)).toEqual([
+      "auth",
+      "catalog",
+      "chatInput",
+      "playbackProgress",
+      "settings",
+      "system",
+    ])
     expect(Object.keys(api.chatInput)).toEqual(["begin", "end", "onEscape"])
     expect(Object.keys(api.system)).toEqual([
       "activateEmbeddedPlayer",
@@ -177,6 +195,136 @@ describe("chat input capability", () => {
       CHANNELS.chatInputEscape,
       notification,
     )
+  })
+})
+
+describe("playback progress capability", () => {
+  const bookmark = {
+    duration: 3600,
+    position: 123.5,
+    updatedAt: 1_790_000_000_000,
+    videoId: "123456",
+  }
+  const cases = [
+    { channel: CHANNELS.playbackProgressGet, input: bookmark.videoId, method: "get" },
+    { channel: CHANNELS.playbackProgressRemove, input: bookmark.videoId, method: "remove" },
+    { channel: CHANNELS.playbackProgressSave, input: bookmark, method: "save" },
+  ] as const
+  const invoke = async (channel: string, sender: IpcMainInvokeEvent, ...input: unknown[]) => {
+    const handler = handlers.get(channel)
+    if (handler === undefined) throw new Error("Missing playback progress handler")
+    return handler(sender, ...input)
+  }
+  const exposedApi = async () => {
+    vi.resetModules()
+    await import("../preload/index")
+    const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
+    if (api === undefined) throw new Error("Preload did not expose its API")
+    return api
+  }
+  const expectUntouchedStore = () => {
+    expect(playbackProgress.get).not.toHaveBeenCalled()
+    expect(playbackProgress.remove).not.toHaveBeenCalled()
+    expect(playbackProgress.save).not.toHaveBeenCalled()
+  }
+
+  it.each(cases)(
+    "forwards valid input and the store result on $channel",
+    async ({ channel, input, method }) => {
+      playbackProgress.get.mockResolvedValueOnce(bookmark)
+      await expect(invoke(channel, event, input)).resolves.toEqual(
+        method === "get" ? bookmark : undefined,
+      )
+      expect(playbackProgress[method]).toHaveBeenCalledExactlyOnceWith(input)
+    },
+  )
+
+  it.each(cases)(
+    "rejects malformed input before touching the store on $channel",
+    async ({ channel, input, method }) => {
+      const invalid =
+        method === "save"
+          ? [
+              "123456",
+              {},
+              { ...bookmark, videoId: "" },
+              { ...bookmark, videoId: "x".repeat(65) },
+              { ...bookmark, position: -1 },
+              { ...bookmark, position: 3601 },
+              { ...bookmark, position: Number.NaN },
+              { ...bookmark, position: Number.POSITIVE_INFINITY },
+              { ...bookmark, duration: 0 },
+              { ...bookmark, duration: Number.POSITIVE_INFINITY },
+              { ...bookmark, updatedAt: -1 },
+              { ...bookmark, updatedAt: Number.NaN },
+              { ...bookmark, title: "private" },
+            ]
+          : ["", "x".repeat(65), { videoId: bookmark.videoId }]
+      for (const value of [undefined, null, false, 123456, ...invalid]) {
+        await expect(invoke(channel, event, value)).rejects.toBeInstanceOf(z.ZodError)
+      }
+      await expect(invoke(channel, event)).rejects.toBeInstanceOf(z.ZodError)
+      await expect(invoke(channel, event, input, "path")).rejects.toBeInstanceOf(z.ZodError)
+      expectUntouchedStore()
+    },
+  )
+
+  it.each(cases)("rejects a missing sender frame on $channel", async ({ channel, input }) => {
+    await expect(invoke(channel, { ...event, senderFrame: null }, input)).rejects.toBeInstanceOf(
+      InvalidIpcSenderError,
+    )
+    expectUntouchedStore()
+  })
+
+  it.each(cases)(
+    "rejects an unauthorized same-origin child frame on $channel",
+    async ({ channel, input }) => {
+      const senderFrame = { url: mainFrame.url } as IpcMainInvokeEvent["senderFrame"]
+      await expect(invoke(channel, { ...event, senderFrame }, input)).rejects.toBeInstanceOf(
+        InvalidIpcSenderError,
+      )
+      expectUntouchedStore()
+    },
+  )
+
+  it.each(cases)("surfaces store failures on $channel", async ({ channel, input, method }) => {
+    const failure = new Error("Playback progress file is unreadable")
+    playbackProgress[method].mockRejectedValueOnce(failure)
+    await expect(invoke(channel, event, input)).rejects.toBe(failure)
+  })
+
+  it("exposes only get/save/remove and validates requests through preload and IPC", async () => {
+    preload.invoke.mockImplementation((channel, ...input) => invoke(channel, event, ...input))
+    playbackProgress.get.mockResolvedValueOnce(bookmark)
+    const api = await exposedApi()
+    expect(Object.keys(api.playbackProgress)).toEqual(["get", "remove", "save"])
+    await expect(api.playbackProgress.get(bookmark.videoId)).resolves.toEqual(bookmark)
+    await expect(api.playbackProgress.get("missing")).resolves.toBeUndefined()
+    await expect(api.playbackProgress.save(bookmark)).resolves.toBeUndefined()
+    await expect(api.playbackProgress.remove(bookmark.videoId)).resolves.toBeUndefined()
+    expect(playbackProgress.save).toHaveBeenCalledExactlyOnceWith(bookmark)
+    expect(playbackProgress.remove).toHaveBeenCalledExactlyOnceWith(bookmark.videoId)
+    expect(() => api.playbackProgress.get("x".repeat(65))).toThrow(z.ZodError)
+    expect(() => api.playbackProgress.remove("")).toThrow(z.ZodError)
+    expect(() => api.playbackProgress.save({ ...bookmark, position: 3601 })).toThrow(z.ZodError)
+    expect(preload.invoke).toHaveBeenCalledTimes(4)
+  })
+
+  it("rejects malformed bookmark and void results at the preload boundary", async () => {
+    const api = await exposedApi()
+    for (const result of [
+      null,
+      {},
+      { ...bookmark, position: 3601 },
+      { ...bookmark, title: "private" },
+    ]) {
+      preload.invoke.mockResolvedValueOnce(result)
+      await expect(api.playbackProgress.get(bookmark.videoId)).rejects.toBeInstanceOf(z.ZodError)
+    }
+    preload.invoke.mockResolvedValueOnce({ path: "/private" })
+    await expect(api.playbackProgress.save(bookmark)).rejects.toBeInstanceOf(z.ZodError)
+    preload.invoke.mockResolvedValueOnce(false)
+    await expect(api.playbackProgress.remove(bookmark.videoId)).rejects.toBeInstanceOf(z.ZodError)
   })
 })
 

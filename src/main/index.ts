@@ -4,6 +4,7 @@ import { app, BrowserWindow, dialog, safeStorage, session } from "electron"
 import { createChatInput } from "./chat-input"
 import { type StaticHttpsServer, startStaticHttpsServer } from "./https-server"
 import { registerIpc } from "./ipc"
+import { PlaybackProgressStore } from "./playback-progress-store"
 import { SettingsStore } from "./settings-store"
 import { TokenVault } from "./token-vault"
 import { TwitchService } from "./twitch-service"
@@ -82,6 +83,7 @@ const createWindow = async (): Promise<void> => {
   registerIpc({
     chatInput,
     mainWindow,
+    playbackProgress: new PlaybackProgressStore(app.getPath("userData")),
     rendererOrigin,
     runningInSteamGameMode,
     twitch: new TwitchService(new SettingsStore(app.getPath("userData")), tokenVault),

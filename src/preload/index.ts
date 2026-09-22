@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
+import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
 import {
   AuthSnapshotSchema,
@@ -8,6 +9,10 @@ import {
   DeviceChallengeSchema,
   FollowedChannelCardSchema,
   PageSchema,
+  PlaybackBookmarkSchema,
+  PlaybackProgressGetInputSchema,
+  PlaybackProgressRemoveInputSchema,
+  PlaybackProgressSaveInputSchema,
   SettingsSnapshotSchema,
   StreamCardSchema,
   type VacuumStreamApi,
@@ -68,6 +73,20 @@ const api = {
         ipcRenderer.removeListener(CHANNELS.chatInputEscape, onEscape)
       }
     },
+  },
+  playbackProgress: {
+    get: (videoId) =>
+      ipcRenderer
+        .invoke(CHANNELS.playbackProgressGet, PlaybackProgressGetInputSchema.parse(videoId))
+        .then((value) => PlaybackBookmarkSchema.optional().parse(value)),
+    remove: (videoId) =>
+      ipcRenderer
+        .invoke(CHANNELS.playbackProgressRemove, PlaybackProgressRemoveInputSchema.parse(videoId))
+        .then((value) => z.void().parse(value)),
+    save: (bookmark) =>
+      ipcRenderer
+        .invoke(CHANNELS.playbackProgressSave, PlaybackProgressSaveInputSchema.parse(bookmark))
+        .then((value) => z.void().parse(value)),
   },
   settings: {
     saveClientId: (clientId) =>

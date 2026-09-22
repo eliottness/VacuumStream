@@ -5,16 +5,21 @@ import {
   ChatInputSessionSchema,
   CursorInputSchema,
   LiveInputSchema,
+  PlaybackProgressGetInputSchema,
+  PlaybackProgressRemoveInputSchema,
+  PlaybackProgressSaveInputSchema,
   SearchInputSchema,
   VideosInputSchema,
 } from "../shared/contracts"
 import type { ChatInput } from "./chat-input"
+import type { PlaybackProgressStore } from "./playback-progress-store"
 import type { TwitchService } from "./twitch-service"
 import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
 type IpcOptions = {
   readonly chatInput: Pick<ChatInput, "begin" | "end">
   readonly mainWindow: BrowserWindow
+  readonly playbackProgress: Pick<PlaybackProgressStore, "get" | "remove" | "save">
   readonly rendererOrigin: string
   readonly runningInSteamGameMode: boolean
   readonly twitch: TwitchService
@@ -98,6 +103,21 @@ export const registerIpc = (options: IpcOptions): void => {
   ipcMain.handle(CHANNELS.catalogVideos, async (event, input: unknown) => {
     authorize(event)
     return options.twitch.videos(VideosInputSchema.parse(input))
+  })
+  ipcMain.handle(CHANNELS.playbackProgressGet, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [videoId] = z.tuple([PlaybackProgressGetInputSchema]).parse(input)
+    return options.playbackProgress.get(videoId)
+  })
+  ipcMain.handle(CHANNELS.playbackProgressRemove, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [videoId] = z.tuple([PlaybackProgressRemoveInputSchema]).parse(input)
+    await options.playbackProgress.remove(videoId)
+  })
+  ipcMain.handle(CHANNELS.playbackProgressSave, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [bookmark] = z.tuple([PlaybackProgressSaveInputSchema]).parse(input)
+    await options.playbackProgress.save(bookmark)
   })
   ipcMain.handle(CHANNELS.systemActivateEmbeddedPlayer, async (event, input: unknown) => {
     authorize(event)
