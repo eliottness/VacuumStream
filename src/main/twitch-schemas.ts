@@ -3,6 +3,7 @@ import type {
   CategoryCard,
   ChannelCard,
   DeviceChallenge,
+  FollowedChannelCard,
   Page,
   StreamCard,
   VideoCard,
@@ -45,6 +46,12 @@ const HelixChannelSchema = z.object({
   tags: HelixTagsSchema,
   thumbnail_url: z.url(),
   title: z.string(),
+})
+
+const HelixFollowedChannelSchema = z.object({
+  broadcaster_id: z.string(),
+  broadcaster_login: z.string(),
+  broadcaster_name: z.string(),
 })
 
 const HelixUserSchema = z.object({
@@ -164,6 +171,19 @@ export const parseChannelsResponse = (input: unknown): Page<ChannelCard> => {
     login: channel.broadcaster_login,
     thumbnailUrl: channel.thumbnail_url,
     title: channel.title,
+  }))
+}
+
+export const parseFollowedChannelsResponse = (input: unknown): Page<FollowedChannelCard> => {
+  const response = z
+    .object({ data: z.array(HelixFollowedChannelSchema), pagination: PaginationSchema })
+    .parse(input)
+  return mapPage(response.data, response.pagination.cursor, (channel) => ({
+    displayName: channel.broadcaster_name,
+    id: channel.broadcaster_id,
+    // The service replaces this placeholder with the required streams snapshot before returning.
+    isLive: false,
+    login: channel.broadcaster_login,
   }))
 }
 

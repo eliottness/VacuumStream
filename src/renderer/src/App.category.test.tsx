@@ -62,6 +62,9 @@ const makeBridge = (auth: AuthSnapshot) => {
     },
     catalog: {
       followed: vi.fn<VacuumStreamApi["catalog"]["followed"]>().mockResolvedValue(page([])),
+      followedChannels: vi
+        .fn<VacuumStreamApi["catalog"]["followedChannels"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
       live: vi.fn<VacuumStreamApi["catalog"]["live"]>((input) =>
         input.gameId === undefined ? Promise.resolve(page(["home"])) : categoryLive(input),
       ),

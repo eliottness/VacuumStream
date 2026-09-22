@@ -1,12 +1,70 @@
 import { describe, expect, it } from "vitest"
-import { CategoryCardSchema, PageSchema, VideoCardSchema } from "../shared/contracts"
+import { z } from "zod"
+import {
+  CategoryCardSchema,
+  FollowedChannelCardSchema,
+  PageSchema,
+  VideoCardSchema,
+} from "../shared/contracts"
 import {
   mergeStreamProfiles,
   parseCategoriesResponse,
+  parseFollowedChannelsResponse,
   parseStreamsResponse,
   parseUsersResponse,
   parseVideosResponse,
 } from "./twitch-schemas"
+
+const wireFollowedChannel = {
+  broadcaster_id: "456",
+  broadcaster_login: "streamer",
+  broadcaster_name: "Streamer",
+}
+
+describe("Twitch followed channels parsing", () => {
+  it("maps Helix broadcaster fields and the exact cursor into the real followed card contract", () => {
+    const page = parseFollowedChannelsResponse({
+      data: [
+        { ...wireFollowedChannel, followed_at: "2026-09-05T12:00:00Z" },
+        {
+          broadcaster_id: "789",
+          broadcaster_login: "another",
+          broadcaster_name: "Another",
+        },
+      ],
+      pagination: { cursor: "opaque+/=cursor" },
+      total: 42,
+    })
+
+    expect(PageSchema(FollowedChannelCardSchema).parse(page)).toEqual({
+      cursor: "opaque+/=cursor",
+      items: [
+        { displayName: "Streamer", id: "456", isLive: false, login: "streamer" },
+        { displayName: "Another", id: "789", isLive: false, login: "another" },
+      ],
+    })
+  })
+
+  it("parses an empty followed channels page without a cursor", () => {
+    expect(
+      PageSchema(FollowedChannelCardSchema).parse(
+        parseFollowedChannelsResponse({ data: [], pagination: {} }),
+      ),
+    ).toEqual({ cursor: undefined, items: [] })
+  })
+
+  it.each([
+    null,
+    { data: {}, pagination: {} },
+    { data: [wireFollowedChannel] },
+    { data: [wireFollowedChannel], pagination: { cursor: 123 } },
+    { data: [{ ...wireFollowedChannel, broadcaster_id: 456 }], pagination: {} },
+    { data: [{ ...wireFollowedChannel, broadcaster_login: undefined }], pagination: {} },
+    { data: [{ ...wireFollowedChannel, broadcaster_name: null }], pagination: {} },
+  ])("rejects malformed followed channels payload %j", (payload) => {
+    expect(() => parseFollowedChannelsResponse(payload)).toThrow(z.ZodError)
+  })
+})
 
 describe("Twitch response parsing", () => {
   it("maps a Helix stream response into renderer-safe cards", () => {

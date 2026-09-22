@@ -70,6 +70,10 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     return options.twitch.followed(CursorInputSchema.parse(input))
   })
+  ipcMain.handle(CHANNELS.catalogFollowedChannels, async (event, input: unknown) => {
+    authorize(event)
+    return options.twitch.followedChannels(CursorInputSchema.parse(input))
+  })
   ipcMain.handle(CHANNELS.catalogTopCategories, async (event, input: unknown) => {
     authorize(event)
     return options.twitch.topCategories(CursorInputSchema.parse(input))

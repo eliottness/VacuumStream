@@ -4,6 +4,7 @@ export const CHANNELS = {
   authOpenActivation: "auth:open-activation",
   authSnapshot: "auth:snapshot",
   catalogFollowed: "catalog:followed",
+  catalogFollowedChannels: "catalog:followed-channels",
   catalogLive: "catalog:live",
   catalogSearch: "catalog:search",
   catalogTopCategories: "catalog:top-categories",

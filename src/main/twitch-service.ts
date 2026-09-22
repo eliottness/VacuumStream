@@ -5,6 +5,7 @@ import type {
   ChannelCard,
   CursorInput,
   DeviceChallenge,
+  FollowedChannelCard,
   LiveInput,
   Page,
   SearchInput,
@@ -32,6 +33,7 @@ import {
   mergeStreamProfiles,
   parseCategoriesResponse,
   parseChannelsResponse,
+  parseFollowedChannelsResponse,
   parseStreamsResponse,
   parseUsersResponse,
   parseVideosResponse,
@@ -92,6 +94,41 @@ export class TwitchService {
     const parsed = CursorInputSchema.parse(input)
     const { identity } = await this.#auth.credentials()
     return this.#streams("streams/followed", { ...parsed, user_id: identity.user_id })
+  }
+
+  public async followedChannels(input: CursorInput): Promise<Page<FollowedChannelCard>> {
+    const parsed = CursorInputSchema.parse(input)
+    const { identity } = await this.#auth.credentials()
+    const page = await this.#helix(
+      "channels/followed",
+      { ...parsed, user_id: identity.user_id },
+      parseFollowedChannelsResponse,
+    )
+    if (page.items.length === 0) return page
+
+    const streamSearch = new URLSearchParams({ first: "100" })
+    const userSearch = new URLSearchParams()
+    for (const channel of page.items) {
+      streamSearch.append("user_id", channel.id)
+      userSearch.append("id", channel.id)
+    }
+    const [streams, profiles] = await Promise.all([
+      this.#helix("streams", streamSearch, parseStreamsResponse),
+      this.#helix("users", userSearch, parseUsersResponse).catch((error: unknown) => {
+        // Avatars are optional; the separate live-status request must still succeed.
+        if (error instanceof Error) return new Map<string, string>()
+        throw error
+      }),
+    ])
+    const liveIds = new Set(streams.items.map((stream) => stream.userId))
+    return {
+      cursor: page.cursor,
+      items: page.items.map((channel) => ({
+        ...channel,
+        isLive: liveIds.has(channel.id),
+        profileImageUrl: profiles.get(channel.id),
+      })),
+    }
   }
 
   public async topCategories(input: CursorInput): Promise<Page<CategoryCard>> {

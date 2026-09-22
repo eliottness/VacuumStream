@@ -53,6 +53,14 @@ export const ChannelCardSchema = z.object({
   title: z.string(),
 })
 
+export const FollowedChannelCardSchema = z.object({
+  displayName: z.string(),
+  id: z.string(),
+  isLive: z.boolean(),
+  login: z.string(),
+  profileImageUrl: z.url().optional(),
+})
+
 export const VideoCardSchema = z.object({
   createdAt: z.string(),
   duration: z.string(),
@@ -115,6 +123,7 @@ export type ChannelCard = z.infer<typeof ChannelCardSchema>
 export type ClientId = z.infer<typeof ClientIdSchema>
 export type CursorInput = z.input<typeof CursorInputSchema>
 export type DeviceChallenge = z.infer<typeof DeviceChallengeSchema>
+export type FollowedChannelCard = z.infer<typeof FollowedChannelCardSchema>
 export type LiveInput = z.input<typeof LiveInputSchema>
 export type Page<Item> = {
   readonly cursor: string | undefined
@@ -135,6 +144,7 @@ export interface VacuumStreamApi {
   }
   readonly catalog: {
     readonly followed: (input: CursorInput) => Promise<Page<StreamCard>>
+    readonly followedChannels: (input: CursorInput) => Promise<Page<FollowedChannelCard>>
     readonly live: (input: LiveInput) => Promise<Page<StreamCard>>
     readonly search: (input: SearchInput) => Promise<Page<ChannelCard>>
     readonly topCategories: (input: CursorInput) => Promise<Page<CategoryCard>>

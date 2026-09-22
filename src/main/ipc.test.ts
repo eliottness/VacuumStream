@@ -21,6 +21,7 @@ vi.mock("electron", () => ({
 const mainFrame = { url: "https://localhost:1234/" }
 const webContents = { id: 1, mainFrame }
 const event = { sender: webContents, senderFrame: mainFrame } as IpcMainInvokeEvent
+const followedChannels = vi.fn<TwitchService["followedChannels"]>()
 const live = vi.fn<TwitchService["live"]>()
 
 const invokeLive = (input: unknown, sender = event): Promise<unknown> => {
@@ -29,10 +30,18 @@ const invokeLive = (input: unknown, sender = event): Promise<unknown> => {
   return Promise.resolve(handler(sender, input))
 }
 
+const invokeFollowedChannels = (input: unknown, sender = event): Promise<unknown> => {
+  const handler = handlers.get(CHANNELS.catalogFollowedChannels)
+  if (handler === undefined) throw new Error("Followed channels handler was not registered")
+  return Promise.resolve(handler(sender, input))
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   handlers.clear()
+  followedChannels.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   live.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
+  vi.spyOn(TwitchService.prototype, "followedChannels").mockImplementation(followedChannels)
   vi.spyOn(TwitchService.prototype, "live").mockImplementation(live)
   registerIpc({
     mainWindow: { webContents } as BrowserWindow,
@@ -53,6 +62,52 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
+})
+
+describe("followed channels catalog IPC validation", () => {
+  it("forwards a valid cursor input with the default page size and returns the service page", async () => {
+    const page = {
+      cursor: "later+/=",
+      items: [{ displayName: "Streamer", id: "456", isLive: false, login: "streamer" }],
+    }
+    followedChannels.mockResolvedValueOnce(page)
+
+    await expect(invokeFollowedChannels({ after: "next+/=" })).resolves.toEqual(page)
+    expect(followedChannels).toHaveBeenCalledExactlyOnceWith({ after: "next+/=", first: 20 })
+  })
+
+  it("forwards an explicitly bounded directory page size", async () => {
+    await invokeFollowedChannels({ first: 100 })
+    expect(followedChannels).toHaveBeenCalledExactlyOnceWith({ first: 100 })
+  })
+
+  it.each([
+    null,
+    { after: 123 },
+    { after: "x".repeat(513) },
+    { first: "20" },
+    { first: 0 },
+    { first: 101 },
+    { first: 1.5 },
+  ])("rejects malformed followed channels input %j before calling the service", async (input) => {
+    await expect(invokeFollowedChannels(input)).rejects.toBeInstanceOf(z.ZodError)
+    expect(followedChannels).not.toHaveBeenCalled()
+  })
+
+  it("rejects followed channels requests from a missing sender frame", async () => {
+    await expect(
+      invokeFollowedChannels({}, { ...event, senderFrame: null }),
+    ).rejects.toBeInstanceOf(InvalidIpcSenderError)
+    expect(followedChannels).not.toHaveBeenCalled()
+  })
+
+  it("rejects followed channels requests from an unauthorized same-origin child frame", async () => {
+    const childFrame = { url: mainFrame.url } as IpcMainInvokeEvent["senderFrame"]
+    await expect(
+      invokeFollowedChannels({}, { ...event, senderFrame: childFrame }),
+    ).rejects.toBeInstanceOf(InvalidIpcSenderError)
+    expect(followedChannels).not.toHaveBeenCalled()
+  })
 })
 
 describe("live catalog IPC validation", () => {

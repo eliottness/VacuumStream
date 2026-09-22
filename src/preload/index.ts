@@ -5,6 +5,7 @@ import {
   CategoryCardSchema,
   ChannelCardSchema,
   DeviceChallengeSchema,
+  FollowedChannelCardSchema,
   PageSchema,
   SettingsSnapshotSchema,
   StreamCardSchema,
@@ -27,6 +28,10 @@ const api = {
       ipcRenderer
         .invoke(CHANNELS.catalogFollowed, input)
         .then((value) => PageSchema(StreamCardSchema).parse(value)),
+    followedChannels: (input) =>
+      ipcRenderer
+        .invoke(CHANNELS.catalogFollowedChannels, input)
+        .then((value) => PageSchema(FollowedChannelCardSchema).parse(value)),
     live: (input) =>
       ipcRenderer
         .invoke(CHANNELS.catalogLive, input)

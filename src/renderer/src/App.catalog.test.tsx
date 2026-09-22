@@ -52,6 +52,9 @@ const makeBridge = (auth: AuthSnapshot) =>
       followed: vi
         .fn<VacuumStreamApi["catalog"]["followed"]>()
         .mockResolvedValue(page(["following"])),
+      followedChannels: vi
+        .fn<VacuumStreamApi["catalog"]["followedChannels"]>()
+        .mockResolvedValue({ cursor: undefined, items: [] }),
       live: vi.fn<VacuumStreamApi["catalog"]["live"]>().mockResolvedValue(page(["home"])),
       search: vi
         .fn<VacuumStreamApi["catalog"]["search"]>()
