@@ -159,7 +159,7 @@ describe("chat input capability", () => {
     const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
     if (api === undefined) throw new Error("Preload did not expose its API")
     expect(preload.exposeInMainWorld.mock.calls[0]?.[0]).toBe("vacuumStream")
-    expect(Object.keys(api)).toEqual([
+    expect([...Object.keys(api)].sort()).toEqual([
       "auth",
       "catalog",
       "chatInput",
@@ -167,8 +167,8 @@ describe("chat input capability", () => {
       "settings",
       "system",
     ])
-    expect(Object.keys(api.chatInput)).toEqual(["begin", "end", "onEscape"])
-    expect(Object.keys(api.system)).toEqual([
+    expect([...Object.keys(api.chatInput)].sort()).toEqual(["begin", "end", "onEscape"])
+    expect([...Object.keys(api.system)].sort()).toEqual([
       "activateEmbeddedPlayer",
       "isSteamGameMode",
       "restoreShellFullscreen",
@@ -297,7 +297,7 @@ describe("playback progress capability", () => {
     preload.invoke.mockImplementation((channel, ...input) => invoke(channel, event, ...input))
     playbackProgress.get.mockResolvedValueOnce(bookmark)
     const api = await exposedApi()
-    expect(Object.keys(api.playbackProgress)).toEqual(["get", "remove", "save"])
+    expect([...Object.keys(api.playbackProgress)].sort()).toEqual(["get", "remove", "save"])
     await expect(api.playbackProgress.get(bookmark.videoId)).resolves.toEqual(bookmark)
     await expect(api.playbackProgress.get("missing")).resolves.toBeUndefined()
     await expect(api.playbackProgress.save(bookmark)).resolves.toBeUndefined()
