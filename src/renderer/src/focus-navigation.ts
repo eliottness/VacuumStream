@@ -118,10 +118,15 @@ const moveFocusTo = (element: HTMLElement): void => {
   })
 }
 
-const keyboardForGamepad = (gamepad: Gamepad): string | undefined => {
+export const SEARCH_GAMEPAD_EVENT = "vacuumstream:search-gamepad"
+export type SearchGamepadAction = "delete" | "submit"
+type GamepadInput = string | 2 | 3
+
+const keyboardForGamepad = (gamepad: Gamepad): GamepadInput | undefined => {
   if (gamepad.buttons[0]?.pressed === true) return "Enter"
   if (gamepad.buttons[1]?.pressed === true) return "Escape"
-  if (gamepad.buttons[2]?.pressed === true || gamepad.buttons[3]?.pressed === true) return "/"
+  if (gamepad.buttons[2]?.pressed === true) return 2
+  if (gamepad.buttons[3]?.pressed === true) return 3
   if (gamepad.buttons[9]?.pressed === true) return "F10"
   if (gamepad.buttons[12]?.pressed === true || (gamepad.axes[1] ?? 0) < -0.55) return "ArrowUp"
   if (gamepad.buttons[13]?.pressed === true || (gamepad.axes[1] ?? 0) > 0.55) return "ArrowDown"
@@ -137,6 +142,20 @@ export const dispatchControllerKey = (key: string): void => {
     return
   }
   document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key }))
+}
+
+const dispatchGamepadInput = (input: GamepadInput): void => {
+  if (typeof input === "string") {
+    dispatchControllerKey(input)
+    return
+  }
+  const event = new CustomEvent<SearchGamepadAction>(SEARCH_GAMEPAD_EVENT, {
+    bubbles: true,
+    cancelable: true,
+    detail: input === 2 ? "delete" : "submit",
+  })
+  if (document.activeElement?.dispatchEvent(event) === false) return
+  dispatchControllerKey("/")
 }
 
 export const shouldPreserveInputArrow = (
@@ -155,21 +174,30 @@ export const shouldRepeatControllerKey = (key: string | undefined): boolean =>
 
 const installGamepadBridge = (): (() => void) => {
   let animationFrame = 0
-  let activeKey: string | undefined
+  let activeInput: GamepadInput | undefined
+  let searchButtonsHeld = [false, false]
   let pressedAt = 0
   let repeatedAt = 0
 
   const poll = (now: number): void => {
     const gamepad = navigator.getGamepads().find((candidate) => candidate?.connected === true)
-    const key = gamepad === undefined || gamepad === null ? undefined : keyboardForGamepad(gamepad)
-    const changed = key !== activeKey
+    const input =
+      gamepad === undefined || gamepad === null ? undefined : keyboardForGamepad(gamepad)
+    // Latch physical face buttons until release, even across focus or priority changes.
+    const changed =
+      typeof input === "number" ? !searchButtonsHeld[input - 2] : input !== activeInput
+    searchButtonsHeld = [
+      gamepad?.buttons[2]?.pressed === true,
+      gamepad?.buttons[3]?.pressed === true,
+    ]
     const repeats =
-      shouldRepeatControllerKey(key) &&
+      typeof input === "string" &&
+      shouldRepeatControllerKey(input) &&
       now - pressedAt >= 500 &&
       (repeatedAt === 0 || now - repeatedAt >= 100)
 
-    if (key !== undefined && (changed || repeats)) {
-      dispatchControllerKey(key)
+    if (input !== undefined && (changed || repeats)) {
+      dispatchGamepadInput(input)
       if (changed) {
         pressedAt = now
         repeatedAt = 0
@@ -177,11 +205,11 @@ const installGamepadBridge = (): (() => void) => {
         repeatedAt = now
       }
     }
-    if (key === undefined) {
+    if (input === undefined) {
       pressedAt = 0
       repeatedAt = 0
     }
-    activeKey = key
+    activeInput = input
     animationFrame = requestAnimationFrame(poll)
   }
 
