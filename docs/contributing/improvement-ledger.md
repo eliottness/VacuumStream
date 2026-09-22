@@ -55,6 +55,7 @@ are out of scope and are rejected without review.
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
+| 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -502,6 +503,43 @@ with queued saves cancelled so they cannot undo the removal. Checkpoints are thr
 seconds and roll back when a write fails. On the signed-out Showcase the prompt reads "Resume
 from 1:05:00" and states that positions stay on this installation and are shared across Twitch
 accounts — the caveat lives in the interface, not only in the documentation.
+
+### Cycle 11 — Add a local Continue Watching shelf
+
+Cycle 10 remembers where you stopped, but you still have to rediscover the recording through its
+channel's archive to get back to it — and that route needs an account. The bookmarks already sit
+in a local store; Home simply cannot enumerate them, because the capability exposes only get,
+save and remove.
+
+Target: a Continue Watching row above the live shelf, newest first, at most ten entries, showing
+a title and saved elapsed/total time. It works signed out, opens cycle 10's existing prompt, and
+offers Forget progress that deletes the bookmark rather than merely hiding the card.
+
+Three decisions worth recording. Bookmarks gain optional bounded display metadata behind a
+version-2 envelope that must read existing version-1 files without losing an entry or shifting a
+position. Older bookmarks have no recoverable title, so they show as "Recording <id>" and stay
+resumable rather than being hidden or enriched by a background Helix call. And the shelf must
+reflect a departure checkpoint that is still queued in the renderer, because renderer ordering
+and the main store's own serialization are two separate queues — main-process ordering alone
+would not guarantee a fresh Home read sees it.
+
+Acceptance criteria:
+
+1. Listing is bounded, deterministically ordered, and version-1 files survive unchanged; IPC
+   rejects extra arguments, unauthorized frames and malformed metadata or results.
+2. Guest Home shows exactly the newest ten of twelve seeded bookmarks, including a legacy entry,
+   with no catalog request or authorization flow.
+3. Selecting an entry constructs no player before a choice; Resume gives one player with the
+   right ID and time; Back none; Start over clears the bookmark; legacy entries need no
+   broadcaster lookup.
+4. A queued departure save or completion removal is reflected once settled, and obsolete listing
+   responses cannot reinstall removed entries.
+5. Forget progress, read errors and removal errors are all recoverable with a controller, and
+   focus lands on a surviving control when the last entry disappears.
+6. The shelf reads well at 1280x720 and 1920x1080 signed out, and `bun run verify` passes.
+
+Not in scope: Twitch history synchronization, thumbnails, a full history browser, availability
+lookups, and autoplay at boot.
 
 ## Observed but not yet scheduled
 
