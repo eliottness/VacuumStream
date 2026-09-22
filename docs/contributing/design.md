@@ -121,12 +121,14 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 ### PlayerStage
 
-- **Structure**: official interactive Twitch player, local Back, play/pause, mute, VOD, and fullscreen controls, loading/error surface; VOD-only transport row with elapsed/total time and ±30-second/±5-minute jumps.
+- **Structure**: official interactive Twitch player, local Back, play/pause, mute, Quality, VOD, live-only Show/Hide chat and Reload chat, and fullscreen controls, loading/error surface; VOD-only transport row with elapsed/total time and ±30-second/±5-minute jumps.
 - **States**: local loading, ready, paused, muted, offline, and script/player load error; jumps disabled until ready with a finite positive duration.
 - **Accessibility**: all playback actions use Arrow keys and Enter; Down from Back enters the jumps, Left/Right chooses, and Up returns to Back. Seeking retains focus and cancels autoplay retries without changing play/pause or mute.
 - **Playback**: VOD jumps use the official Player API and clamp to recording bounds; live controls remain unchanged. Time refreshes on READY, PLAYING, SEEK, and once per second while a ready VOD is mounted.
 - **Quality**: live and VOD Quality opens an inline chooser of official API options, refreshed on READY, PLAYING, and opening. Arrows and Enter request an exact quality ID; Close returns focus to Quality, while Escape still returns Home. Empty/offline states retain Back and Close. Requested mode is distinct from the player-reported effective resolution, including Auto; `data-requested-quality` and `data-player-quality` on the Quality button expose those values without claiming setter confirmation.
-- **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport; local toolbar, transport, and quality chooser remain outside Twitch's unobscured player.
+- **Chat**: reading live chat only, not composing messages or replaying VOD chat. A feature-local hook owns visibility and iframe reload state, reset on every source change. Hidden chat has no iframe. The documented `https://www.twitch.tv/embed/${encodeURIComponent(channelLogin)}/chat?parent=localhost` URL uses only the live source's login, with no tokens or additional parameters. Reload replaces only the chat iframe; chat actions never recreate or control the player. Twitch owns connection/error presentation; iframe `load` is not a connected signal.
+- **Chat navigation**: Show/Hide sits between Past broadcasts and Fullscreen; Down reaches Reload, Up returns to the toggle, and Left/Right returns to toolbar neighbours. Both controls stay usable before READY and offline. The titled chat iframe has `tabIndex={-1}`, no controller focus marker, and is never deliberately focused. Removed chat controls recover shell focus; Escape still returns Home.
+- **Layout**: a player-stage grid holds the unobscured video frame and optional sibling chat pane. Video remains at least 400 by 300 px and expands to available space; when side-by-side cannot fit, the panes stack and the player view scrolls. Local toolbar, transport, quality chooser, and chat controls remain outside both embeds. Chat is enlarged with a transform on its outer frame and compensating width/height, following the root scale for couch readability without injecting cross-origin CSS or cropping Twitch's UI.
 
 ### Primitive Showcase
 

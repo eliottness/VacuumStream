@@ -46,6 +46,7 @@ const installPlayerHarness = (
   vi.useFakeTimers()
   const listeners = new Map<string, () => void>()
   const constructed = vi.fn()
+  const instances: TestPlayer[] = []
   const getCurrentTime = vi.fn(() => timeline.currentTime)
   const getDuration = vi.fn(() => timeline.duration)
   const getQualities = vi.fn(() => quality.available)
@@ -70,6 +71,7 @@ const installPlayerHarness = (
 
     constructor(elementId: string) {
       constructed(elementId)
+      instances.push(this)
       document.getElementById(elementId)?.append(document.createElement("iframe"))
     }
 
@@ -119,6 +121,7 @@ const installPlayerHarness = (
     getDuration,
     getQualities,
     getQuality,
+    instances,
     listeners,
     pause,
     play,
@@ -583,6 +586,265 @@ describe("controller playback quality", () => {
   })
 })
 
+describe("live chat sidebar", () => {
+  it.each([source, videoSource])(
+    "starts hidden with live-only chat controls for $kind",
+    async (playerSource) => {
+      installPlayerHarness([])
+      const { container, root } = await mountPlayer(playerSource)
+      const toggle = container.querySelector('[data-focus-id="player-chat"]')
+      expect(toggle !== null).toBe(playerSource.kind === "live")
+      if (toggle !== null) expect(toggle.getAttribute("aria-expanded")).toBe("false")
+      expect(container.querySelector('[data-focus-id="player-chat-reload"]')).toBeNull()
+      expect(container.querySelector(".player-chat")).toBeNull()
+      expect(container.querySelectorAll("iframe")).toHaveLength(1)
+      expect(buttonById(container, "player-vods").getAttribute("data-focus-right")).toBe(
+        playerSource.kind === "live" ? "player-chat" : "player-fullscreen",
+      )
+      expect(buttonById(container, "player-fullscreen").getAttribute("data-focus-left")).toBe(
+        playerSource.kind === "live" ? "player-chat" : "player-vods",
+      )
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each([
+    ["twitch", "twitch"],
+    ["room/name?x=1&token=secret", "room%2Fname%3Fx%3D1%26token%3Dsecret"],
+  ])(
+    "embeds only the encoded live login %s with the documented parent",
+    async (channel, encoded) => {
+      const harness = installPlayerHarness([])
+      const { container, root } = await mountPlayer({ ...source, channel })
+      await act(async () => buttonById(container, "player-chat").click())
+      const frames = container.querySelectorAll<HTMLIFrameElement>(".player-chat iframe")
+      expect(frames).toHaveLength(1)
+      const frame = frames[0]
+      if (frame === undefined) throw new Error("Missing chat iframe")
+      expect(frame.src).toBe(`https://www.twitch.tv/embed/${encoded}/chat?parent=localhost`)
+      expect([...new URL(frame.src).searchParams]).toEqual([["parent", "localhost"]])
+      expect(frame.tabIndex).toBe(-1)
+      expect(frame.hasAttribute("data-focusable")).toBe(false)
+      expect(frame.title).toBe(`Live chat for ${channel}`)
+      expect(container.querySelectorAll("iframe")).toHaveLength(2)
+      expect(container.querySelector(".player-frame .player-chat")).toBeNull()
+      expect(container.querySelector(".player-stage > .player-chat")).not.toBeNull()
+      expect(container.querySelector(".player-stage button")).toBeNull()
+      await act(async () => frame.dispatchEvent(new Event("load")))
+      expect(container.querySelector(".player-frame")?.getAttribute("aria-busy")).toBe("true")
+      expect(buttonById(container, "player-chat").disabled).toBe(false)
+      expect(buttonById(container, "player-chat-reload").disabled).toBe(false)
+      expect(harness.activateEmbeddedPlayer).not.toHaveBeenCalled()
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["loading", "ready", "offline"] as const)(
+    "navigates Show, Hide and Reload with real controller arrows and Enter while %s",
+    async (state) => {
+      const harness = installPlayerHarness([true])
+      const { container, root } = await mountNavigablePlayer()
+      if (state !== "loading") await act(async () => harness.emit("ready"))
+      if (state === "offline") await act(async () => harness.emit("offline"))
+      const expectFocus = (id: string): void => {
+        expect(document.activeElement).toBe(buttonById(container, id))
+        expect(document.activeElement?.tagName).toBe("BUTTON")
+        expect(container.querySelector(".player-stage")?.contains(document.activeElement)).toBe(
+          false,
+        )
+      }
+      const move = async (key: string, id: string): Promise<void> => {
+        await pressKey(container, key)
+        expectFocus(id)
+      }
+      expectFocus("player-back")
+      const route =
+        state === "ready"
+          ? ["player-playback", "player-muted", "player-quality", "player-vods", "player-chat"]
+          : ["player-quality", "player-vods", "player-chat"]
+      for (const id of route) await move("ArrowRight", id)
+      await move("Enter", "player-chat")
+      expect(buttonById(container, "player-chat").getAttribute("aria-expanded")).toBe("true")
+      for (const id of ["player-chat", "player-chat-reload"]) {
+        const button = buttonById(container, id)
+        expect(button.disabled).toBe(false)
+        expect(button.getAttribute("data-focusable")).toBe("true")
+        for (const direction of ["down", "left", "right", "up"]) {
+          expect(button.hasAttribute(`data-focus-${direction}`)).toBe(true)
+        }
+      }
+      const oldFrame = container.querySelector(".player-chat iframe")
+      await move("ArrowDown", "player-chat-reload")
+      await move("Enter", "player-chat-reload")
+      expect(container.querySelectorAll(".player-chat iframe")).toHaveLength(1)
+      expect(container.querySelector(".player-chat iframe")).not.toBe(oldFrame)
+      await move("ArrowDown", "player-chat-reload")
+      await move("ArrowRight", "player-fullscreen")
+      await move("ArrowLeft", "player-chat")
+      await move("ArrowDown", "player-chat-reload")
+      await move("ArrowLeft", "player-chat")
+      await move("ArrowLeft", "player-vods")
+      await move("ArrowRight", "player-chat")
+      await move("ArrowDown", "player-chat-reload")
+      await move("ArrowUp", "player-chat")
+      await move("Enter", "player-chat")
+      expect(container.querySelector(".player-chat")).toBeNull()
+      expect(container.querySelector('[data-focus-id="player-chat-reload"]')).toBeNull()
+      expect(buttonById(container, "player-chat").getAttribute("aria-expanded")).toBe("false")
+      await move("ArrowDown", "player-chat")
+      await move("ArrowRight", "player-fullscreen")
+      await move("ArrowLeft", "player-chat")
+      await move("ArrowUp", "player-back")
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["loading", "ready", "offline"] as const)(
+    "isolates showing, hiding and reloading chat from the %s player",
+    async (state) => {
+      const harness = installPlayerHarness([true])
+      const { container, root } = await mountPlayer(source)
+      if (state !== "loading") await act(async () => harness.emit("ready"))
+      if (state === "offline") await act(async () => harness.emit("offline"))
+      const player = harness.instances[0]
+      const playerRoot = container.querySelector("#twitch-player-root")
+      const playerFrame = playerRoot?.querySelector("iframe")
+      expect(player).toBeDefined()
+      expect(playerRoot).not.toBeNull()
+      expect(playerFrame).not.toBeNull()
+      const calls = [
+        harness.activateEmbeddedPlayer,
+        harness.play,
+        harness.pause,
+        harness.setMuted,
+        harness.seek,
+        harness.setQuality,
+      ].map((mock) => ({ count: mock.mock.calls.length, mock }))
+      const expectUnchangedPlayer = (): void => {
+        expect(harness.instances).toEqual([player])
+        expect(harness.instances[0]).toBe(player)
+        expect(harness.constructed).toHaveBeenCalledTimes(1)
+        expect(container.querySelector("#twitch-player-root")).toBe(playerRoot)
+        expect(playerRoot?.querySelector("iframe")).toBe(playerFrame)
+        for (const { count, mock } of calls) expect(mock).toHaveBeenCalledTimes(count)
+      }
+      await act(async () => buttonById(container, "player-chat").click())
+      expectUnchangedPlayer()
+      const pane = container.querySelector(".player-chat")
+      const firstFrame = pane?.querySelector("iframe")
+      await act(async () => buttonById(container, "player-chat-reload").click())
+      expectUnchangedPlayer()
+      expect(container.querySelector(".player-chat")).toBe(pane)
+      expect(pane?.querySelector("iframe")).not.toBe(firstFrame)
+      await act(async () => buttonById(container, "player-chat").click())
+      expectUnchangedPlayer()
+      expect(container.querySelector(".player-chat iframe")).toBeNull()
+      await act(async () => buttonById(container, "player-chat").click())
+      expectUnchangedPlayer()
+      expect(container.querySelectorAll(".player-chat iframe")).toHaveLength(1)
+      await act(async () => root.unmount())
+    },
+  )
+
+  it("keeps visible chat and its shell controls usable when playback goes offline", async () => {
+    const harness = installPlayerHarness([true])
+    const { container, root } = await mountNavigablePlayer()
+    await act(async () => harness.emit("ready"))
+    await act(async () => buttonById(container, "player-chat").click())
+    await pressKey(container, "ArrowDown")
+    const frame = container.querySelector(".player-chat iframe")
+    await act(async () => harness.emit("offline"))
+    expect(container.querySelector(".player-chat iframe")).toBe(frame)
+    expect(document.activeElement).toBe(buttonById(container, "player-chat-reload"))
+    await pressKey(container, "Enter")
+    expect(container.querySelector(".player-chat iframe")).not.toBe(frame)
+    expect(document.activeElement).toBe(buttonById(container, "player-chat-reload"))
+    await pressKey(container, "ArrowUp")
+    await pressKey(container, "Enter")
+    expect(container.querySelector(".player-chat")).toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    await act(async () => root.unmount())
+  })
+
+  it("discards chat across source changes, recovers shell focus and ignores late iframe loads", async () => {
+    installPlayerHarness([])
+    const { container, root } = await mountPlayer(source)
+    await act(async () => buttonById(container, "player-chat").click())
+    const oldFrame = container.querySelector(".player-chat iframe")
+    if (oldFrame === null) throw new Error("Missing old chat iframe")
+    buttonById(container, "player-chat-reload").focus()
+    const nextSource = { ...source, channel: "other_channel" }
+    await act(async () => root.render(playerView(nextSource)))
+    expect(oldFrame.isConnected).toBe(false)
+    expect(container.querySelector(".player-chat")).toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    await act(async () => oldFrame.dispatchEvent(new Event("load")))
+    expect(container.querySelector(".player-chat")).toBeNull()
+    await act(async () => buttonById(container, "player-chat").click())
+    const nextFrame = container.querySelector<HTMLIFrameElement>(".player-chat iframe")
+    if (nextFrame === null) throw new Error("Missing replacement chat iframe")
+    expect(nextFrame.src).toBe("https://www.twitch.tv/embed/other_channel/chat?parent=localhost")
+    await act(async () => oldFrame.dispatchEvent(new Event("load")))
+    expect(container.querySelectorAll(".player-chat iframe")).toHaveLength(1)
+    expect(container.querySelector(".player-chat iframe")).toBe(nextFrame)
+    buttonById(container, "player-chat-reload").focus()
+    await act(async () => root.render(playerView(videoSource)))
+    expect(container.querySelector(".player-chat")).toBeNull()
+    expect(container.querySelector('[data-focus-id="player-chat"]')).toBeNull()
+    expect(container.querySelector('[data-focus-id="player-chat-reload"]')).toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-back"))
+    await act(async () => {
+      oldFrame.dispatchEvent(new Event("load"))
+      nextFrame.dispatchEvent(new Event("load"))
+    })
+    expect(container.querySelector(".player-chat")).toBeNull()
+    await act(async () => root.render(playerView(source)))
+    expect(buttonById(container, "player-chat").getAttribute("aria-expanded")).toBe("false")
+    expect(container.querySelector(".player-chat")).toBeNull()
+    await act(async () => buttonById(container, "player-chat").click())
+    const hiddenFrame = container.querySelector(".player-chat iframe")
+    if (hiddenFrame === null) throw new Error("Missing chat before hiding")
+    await act(async () => buttonById(container, "player-chat").click())
+    await act(async () => hiddenFrame.dispatchEvent(new Event("load")))
+    expect(container.querySelector(".player-chat")).toBeNull()
+    // Replacing the source with the same login still resets the mounted player's chat state.
+    await act(async () => buttonById(container, "player-chat").click())
+    await act(async () => root.render(playerView({ ...source })))
+    expect(container.querySelector(".player-chat")).toBeNull()
+    await act(async () => root.unmount())
+    await act(async () => hiddenFrame.dispatchEvent(new Event("load")))
+    expect(container.childElementCount).toBe(0)
+  })
+
+  it.each(["loading", "ready", "offline"] as const)(
+    "preserves Escape to Home from chat through the real app controller while %s",
+    async (state) => {
+      const harness = installPlayerHarness([true])
+      installNavigationSurface()
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      await act(async () => root.render(<App />))
+      await act(async () => buttonById(container, "stream-preview-twitch").click())
+      if (state !== "loading") await act(async () => harness.emit("ready"))
+      if (state === "offline") await act(async () => harness.emit("offline"))
+      const route = state === "ready" ? 5 : 3
+      for (let index = 0; index < route; index += 1) await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+      await pressKey(container, "Enter")
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(buttonById(container, "player-chat-reload"))
+      await pressKey(container, "Escape")
+      expect(container.querySelector(".player-view")).toBeNull()
+      expect(container.querySelector(".player-chat")).toBeNull()
+      expect(container.querySelector(".browse-view")).not.toBeNull()
+      expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+      expect(harness.restoreShellFullscreen).toHaveBeenCalledTimes(1)
+      await act(async () => root.unmount())
+    },
+  )
+})
+
 describe("VOD controller seeking", () => {
   it("keeps the exact live toolbar without VOD controls or timeline reads", async () => {
     const harness = installPlayerHarness([true], { currentTime: 600, duration: 3600 })
@@ -606,6 +868,7 @@ describe("VOD controller seeking", () => {
       "player-muted",
       "player-quality",
       "player-vods",
+      "player-chat",
       "player-fullscreen",
     ])
     expect(buttonById(container, "player-back").hasAttribute("data-focus-down")).toBe(false)

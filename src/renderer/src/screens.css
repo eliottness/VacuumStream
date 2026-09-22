@@ -208,6 +208,7 @@
   grid-template-rows: auto minmax(300px, 1fr);
   block-size: 100dvb;
   min-inline-size: 400px;
+  overflow: auto;
   background: var(--color-canvas);
 }
 
@@ -269,7 +270,9 @@
 
 .player-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -290,6 +293,43 @@
 
 .player-toolbar > div > span {
   color: var(--color-text-muted);
+}
+
+.player-stage {
+  display: grid;
+  grid-template-columns: minmax(400px, 1fr);
+  min-block-size: 300px;
+}
+
+.player-stage:has(.player-chat) {
+  grid-template-columns: minmax(400px, 1fr) 32rem;
+  min-block-size: 450px;
+}
+
+.player-frame {
+  min-inline-size: 400px;
+  min-block-size: 300px;
+}
+
+.player-chat {
+  --player-chat-scale: calc(1.5 * 1rem / 16px);
+  min-inline-size: 0;
+  min-block-size: 450px;
+}
+
+/* Scale the complete cross-origin frame, compensating both axes without clipping its UI. */
+.player-chat__frame {
+  inline-size: calc(100% / var(--player-chat-scale));
+  block-size: calc(100% / var(--player-chat-scale));
+  transform: scale(var(--player-chat-scale));
+  transform-origin: top left;
+}
+
+.player-chat iframe {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
 }
 
 .player-frame,
@@ -347,6 +387,25 @@
 
 .showcase__buttons h2 {
   flex-basis: 100%;
+}
+
+@media (width < 70rem) {
+  .player-toolbar {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .player-toolbar > div {
+    display: none;
+  }
+}
+
+@media (width < 64rem) {
+  .player-stage:has(.player-chat) {
+    grid-template-columns: minmax(400px, 1fr);
+    grid-template-rows: minmax(300px, 1fr) minmax(450px, 1fr);
+    min-block-size: 750px;
+  }
 }
 
 @media (width < 45rem) {

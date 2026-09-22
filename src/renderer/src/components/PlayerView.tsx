@@ -13,6 +13,7 @@ import {
   loadTwitchPlayerApi,
   type TwitchPlayerInstance,
 } from "../twitch-player"
+import { usePlayerChat } from "./usePlayerChat"
 import { usePlayerQuality } from "./usePlayerQuality"
 
 export type PlayerSource =
@@ -68,6 +69,7 @@ export const PlayerView = ({
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
+  const { chatButton, chatPane, chatReloadButton } = usePlayerChat(source, backButtonRef)
   const { qualityButton, qualityChooser, refreshQualities, resetQualities } = usePlayerQuality(
     playerRef,
     frameState === "ready",
@@ -277,7 +279,7 @@ export const PlayerView = ({
         <button
           data-focus-id="player-vods"
           data-focus-left="player-quality"
-          data-focus-right="player-fullscreen"
+          data-focus-right={source.kind === "live" ? "player-chat" : "player-fullscreen"}
           data-focusable="true"
           onClick={() => onPastBroadcasts(source.userId)}
           type="button"
@@ -285,10 +287,12 @@ export const PlayerView = ({
           <FilmStripIcon aria-hidden="true" />
           Past broadcasts
         </button>
+        {chatButton}
+        {chatReloadButton}
         <button
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
-          data-focus-left="player-vods"
+          data-focus-left={source.kind === "live" ? "player-chat" : "player-vods"}
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
@@ -319,13 +323,16 @@ export const PlayerView = ({
         </section>
       ) : null}
       {qualityChooser}
-      <div aria-busy={frameState === "loading"} className="player-frame">
-        {frameState === "error" ? (
-          <div className="player-status" role="alert">
-            Twitch player is offline or could not be loaded.
-          </div>
-        ) : null}
-        <div className="twitch-player-root" id="twitch-player-root" />
+      <div className="player-stage">
+        <div aria-busy={frameState === "loading"} className="player-frame">
+          {frameState === "error" ? (
+            <div className="player-status" role="alert">
+              Twitch player is offline or could not be loaded.
+            </div>
+          ) : null}
+          <div className="twitch-player-root" id="twitch-player-root" />
+        </div>
+        {chatPane}
       </div>
     </main>
   )

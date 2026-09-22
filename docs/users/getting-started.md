@@ -115,6 +115,16 @@ Twitch supplies; Enter requests a change without changing play/pause or mute. Op
 appear only after playback starts. **Close** returns focus to Quality; Escape still returns
 Home. A requested quality is not confirmation of a change; Auto can use different resolutions.
 
+For live channels, choose **Show chat** between Past broadcasts and Fullscreen to read live
+chat beside the video. This is reading live chat only, not a controller chat composer or VOD
+chat replay. Chat starts hidden each time you open or change a source. **Hide chat** removes
+the pane; **Reload chat** reloads only chat, without restarting playback. Press Down from
+Show/Hide chat to reach Reload chat, and Up to return; Enter activates either action. Escape
+still returns Home. Hide and Reload remain available while the player is loading or offline.
+Twitch handles chat's connection and error messages; VacuumStream sign-in does not sign you
+into chat. The enlarged pane stacks below the video on smaller screens, with scrolling rather
+than covering or shrinking the video below its minimum size.
+
 Past broadcasts show elapsed/total time and jumps back or forward by 30 seconds or 5 minutes.
 Press Down from Back to reach the jumps, Left/Right to choose, and Enter to seek; Up returns
 to Back. Seeking keeps focus on the jump without changing play/pause or mute. Jumps become
