@@ -25,7 +25,10 @@ const StoredProgressSchema = z.strictObject({
         message: "Too many playback bookmarks",
       }),
   ),
-  version: z.literal(1),
+  version: z.literal(2),
+})
+const ReadableProgressSchema = StoredProgressSchema.extend({
+  version: z.union([z.literal(1), z.literal(2)]),
 })
 type StoredProgress = z.infer<typeof StoredProgressSchema>
 
@@ -51,6 +54,19 @@ export class PlaybackProgressStore {
     })
   }
 
+  public async list(): Promise<readonly PlaybackBookmark[]> {
+    return this.#serialize(async () => {
+      const { bookmarks } = await this.#load()
+      return Object.entries(bookmarks)
+        .map(([videoId, bookmark]) => ({ ...bookmark, videoId }))
+        .sort(
+          (left, right) =>
+            right.updatedAt - left.updatedAt ||
+            (left.videoId < right.videoId ? -1 : left.videoId > right.videoId ? 1 : 0),
+        )
+    })
+  }
+
   public async save(input: PlaybackBookmark): Promise<void> {
     await this.#serialize(async () => {
       const { videoId, ...bookmark } = PlaybackProgressSaveInputSchema.parse(input)
@@ -60,7 +76,7 @@ export class PlaybackProgressStore {
       const newest = [...bookmarks].sort(([, left], [, right]) => right.updatedAt - left.updatedAt)
       await this.#persist({
         bookmarks: Object.fromEntries(newest.slice(0, MAX_BOOKMARKS)),
-        version: 1,
+        version: 2,
       })
     })
   }
@@ -80,10 +96,11 @@ export class PlaybackProgressStore {
     try {
       contents = await readFile(this.#path, "utf8")
     } catch (error) {
-      if (isMissingFile(error)) return { bookmarks: {}, version: 1 }
+      if (isMissingFile(error)) return { bookmarks: {}, version: 2 }
       throw error
     }
-    return StoredProgressSchema.parse(JSON.parse(contents))
+    const { bookmarks } = ReadableProgressSchema.parse(JSON.parse(contents))
+    return { bookmarks, version: 2 }
   }
 
   async #persist(input: StoredProgress): Promise<void> {

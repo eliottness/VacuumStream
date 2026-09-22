@@ -19,7 +19,7 @@ import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-control
 type IpcOptions = {
   readonly chatInput: Pick<ChatInput, "begin" | "end">
   readonly mainWindow: BrowserWindow
-  readonly playbackProgress: Pick<PlaybackProgressStore, "get" | "remove" | "save">
+  readonly playbackProgress: Pick<PlaybackProgressStore, "get" | "list" | "remove" | "save">
   readonly rendererOrigin: string
   readonly runningInSteamGameMode: boolean
   readonly twitch: TwitchService
@@ -108,6 +108,11 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     const [videoId] = z.tuple([PlaybackProgressGetInputSchema]).parse(input)
     return options.playbackProgress.get(videoId)
+  })
+  ipcMain.handle(CHANNELS.playbackProgressList, async (event, ...input: unknown[]) => {
+    authorize(event)
+    z.tuple([]).parse(input)
+    return options.playbackProgress.list()
   })
   ipcMain.handle(CHANNELS.playbackProgressRemove, async (event, ...input: unknown[]) => {
     authorize(event)

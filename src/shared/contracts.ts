@@ -26,6 +26,12 @@ export const PlaybackProgressRemoveInputSchema = PlaybackProgressGetInputSchema
 
 export const PlaybackBookmarkValueSchema = z
   .strictObject({
+    details: z
+      .strictObject({
+        title: z.string().min(1).max(300),
+        userId: z.string().min(1).max(64),
+      })
+      .optional(),
     duration: z.number().positive(),
     position: z.number().nonnegative(),
     updatedAt: z.number().int().nonnegative(),
@@ -38,6 +44,7 @@ export const PlaybackBookmarkValueSchema = z
 export const PlaybackBookmarkSchema = PlaybackBookmarkValueSchema.safeExtend({
   videoId: PlaybackProgressGetInputSchema,
 })
+export const PlaybackProgressListSchema = z.array(PlaybackBookmarkSchema).max(100)
 export const PlaybackProgressSaveInputSchema = PlaybackBookmarkSchema
 
 export const SearchInputSchema = CursorInputSchema.extend({
@@ -183,6 +190,7 @@ export interface VacuumStreamApi {
   }
   readonly playbackProgress: {
     readonly get: (videoId: string) => Promise<PlaybackBookmark | undefined>
+    readonly list: () => Promise<readonly PlaybackBookmark[]>
     readonly remove: (videoId: string) => Promise<void>
     readonly save: (bookmark: PlaybackBookmark) => Promise<void>
   }

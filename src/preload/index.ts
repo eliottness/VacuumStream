@@ -11,6 +11,7 @@ import {
   PageSchema,
   PlaybackBookmarkSchema,
   PlaybackProgressGetInputSchema,
+  PlaybackProgressListSchema,
   PlaybackProgressRemoveInputSchema,
   PlaybackProgressSaveInputSchema,
   SettingsSnapshotSchema,
@@ -79,6 +80,10 @@ const api = {
       ipcRenderer
         .invoke(CHANNELS.playbackProgressGet, PlaybackProgressGetInputSchema.parse(videoId))
         .then((value) => PlaybackBookmarkSchema.optional().parse(value)),
+    list: () =>
+      ipcRenderer
+        .invoke(CHANNELS.playbackProgressList)
+        .then((value) => PlaybackProgressListSchema.parse(value)),
     remove: (videoId) =>
       ipcRenderer
         .invoke(CHANNELS.playbackProgressRemove, PlaybackProgressRemoveInputSchema.parse(videoId))

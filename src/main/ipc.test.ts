@@ -36,6 +36,7 @@ const live = vi.fn<TwitchService["live"]>()
 const chatInput = { begin: vi.fn(), cancel: vi.fn(), end: vi.fn() }
 const playbackProgress = {
   get: vi.fn<PlaybackProgressStore["get"]>(),
+  list: vi.fn<PlaybackProgressStore["list"]>(),
   remove: vi.fn<PlaybackProgressStore["remove"]>(),
   save: vi.fn<PlaybackProgressStore["save"]>(),
 }
@@ -60,6 +61,7 @@ beforeEach(() => {
   followedChannels.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   live.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   playbackProgress.get.mockReset().mockResolvedValue(undefined)
+  playbackProgress.list.mockReset().mockResolvedValue([])
   playbackProgress.remove.mockReset().mockResolvedValue(undefined)
   playbackProgress.save.mockReset().mockResolvedValue(undefined)
   preload.invoke.mockReset()
@@ -216,6 +218,7 @@ describe("playback progress capability", () => {
     return handler(sender, ...input)
   }
   const exposedApi = async () => {
+    preload.exposeInMainWorld.mockClear()
     vi.resetModules()
     await import("../preload/index")
     const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
@@ -224,6 +227,7 @@ describe("playback progress capability", () => {
   }
   const expectUntouchedStore = () => {
     expect(playbackProgress.get).not.toHaveBeenCalled()
+    expect(playbackProgress.list).not.toHaveBeenCalled()
     expect(playbackProgress.remove).not.toHaveBeenCalled()
     expect(playbackProgress.save).not.toHaveBeenCalled()
   }
@@ -258,6 +262,11 @@ describe("playback progress capability", () => {
               { ...bookmark, updatedAt: -1 },
               { ...bookmark, updatedAt: Number.NaN },
               { ...bookmark, title: "private" },
+              { ...bookmark, details: { title: "T".repeat(301), userId: "123" } },
+              { ...bookmark, details: { title: "Recording", userId: "U".repeat(65) } },
+              { ...bookmark, details: { title: "Recording" } },
+              { ...bookmark, details: { title: "Recording", userId: 123 } },
+              { ...bookmark, details: { title: "Recording", url: "private", userId: "123" } },
             ]
           : ["", "x".repeat(65), { videoId: bookmark.videoId }]
       for (const value of [undefined, null, false, 123456, ...invalid]) {
@@ -293,21 +302,109 @@ describe("playback progress capability", () => {
     await expect(invoke(channel, event, input)).rejects.toBe(failure)
   })
 
-  it("exposes only get/save/remove and validates requests through preload and IPC", async () => {
+  it("forwards the listing result without passing arguments to the store", async () => {
+    const listing = [
+      { ...bookmark, details: { title: "Recording", userId: "123" } },
+      { ...bookmark, videoId: "legacy" },
+    ]
+    playbackProgress.list.mockResolvedValueOnce(listing)
+    await expect(invoke(CHANNELS.playbackProgressList, event)).resolves.toBe(listing)
+    expect(playbackProgress.list).toHaveBeenCalledExactlyOnceWith()
+  })
+
+  it("rejects every argument on playback-progress:list before touching the store", async () => {
+    for (const input of [undefined, null, false, 0, "", "123", [], {}, bookmark]) {
+      await expect(invoke(CHANNELS.playbackProgressList, event, input)).rejects.toBeInstanceOf(
+        z.ZodError,
+      )
+    }
+    await expect(
+      invoke(CHANNELS.playbackProgressList, event, undefined, undefined),
+    ).rejects.toBeInstanceOf(z.ZodError)
+    expectUntouchedStore()
+  })
+
+  it.each([
+    { name: "a missing sender frame", sender: { ...event, senderFrame: null } },
+    {
+      name: "an unauthorized same-origin child frame",
+      sender: {
+        ...event,
+        senderFrame: { url: mainFrame.url } as IpcMainInvokeEvent["senderFrame"],
+      },
+    },
+  ])("rejects $name on playback-progress:list", async ({ sender }) => {
+    await expect(invoke(CHANNELS.playbackProgressList, sender)).rejects.toBeInstanceOf(
+      InvalidIpcSenderError,
+    )
+    expectUntouchedStore()
+  })
+
+  it("surfaces store failures on playback-progress:list", async () => {
+    const failure = new Error("Playback progress file is unreadable")
+    playbackProgress.list.mockRejectedValueOnce(failure)
+    await expect(invoke(CHANNELS.playbackProgressList, event)).rejects.toBe(failure)
+  })
+
+  it("exposes only get/list/save/remove and validates requests through preload and IPC", async () => {
     preload.invoke.mockImplementation((channel, ...input) => invoke(channel, event, ...input))
     playbackProgress.get.mockResolvedValueOnce(bookmark)
+    const labelled = { ...bookmark, details: { title: "Recording", userId: "123" } }
+    playbackProgress.list.mockResolvedValueOnce([labelled, { ...bookmark, videoId: "legacy" }])
     const api = await exposedApi()
-    expect([...Object.keys(api.playbackProgress)].sort()).toEqual(["get", "remove", "save"])
+    expect([...Object.keys(api.playbackProgress)].sort()).toEqual(["get", "list", "remove", "save"])
     await expect(api.playbackProgress.get(bookmark.videoId)).resolves.toEqual(bookmark)
     await expect(api.playbackProgress.get("missing")).resolves.toBeUndefined()
-    await expect(api.playbackProgress.save(bookmark)).resolves.toBeUndefined()
+    await expect(api.playbackProgress.list()).resolves.toEqual([
+      labelled,
+      { ...bookmark, videoId: "legacy" },
+    ])
+    expect(preload.invoke).toHaveBeenCalledWith(CHANNELS.playbackProgressList)
+    expect(playbackProgress.list).toHaveBeenCalledExactlyOnceWith()
+    await expect(api.playbackProgress.save(labelled)).resolves.toBeUndefined()
     await expect(api.playbackProgress.remove(bookmark.videoId)).resolves.toBeUndefined()
-    expect(playbackProgress.save).toHaveBeenCalledExactlyOnceWith(bookmark)
+    expect(playbackProgress.save).toHaveBeenCalledExactlyOnceWith(labelled)
     expect(playbackProgress.remove).toHaveBeenCalledExactlyOnceWith(bookmark.videoId)
     expect(() => api.playbackProgress.get("x".repeat(65))).toThrow(z.ZodError)
     expect(() => api.playbackProgress.remove("")).toThrow(z.ZodError)
     expect(() => api.playbackProgress.save({ ...bookmark, position: 3601 })).toThrow(z.ZodError)
-    expect(preload.invoke).toHaveBeenCalledTimes(4)
+    expect(() =>
+      api.playbackProgress.save({
+        ...bookmark,
+        details: { title: "T".repeat(301), userId: "123" },
+      }),
+    ).toThrow(z.ZodError)
+    expect(preload.invoke).toHaveBeenCalledTimes(5)
+  })
+
+  it("rejects malformed and oversized listing results at the preload boundary", async () => {
+    const api = await exposedApi()
+    for (const result of [
+      undefined,
+      null,
+      {},
+      { items: [bookmark] },
+      [null],
+      [{}],
+      [{ ...bookmark, position: 3601 }],
+      [{ ...bookmark, details: null }],
+      [{ ...bookmark, details: { title: "Recording" } }],
+      [{ ...bookmark, details: { title: "Recording", userId: 123 } }],
+      [{ ...bookmark, details: { title: "T".repeat(301), userId: "123" } }],
+      [{ ...bookmark, details: { title: "Recording", userId: "U".repeat(65) } }],
+      [{ ...bookmark, details: { title: "Recording", url: "private", userId: "123" } }],
+      Array.from({ length: 101 }, (_, index) => ({ ...bookmark, videoId: String(index) })),
+    ]) {
+      preload.invoke.mockResolvedValueOnce(result)
+      await expect(api.playbackProgress.list()).rejects.toBeInstanceOf(z.ZodError)
+    }
+    for (const result of [
+      [],
+      Array.from({ length: 100 }, (_, index) => ({ ...bookmark, videoId: String(index) })),
+    ]) {
+      preload.invoke.mockResolvedValueOnce(result)
+      await expect(api.playbackProgress.list()).resolves.toEqual(result)
+    }
   })
 
   it("rejects malformed bookmark and void results at the preload boundary", async () => {

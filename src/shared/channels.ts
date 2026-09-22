@@ -13,6 +13,7 @@ export const CHANNELS = {
   chatInputEnd: "chat-input:end",
   chatInputEscape: "chat-input:escape",
   playbackProgressGet: "playback-progress:get",
+  playbackProgressList: "playback-progress:list",
   playbackProgressRemove: "playback-progress:remove",
   playbackProgressSave: "playback-progress:save",
   settingsSaveClientId: "settings:save-client-id",

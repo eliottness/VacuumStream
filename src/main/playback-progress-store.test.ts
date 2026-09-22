@@ -10,6 +10,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>()
   return {
     ...actual,
+    readFile: vi.fn(actual.readFile),
     rename: vi.fn(actual.rename),
     writeFile: vi.fn(actual.writeFile),
   }
@@ -30,15 +31,11 @@ const deferred = () => {
   return { promise, resolve }
 }
 
-const storedValue = ({ duration, position, updatedAt }: PlaybackBookmark) => ({
-  duration,
-  position,
-  updatedAt,
-})
+const storedValue = ({ videoId: _videoId, ...value }: PlaybackBookmark) => value
 
 const envelope = (bookmarks: readonly PlaybackBookmark[]) => ({
   bookmarks: Object.fromEntries(bookmarks.map((item) => [item.videoId, storedValue(item)])),
-  version: 1,
+  version: 2,
 })
 
 describe("playback progress store", () => {
@@ -46,6 +43,7 @@ describe("playback progress store", () => {
   let path = ""
 
   beforeEach(async () => {
+    vi.mocked(filesystem.readFile).mockReset()
     vi.mocked(filesystem.rename).mockReset()
     vi.mocked(filesystem.writeFile).mockReset()
     directory = await filesystem.mkdtemp(join(tmpdir(), "vacuumstream-progress-"))
@@ -61,6 +59,7 @@ describe("playback progress store", () => {
     const store = new PlaybackProgressStore(directory)
     await expect(store.get(bookmark.videoId)).resolves.toBeUndefined()
     await expect(store.get("toString")).resolves.toBeUndefined()
+    await expect(store.list()).resolves.toEqual([])
     await store.remove(bookmark.videoId)
     await expect(filesystem.readFile(path)).rejects.toMatchObject({ code: "ENOENT" })
   })
@@ -80,6 +79,114 @@ describe("playback progress store", () => {
     }
     expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(envelope(bookmarks))
   })
+
+  it("reads handwritten version-1 bookmarks losslessly and migrates only on a later save", async () => {
+    const legacy = `{
+      "bookmarks": {
+        "legacy-start": { "duration": 900, "position": 0, "updatedAt": 10 },
+        "legacy-fraction": { "duration": 3600.75, "position": 123.456789, "updatedAt": 20 },
+        "toString": { "duration": 1800.25, "position": 1800.25, "updatedAt": 30 }
+      },
+      "version": 1
+    }`
+    const expected = [
+      { duration: 1800.25, position: 1800.25, updatedAt: 30, videoId: "toString" },
+      { duration: 3600.75, position: 123.456789, updatedAt: 20, videoId: "legacy-fraction" },
+      { duration: 900, position: 0, updatedAt: 10, videoId: "legacy-start" },
+    ]
+    await filesystem.writeFile(path, legacy)
+    const store = new PlaybackProgressStore(directory)
+    await expect(store.list()).resolves.toEqual(expected)
+    for (const item of expected) await expect(store.get(item.videoId)).resolves.toEqual(item)
+    expect(await filesystem.readFile(path, "utf8")).toBe(legacy)
+
+    await store.save(bookmark)
+    expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(
+      envelope([...expected, bookmark]),
+    )
+    const restored = new PlaybackProgressStore(directory)
+    await expect(restored.list()).resolves.toEqual([bookmark, ...expected])
+    for (const item of expected) {
+      await expect(restored.get(item.videoId)).resolves.toEqual(item)
+      expect(await restored.get(item.videoId)).not.toHaveProperty("details")
+    }
+  })
+
+  it("writes version 2 when removing a legacy bookmark and preserves the other entries", async () => {
+    const remaining = { ...bookmark, videoId: "remaining" }
+    await filesystem.writeFile(
+      path,
+      JSON.stringify({ ...envelope([bookmark, remaining]), version: 1 }),
+    )
+    await new PlaybackProgressStore(directory).remove(bookmark.videoId)
+    expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(envelope([remaining]))
+    await expect(new PlaybackProgressStore(directory).list()).resolves.toEqual([remaining])
+  })
+
+  it("round-trips optional display metadata at both string bounds without changing legacy values", async () => {
+    const bookmarks = [
+      bookmark,
+      { ...bookmark, details: { title: "T", userId: "U" }, videoId: "short" },
+      {
+        ...bookmark,
+        details: { title: "T".repeat(300), userId: "U".repeat(64) },
+        videoId: "long",
+      },
+    ]
+    const store = new PlaybackProgressStore(directory)
+    for (const item of bookmarks) await store.save(item)
+    const restored = new PlaybackProgressStore(directory)
+    for (const item of bookmarks) await expect(restored.get(item.videoId)).resolves.toEqual(item)
+    await expect(restored.list()).resolves.toEqual([bookmarks[0], bookmarks[2], bookmarks[1]])
+    expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(envelope(bookmarks))
+  })
+
+  it("lists newest bookmarks first with ascending video ids breaking timestamp ties", async () => {
+    const oldest = { ...bookmark, updatedAt: 1, videoId: "oldest" }
+    const newest = { ...bookmark, updatedAt: 3, videoId: "newest" }
+    const ties = ["10", "2", "A", "a", "z"].map((videoId) => ({
+      ...bookmark,
+      updatedAt: 2,
+      videoId,
+    }))
+    const store = new PlaybackProgressStore(directory)
+    for (const item of [oldest, ...ties.slice().reverse(), newest]) await store.save(item)
+    const expected = [newest, ...ties, oldest]
+    await expect(store.list()).resolves.toEqual(expected)
+    await expect(new PlaybackProgressStore(directory).list()).resolves.toEqual(expected)
+  })
+
+  it.each(["save", "remove"] as const)(
+    "serializes list behind an in-flight %s",
+    async (mutation) => {
+      const store = new PlaybackProgressStore(directory)
+      await store.save(bookmark)
+      vi.mocked(filesystem.readFile).mockClear()
+      const replacement = { ...bookmark, position: 456 }
+      const renaming = deferred()
+      const releaseRename = deferred()
+      const committed = vi.fn()
+      const { rename } = await vi.importActual<typeof filesystem>("node:fs/promises")
+      vi.mocked(filesystem.rename).mockImplementationOnce(async (...args) => {
+        renaming.resolve()
+        await releaseRename.promise
+        await rename(...args)
+        committed()
+      })
+      const mutating =
+        mutation === "save" ? store.save(replacement) : store.remove(bookmark.videoId)
+      await renaming.promise
+      const listing = store.list()
+      releaseRename.resolve()
+      const [, result] = await Promise.all([mutating, listing])
+      expect(result).toEqual(mutation === "save" ? [replacement] : [])
+      expect(filesystem.readFile).toHaveBeenCalledTimes(2)
+      expect(committed).toHaveBeenCalledExactlyOnceWith()
+      expect(vi.mocked(filesystem.readFile).mock.invocationCallOrder[1]).toBeGreaterThan(
+        committed.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+      )
+    },
+  )
 
   it("serializes overlapping saves and makes a queued read observe all preceding writes", async () => {
     const store = new PlaybackProgressStore(directory)
@@ -155,6 +262,9 @@ describe("playback progress store", () => {
     await expect(restored.get("1")).resolves.toBeUndefined()
     await expect(restored.get("0")).resolves.toEqual(refreshed)
     await expect(restored.get("100")).resolves.toEqual(added)
+    const listing = await restored.list()
+    expect(listing).toHaveLength(100)
+    expect(listing).toEqual([refreshed, added, ...bookmarks.slice(2).reverse()])
     expect(JSON.parse(await filesystem.readFile(path, "utf8"))).toEqual(
       envelope([...bookmarks.slice(2), refreshed, added]),
     )
@@ -162,7 +272,7 @@ describe("playback progress store", () => {
 
   it.each([
     ["invalid JSON", "{"],
-    ["unsupported version", JSON.stringify({ bookmarks: {}, version: 2 })],
+    ["unsupported future version", JSON.stringify({ ...envelope([bookmark]), version: 3 })],
     ["missing envelope", JSON.stringify({})],
     ["out-of-range position", JSON.stringify(envelope([{ ...bookmark, position: 3601 }]))],
     [
@@ -192,6 +302,7 @@ describe("playback progress store", () => {
     await filesystem.writeFile(path, contents)
     const store = new PlaybackProgressStore(directory)
     await expect(store.get(bookmark.videoId)).rejects.toThrow()
+    await expect(store.list()).rejects.toThrow()
     await expect(store.save(bookmark)).rejects.toThrow()
     await expect(store.remove(bookmark.videoId)).rejects.toThrow()
     expect(await filesystem.readFile(path, "utf8")).toBe(contents)
@@ -219,6 +330,34 @@ describe("playback progress store", () => {
     await expect(filesystem.readFile(path)).rejects.toMatchObject({ code: "ENOENT" })
   })
 
+  it.each([
+    null,
+    "title",
+    [],
+    {},
+    { title: "Recording" },
+    { userId: "123" },
+    { title: 123, userId: "123" },
+    { title: "Recording", userId: 123 },
+    { title: "", userId: "123" },
+    { title: "Recording", userId: "" },
+    { title: "T".repeat(301), userId: "123" },
+    { title: "Recording", userId: "U".repeat(65) },
+    { title: "Recording", url: "https://example.com", userId: "123" },
+  ])("rejects malformed or over-long display metadata before writing: %j", async (details) => {
+    const store = new PlaybackProgressStore(directory)
+    await store.save(bookmark)
+    const contents = await filesystem.readFile(path, "utf8")
+    vi.mocked(filesystem.writeFile).mockClear()
+    vi.mocked(filesystem.rename).mockClear()
+    await expect(store.save({ ...bookmark, details } as PlaybackBookmark)).rejects.toBeInstanceOf(
+      z.ZodError,
+    )
+    expect(filesystem.writeFile).not.toHaveBeenCalled()
+    expect(filesystem.rename).not.toHaveBeenCalled()
+    expect(await filesystem.readFile(path, "utf8")).toBe(contents)
+  })
+
   it("rejects unbounded ids on get and remove", async () => {
     const store = new PlaybackProgressStore(directory)
     for (const videoId of ["", "x".repeat(65), "__proto__"]) {
@@ -231,6 +370,7 @@ describe("playback progress store", () => {
     await filesystem.mkdir(path)
     const store = new PlaybackProgressStore(directory)
     await expect(store.get(bookmark.videoId)).rejects.toMatchObject({ code: "EISDIR" })
+    await expect(store.list()).rejects.toMatchObject({ code: "EISDIR" })
     await expect(store.save(bookmark)).rejects.toMatchObject({ code: "EISDIR" })
     await expect(store.remove(bookmark.videoId)).rejects.toMatchObject({ code: "EISDIR" })
   })
