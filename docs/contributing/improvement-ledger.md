@@ -1117,8 +1117,16 @@ step: the Continue Watching shelf with the focus ring on an actual card rather t
 focus sample, the favourites state matrix including its error variants, the three artwork states
 with a focused card and nothing cropped, and the resume prompt at 1080p.
 
-Two remain: the combined captions + chat + quality panel size, and arrow traversal of the restored
-controls after an ONLINE transition. Both need a live channel rather than the showcase surface.
+Both remaining items are now closed. The combined captions + chat + quality panel size was
+measured with all three open at once, and the ONLINE traversal was recorded against a genuinely
+offline channel: with the alert showing, `player-playback` and `player-muted` were disabled;
+after invoking the player's own captured `online` callback the alert cleared, both controls
+enabled, and arrows walked `player-playback` -> `player-muted` -> `player-quality` and back.
+
+Capturing that callback needs the wrapper armed BEFORE the SDK loads, via CDP
+`Page.addScriptToEvaluateOnNewDocument`; installing it after the player exists captures nothing.
+Every overstated criterion from the cycle 10-17 review has now been re-recorded or explicitly
+withdrawn.
 
 A trap worth recording for whoever captures next: `captureBeyondViewport: true` returns the whole
 scrollable page (1279x7257 on the showcase), which is not layout evidence. Use
