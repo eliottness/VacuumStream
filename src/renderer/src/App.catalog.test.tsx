@@ -203,6 +203,28 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
     expectNoReauthentication(bridge)
   })
 
+  it("keeps controller focus on the shelf when a refresh replaces the focused card", async () => {
+    // Given a viewer who has moved focus onto a card that the next first page will not contain
+    const refresh = deferred<Page<StreamCard>>()
+    const bridge = await mount(shelf, (api) =>
+      requestFor(api, shelf)
+        .mockResolvedValueOnce(page(["first", "second"], "old-cursor"))
+        .mockReturnValueOnce(refresh.promise),
+    )
+
+    // When the refresh lands with entirely different streams
+    await activate(`${shelf}-refresh`)
+    await key("ArrowDown")
+    expect(document.activeElement).toBe(button("stream-first"))
+    await act(async () => refresh.resolve(page(["third", "fourth"])))
+
+    // Then focus stays on a surviving shelf control instead of falling back to the document
+    expect(cardIds()).toEqual(["stream-third", "stream-fourth"])
+    expect(document.activeElement).toBe(button("stream-third"))
+    expect(document.activeElement).not.toBe(document.body)
+    expectNoReauthentication(bridge)
+  })
+
   it("refreshes Home on return from playback and Following on its next entry", async () => {
     const bridge = await mount(shelf)
     const homeCalls = bridge.catalog.live.mock.calls.length

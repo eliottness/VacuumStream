@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef } from "react"
+import { useCallback, useId, useLayoutEffect, useRef } from "react"
 import type { StreamCard as StreamCardModel } from "../../../shared/contracts"
 
 type StreamShelfProps = {
@@ -50,6 +50,17 @@ export const StreamShelf = ({
     }
     actionRef.current = button
   }, [])
+  // A refresh replaces the reel, so the focused card can disappear mid-navigation.
+  const focusedCardRef = useRef<HTMLButtonElement | null>(null)
+  useLayoutEffect(() => {
+    const focusedCard = focusedCardRef.current
+    if (focusedCard === null || focusedCard.isConnected) return
+    focusedCardRef.current = null
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    const survivor = reelRef.current?.querySelector<HTMLButtonElement>(".stream-card")
+    ;(survivor ?? refreshRef.current)?.focus()
+  })
+  const reelRef = useRef<HTMLDivElement>(null)
   const prefix = focusPrefix ?? headingId
   const refreshId = `${prefix}-refresh`
   const action = state === "error" ? onRetry : cursor === undefined ? undefined : onLoadMore
@@ -118,7 +129,7 @@ export const StreamShelf = ({
         </div>
       ) : null}
       {streams.length > 0 ? (
-        <div className="shelf__reel">
+        <div className="shelf__reel" ref={reelRef}>
           {streams.map((stream, index) => (
             <button
               aria-label={`Watch ${stream.userName}: ${stream.title}`}
@@ -143,6 +154,9 @@ export const StreamShelf = ({
               data-focusable="true"
               key={stream.id}
               onClick={() => onSelect(stream)}
+              onFocus={(event) => {
+                focusedCardRef.current = event.currentTarget
+              }}
               type="button"
             >
               <span className="stream-card__art">
