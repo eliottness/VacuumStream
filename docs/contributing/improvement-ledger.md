@@ -62,6 +62,7 @@ are out of scope and are rejected without review.
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
+| 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -821,6 +822,39 @@ focus to a connected control AND re-derived the live shelf's upward link from th
 to the Continue Watching action — the stale sibling link that the old effect-based wiring had to
 remember to restore by hand.
 
+### Cycle 18 — Add gamepad search editing shortcuts
+
+Favourites removed the repeated typing, but finding and saving the FIRST channel still means
+spelling it out on an on-screen keyboard — and fixing a typo means navigating away from the
+letters to Backspace and back. Meanwhile both gamepad face buttons 2 and 3 currently collapse to
+the same `/` shortcut, which does nothing while you are already in Search: a probe confirmed
+pressing them leaves the query untouched and emits `/` twice.
+
+Target: while focus is inside Search's form or keyboard, the west face button deletes the last
+character and the north face button submits, without leaving the key you are on. Everywhere else
+they keep today's behaviour.
+
+The implementation trap, called out by the scout and written into the brief: resolve each
+button's contextual action AFTER detecting a new press, preserving its physical identity until
+release. Otherwise holding the button that opens Search becomes an unintended Backspace the
+moment focus changes.
+
+Acceptance criteria:
+
+1. One code point removed per press, empty stays empty, focus unmoved, no `/` leaking out.
+2. Exactly one submission per press, nothing while a request is pending, nothing when empty, and
+   no result opened automatically.
+3. Held presses do not repeat and cannot act across a context change; behaviour outside Search is
+   unchanged.
+4. A mistyped guest login corrected with X and submitted with Y reaches the player with the
+   corrected login and no catalog calls.
+5. The whole journey works without a pointer on the target hardware; synthetic gamepad evidence
+   is labelled as such rather than claimed as physical-controller compatibility.
+6. `bun run verify` passes in one run.
+
+Not in scope: caret editing, grapheme-aware deletion, prediction, keyboard layout redesign,
+intercepting typed `x`/`y`, chat-frame input, and any generalized input framework.
+
 ## Autoplay injection: investigated, deferred with conditions
 
 After four one-line deferrals this was investigated properly in cycle 13. Recording the findings
@@ -868,7 +902,7 @@ an unrelated change. Each is a candidate for a future cycle.
 | ~~The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL~~ — closed in cycle 9 | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; fixed cycle 9 |
 | ~~A recording whose thumbnail URL fails to LOAD shows a broken-image glyph~~ — closed in cycle 13 | `src/renderer/src/components/VideoShelf.tsx` | Cycle 9 Showcase inspection; fixed cycle 13 |
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
-| Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
+| Two inherited tests do not constrain what they claim — now located precisely: `PlayerView.test.tsx:686-693` would miss an obstructing overlay carrying different prose, and `twitch-schemas.test.ts:385-393` still rejects on missing fields even if the viewer-count bound disappeared | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review; locations confirmed in cycle 18 scouting |
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
 | ~~A channel with no archives renders an empty Past broadcasts screen~~ — closed in cycle 6 with a status element and reachable Back | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3; fixed cycle 6 |
 | Cursor exhaustion on a live shelf and an induced shelf request failure cannot be staged against real Twitch data, so both remain test-only rather than hardware-verified | `src/renderer/src/components/StreamShelf.tsx` | Cycle 4 hardware QA; recorded as a verification limit, not a defect |
