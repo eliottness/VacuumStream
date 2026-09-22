@@ -57,6 +57,7 @@ are out of scope and are rejected without review.
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
+| 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -593,12 +594,68 @@ disappearing were **not** observed — recorded as unverified rather than treati
 label as proof, which the criterion explicitly forbids. That is the whole reason the control
 reports a request rather than a state.
 
-## Observed but not yet scheduled
+### Cycle 13 — Replace failed VOD previews with placeholders
 
-The private-DOM autoplay injection below has now been weighed and deferred by four consecutive
-scouts, each on the same sound ground: a safe replacement must prove trusted activation and
-Twitch's content gate, not merely call `player.play()`. It is the longest-standing item here and
-should get a cycle of its own rather than another deferral.
+Cycle 9 made an empty `thumbnail_url` render a neutral placeholder, but a NON-empty URL that
+fails to load or decode still shows a broken-image glyph, because `VideoShelf` has no error
+handler — `StreamShelf` has had one all along. Same visible symptom, different cause.
+
+Target: the artwork falls back to the existing placeholder while the card keeps its title,
+broadcaster, duration, focus target and activation. The failure is scoped to the URL, so a later
+replacement renders normally, and it is reset without remounting the card, because remounting
+would drop controller focus.
+
+Acceptance criteria:
+
+1. Dispatching the image's error event replaces only the image; the same card button stays
+   mounted with its metadata and selection payload unchanged.
+2. A sibling's valid image is unaffected, absent artwork still works, and a new URL renders
+   without replacing the button or losing focus.
+3. A card with failed artwork still activates into the player with its original video ID.
+4. Loaded, absent and failed artwork show equal geometry at 1280x720 and 1920x1080 with no
+   broken-image glyph.
+5. Guest autoplay is unregressed, recorded with the channel, input path and whether a content
+   gate appeared.
+6. `bun run verify` passes in one run.
+
+Not in scope: retries, cache-busting, schema changes, and the autoplay debt.
+
+## Autoplay injection: investigated, deferred with conditions
+
+After four one-line deferrals this was investigated properly in cycle 13. Recording the findings
+so the next attempt starts from evidence rather than repeating the survey.
+
+What `activateEmbeddedPlayer` actually does: it finds the player frame, executes script with
+Electron's user-gesture flag, clicks the private selector
+`[data-a-target="content-classification-gate-overlay-start-watching-button"]`, then if the video
+has insufficient data clicks `[data-a-target="player-play-pause-button"]`, adjusts mute and a
+zero volume, calls the internal `video.play()`, samples the media 600 ms later and returns a
+single boolean. That boolean cannot distinguish a content gate from buffering, a policy
+rejection, unavailable media or script failure.
+
+Git history shows three separate concerns, not one: `0daffad` added gate clicking and trusted
+activation, `3aea6ea` replaced an official `player.play()` manual-start path with it, `4b931a4`
+replaced a naive `!video.paused` check with real progression classification, and `d37086f` added
+the retry loop. Note that manual Play also routes through the injection, so removing it affects
+recovery, not only autoplay.
+
+The decisive findings. Electron's default `autoplayPolicy` is ALREADY `no-user-gesture-required`
+and the app does not override it — so setting it explicitly, the obvious-looking fix, is a no-op.
+And Twitch's Player API documents no content-gate acknowledgement command or gate-specific
+event; the classification gate is documented as requiring viewer consent. `PLAYING` is a stronger
+official signal than `PLAY`, but neither confirms audible startup or consent.
+
+Unblocking condition, concretely: a signed-out experiment on two fresh QA profiles — one ordinary
+live channel and one that actually shows the classification gate — subscribing to READY, PLAY,
+PLAYING and PLAYBACK_BLOCKED before acting, exercising native gamepad and Steam Input separately,
+and observing moving video with real audio plus retained mute/pause intent. If that shows
+equivalent startup without the private play/pause click and direct media mutation, the smallest
+slice becomes official playback and audio commands with narrowed residual gate handling. Full
+deletion additionally needs either a documented gate-acknowledgement mechanism or a pointer-free
+route for the viewer to operate the gate on every input path — and replacing automatic dismissal
+with explicit consent is an interaction change to be stated, not shipped silently as "autoplay".
+
+## Observed but not yet scheduled
 
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
