@@ -54,7 +54,7 @@ are out of scope and are rejected without review.
 | 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed; its failing criterion closed by cycle 8 |
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
-| 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | In progress |
+| 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -489,6 +489,19 @@ Acceptance criteria:
 
 Not in scope: watch-history synchronization, cross-device progress, a Continue Watching shelf,
 resuming automatically at boot, and archive pagination.
+
+Landed in `a92c027` (store, IPC, preload) and `668820d` (prompt, checkpointing), split so the
+persistence boundary could be reviewed on its own. The store's tests aim at the ways a bookmark
+store destroys data rather than at the happy path: overlapping saves serialized, removal that
+cannot be resurrected, eviction of the least recently updated rather than the first inserted, and
+malformed files surfacing instead of silently wiping. `__proto__` is rejected as a video ID.
+
+The renderer honours both traps the design called out. A `ready` sample never becomes a save, so
+resuming cannot destroy the position it just used, and completion is taken only from `ENDED`,
+with queued saves cancelled so they cannot undo the removal. Checkpoints are throttled to fifteen
+seconds and roll back when a write fails. On the signed-out Showcase the prompt reads "Resume
+from 1:05:00" and states that positions stay on this installation and are shared across Twitch
+accounts — the caveat lives in the interface, not only in the documentation.
 
 ## Observed but not yet scheduled
 
