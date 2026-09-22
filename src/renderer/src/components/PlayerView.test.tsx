@@ -91,6 +91,7 @@ const installPlayerHarness = (
   class TestPlayer {
     static readonly ENDED = "ended"
     static readonly OFFLINE = "offline"
+    static readonly ONLINE = "online"
     static readonly PAUSE = "pause"
     static readonly PLAY = "play"
     static readonly PLAYBACK_BLOCKED = "playback-blocked"

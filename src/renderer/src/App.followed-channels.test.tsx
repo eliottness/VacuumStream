@@ -137,6 +137,7 @@ const constructedPlayer = vi.fn<(options: twitchPlayer.TwitchPlayerOptions) => v
 // Exercise the real PlayerView and options boundary, without network or READY-triggered timers.
 class Player implements twitchPlayer.TwitchPlayerInstance {
   static OFFLINE = "offline"
+  static ONLINE = "online"
   static PAUSE = "pause"
   static PLAY = "play"
   static PLAYBACK_BLOCKED = "blocked"

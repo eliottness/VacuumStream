@@ -25,7 +25,12 @@ position is kept; you do not need to restart the app or choose Resume again. If 
 again, Retry remains available, or use Back to leave.
 
 An offline broadcast is different from a player startup failure: it does not offer this retry
-or automatically reload the player. Use Back to choose another broadcast.
+or automatically reload the player. You can wait for the channel to return or use **Back** to
+choose another broadcast. When Twitch reports that the live channel is online again, the offline
+message clears and controls return if the player has initialized. The same player and any visible
+chat stay in place. This reports channel availability, not moving video: playback is not restarted,
+unmuted, or guaranteed to recover automatically. If video remains paused, use **Play**; Back remains
+available if the broadcast does not return.
 
 Try the channel on Twitch in a browser to distinguish channel availability from application
 problems. Sign-in in VacuumStream does not authenticate the embedded player. Subscription

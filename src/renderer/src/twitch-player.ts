@@ -59,6 +59,7 @@ export const normalizeTwitchQualities = (value: unknown): readonly TwitchQuality
 type TwitchPlayerConstructor = {
   new (elementId: string, options: TwitchPlayerOptions): TwitchPlayerInstance
   readonly OFFLINE: string
+  readonly ONLINE: string
   readonly PAUSE: string
   readonly PLAY: string
   readonly PLAYBACK_BLOCKED: string

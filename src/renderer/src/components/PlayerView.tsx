@@ -107,7 +107,8 @@ export const PlayerView = ({
   }, [canPlay])
   useEffect(() => {
     let active = true
-    let ready = false
+    let initialized = false
+    let offline = false
     let timelineTimer: ReturnType<typeof setInterval> | undefined
     setFrameState("loading")
     setPosition(undefined)
@@ -125,7 +126,8 @@ export const PlayerView = ({
     let player: TwitchPlayerInstance | undefined
     const refreshTimeline = (reason: VideoSampleReason = "sample"): void => {
       // User intent cancels autoplay, not sampling; the mounted player owns this lifecycle.
-      if (!active || !ready || source.kind !== "video" || player === undefined) return
+      if (!active || !initialized || offline || source.kind !== "video" || player === undefined)
+        return
       const currentTime = player.getCurrentTime()
       const totalTime = player.getDuration()
       setPosition(Number.isFinite(currentTime) ? currentTime : undefined)
@@ -164,7 +166,10 @@ export const PlayerView = ({
         playerRef.current = player
         player.addEventListener(api.Player.READY, () => {
           if (!active || player === undefined) return
-          ready = true
+          initialized = true
+          // Initialization cannot override an observed live outage; only ONLINE can.
+          if (source.kind === "live" && offline) return
+          offline = false
           setFrameState("ready")
           refreshQualities(player)
           if (source.kind === "video") {
@@ -182,7 +187,7 @@ export const PlayerView = ({
           }
         })
         player.addEventListener(api.Player.PLAYING, () => {
-          if (!active || !ready || player === undefined) return
+          if (!active || !initialized || offline || player === undefined) return
           refreshQualities(player)
           refreshTimeline("playing")
         })
@@ -203,9 +208,19 @@ export const PlayerView = ({
         player.addEventListener(api.Player.PLAYBACK_BLOCKED, () => {
           if (active) setPaused(true)
         })
+        player.addEventListener(api.Player.ONLINE, () => {
+          if (!active || source.kind !== "live" || player === undefined) return
+          offline = false
+          setFrameState(initialized ? "ready" : "loading")
+          if (!initialized) return
+          // Availability is not playback: refresh the shell without reactivating media.
+          setMuted(player.getMuted())
+          setPaused(player.isPaused())
+          refreshQualities(player)
+        })
         player.addEventListener(api.Player.OFFLINE, () => {
           if (!active) return
-          ready = false
+          offline = true
           clearInterval(timelineTimer)
           timelineTimer = undefined
           setFrameState("offline")
@@ -426,7 +441,7 @@ export const PlayerView = ({
         <p className="player-load-status" role="alert">
           {frameState === "startup-error"
             ? "Twitch player could not be loaded. Check your connection, then retry loading player."
-            : "This Twitch source is offline. Go Back to choose another broadcast."}
+            : "This Twitch source is offline. You can wait or go Back to choose another broadcast."}
         </p>
       ) : null}
       <div className="player-stage">

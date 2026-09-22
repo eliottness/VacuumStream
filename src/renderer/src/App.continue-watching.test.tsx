@@ -155,6 +155,7 @@ const mount = async (
   const constructed = vi.fn<(id: string, options: TwitchPlayerOptions) => void>()
   class TestPlayer {
     static readonly OFFLINE = "offline"
+    static readonly ONLINE = "online"
     static readonly PAUSE = "pause"
     static readonly PLAY = "play"
     static readonly PLAYBACK_BLOCKED = "blocked"

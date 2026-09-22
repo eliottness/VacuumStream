@@ -78,6 +78,7 @@ const installHarness = (saved?: PlaybackBookmark) => {
   const publishApi = () => {
     class TestPlayer {
       static readonly OFFLINE = "offline"
+      static readonly ONLINE = "online"
       static readonly PAUSE = "pause"
       static readonly PLAY = "play"
       static readonly PLAYBACK_BLOCKED = "blocked"
