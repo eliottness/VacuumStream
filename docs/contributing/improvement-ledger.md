@@ -56,6 +56,7 @@ are out of scope and are rejected without review.
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
+| 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -549,6 +550,40 @@ reads — an obsolete listing must never block Forget progress. On the signed-ou
 shelf shows "A quiet evening building a world together" at 1:05:00 / 3:00:00 beside a legacy
 "Recording 123456789", each with Forget progress, under the caption "Saved on this installation"
 so the locality caveat is visible rather than buried in documentation.
+
+### Cycle 12 — Add controller-native closed caption controls
+
+A viewer who needs captions currently cannot reach them: the shell owns the player but exposes
+no caption control, and Twitch's own controls are inside a frame this app deliberately keeps out
+of controller navigation. Twitch documents `enableCaptions()` and `disableCaptions()`, and the
+currently served SDK really does contain both — the scout checked the shipped file rather than
+trusting the documentation alone.
+
+Target: a Captions control between Quality and Past broadcasts opening an inline chooser with
+Show captions, Hide captions and Close, reachable with arrows and leaving focus in the shell.
+
+The honest constraint shapes the design. The API has commands but **no availability getter**, so
+the chooser reports what the viewer asked for, never whether captions exist or are actually
+rendering, and Twitch's default is left alone until the viewer acts. Silence from a source means
+nothing and must not be read as "no captions".
+
+Acceptance criteria:
+
+1. Show calls `enableCaptions()` once and Hide calls `disableCaptions()` once; opening and
+   closing call neither; neither runs before READY or while offline.
+2. Arrows reach Captions and both commands from either side, focus stays in the shell and
+   returns on Close, including the legacy-recording route around the disabled archive shortcut.
+3. No player reconstruction and no play, pause, mute, seek, quality or activation call follows
+   from using captions.
+4. A failed command shows an escapable error without recording success, and source replacement
+   clears requests and errors beyond the reach of obsolete callbacks.
+5. On the target hardware, real captions appear and disappear on a public captioned stream — a
+   changed label is not evidence. If no captioned public stream can be found at the time, that
+   is recorded as unverified rather than faked.
+6. `bun run verify` passes in one run.
+
+Not in scope: transcription or translation, a persisted caption preference, a custom subtitle
+overlay, and the private-DOM autoplay debt, which this cycle explicitly does not close.
 
 ## Observed but not yet scheduled
 
