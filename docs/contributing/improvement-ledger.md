@@ -54,6 +54,7 @@ are out of scope and are rejected without review.
 | 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed; its failing criterion closed by cycle 8 |
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
+| 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -449,6 +450,45 @@ the probe produced. Inspecting the result on the signed-out Showcase route surfa
 the artwork-less card renders cleanly, but the normal card beside it shows a broken-image glyph
 because the fixture URL does not resolve — `VideoShelf` has no `onError` fallback for a thumbnail
 that fails to load, unlike `StreamShelf`. Different defect, recorded below rather than folded in.
+
+### Cycle 10 — Remember and resume past broadcasts
+
+Losing your place in a four-hour broadcast means navigating back and seeking by hand every time.
+The player already samples a recording's timeline every second; it simply throws the number away
+when you leave. Twitch's interactive player documents a VOD-only `time` constructor option, so a
+saved position can be handed back to the official player without a new endpoint, permission or
+any seeking of our own.
+
+Where the bookmarks live matters. Production serves the renderer from an ephemeral port, so
+origin-scoped browser storage cannot be relied on across launches; persistence goes in the main
+process under `userData`, alongside the existing atomic-write pattern but separate from settings
+and tokens.
+
+Two honesties are built into the design. Positions are local to this installation and shared by
+anyone using the profile, including across Twitch account changes — the documentation says so
+rather than implying per-account history. And a bookmark records OBSERVED playback: startup
+zeros and unconfirmed resume samples must never overwrite a real position, and completion is
+taken from the documented `ENDED` event rather than guessed from nearing the duration, because an
+in-progress archive keeps growing.
+
+Target: reopening a part-watched recording offers Resume from its timestamp, Start over, and
+Back, reachable with arrows alone, with nothing playing behind the choice.
+
+Acceptance criteria:
+
+1. Positions survive a fresh store, overlapping writes stay valid, the collection is bounded, and
+   IPC rejects malformed payloads and unauthorized senders.
+2. Reopening offers the choice, constructs no player before selection, and Resume yields exactly
+   one constructor call carrying the right video ID and `time`.
+3. Start over clears the bookmark, Back plays nothing, `ENDED` removes it and cleanup cannot
+   bring it back.
+4. Late lookups, startup zeros and queued saves cannot corrupt progress; live sources get no
+   `time` option and perform no progress operations.
+5. Read and write failures stay visible without blocking playback.
+6. The `?showcase=1` surface works with arrows on the target hardware and `bun run verify` passes.
+
+Not in scope: watch-history synchronization, cross-device progress, a Continue Watching shelf,
+resuming automatically at boot, and archive pagination.
 
 ## Observed but not yet scheduled
 
