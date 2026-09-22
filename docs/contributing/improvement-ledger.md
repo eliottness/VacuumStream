@@ -58,7 +58,7 @@ are out of scope and are rejected without review.
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
-| 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | In progress |
+| 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -657,6 +657,23 @@ Acceptance criteria:
 
 Not in scope: requests that never settle, post-READY media errors, offline-to-online recovery,
 and anything touching the activation injection.
+
+Landed in `b60abe0`. The loader now removes the failed script and clears its cache only when the
+rejecting attempt is still the current one, so a late failure from a superseded attempt cannot
+wipe a newer load. Verified on the HTPC by blocking the SDK request outright rather than
+simulating it: the blocked load produced a Retry control beside Back with an actionable message,
+and after unblocking, arrows and Enter recovered the player with focus returning to Back — a
+sequence that previously required restarting the renderer. The two error states are now
+distinguishable in practice: once loaded, the same screen reported "This Twitch source is
+offline" instead of the download error.
+
+One honest limit: a second blocked attempt could not re-fail, because a successful load is cached
+and reused by design, so there was no new request to block.
+
+Worth recording as a near miss: Biome flagged the retry attempt counter as an unnecessary effect
+dependency and offered an autofix. Taking it would have stopped Retry re-running the effect while
+every presence-only test still passed. The counter is genuinely read inside the effect's
+generation guard, so the dependency stayed.
 
 ## Autoplay injection: investigated, deferred with conditions
 
