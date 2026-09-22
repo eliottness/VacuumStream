@@ -125,7 +125,8 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 - **States**: local loading, ready, paused, muted, offline, and script/player load error; jumps disabled until ready with a finite positive duration.
 - **Accessibility**: all playback actions use Arrow keys and Enter; Down from Back enters the jumps, Left/Right chooses, and Up returns to Back. Seeking retains focus and cancels autoplay retries without changing play/pause or mute.
 - **Playback**: VOD jumps use the official Player API and clamp to recording bounds; live controls remain unchanged. Time refreshes on READY, PLAYING, SEEK, and once per second while a ready VOD is mounted.
-- **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport; local toolbar and transport remain outside Twitch's unobscured player.
+- **Quality**: live and VOD Quality opens an inline chooser of official API options, refreshed on READY, PLAYING, and opening. Arrows and Enter request an exact quality ID; Close returns focus to Quality, while Escape still returns Home. Empty/offline states retain Back and Close. Requested mode is distinct from the player-reported effective resolution, including Auto; `data-requested-quality` and `data-player-quality` on the Quality button expose those values without claiming setter confirmation.
+- **Layout**: 16:9 frame, minimum 400 by 300 px, expands to available viewport; local toolbar, transport, and quality chooser remain outside Twitch's unobscured player.
 
 ### Primitive Showcase
 

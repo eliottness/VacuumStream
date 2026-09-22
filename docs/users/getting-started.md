@@ -104,6 +104,11 @@ Left/Right edit text while a field is focused. Search text uses normal keyboard 
 On the player screen, focus the separate play/pause or mute button and press Enter.
 Optional shortcuts: `/` opens Search, `F10` opens Settings.
 
+Choose **Quality** for live streams or past broadcasts. Left/Right chooses among the options
+Twitch supplies; Enter requests a change without changing play/pause or mute. Options may
+appear only after playback starts. **Close** returns focus to Quality; Escape still returns
+Home. A requested quality is not confirmation of a change; Auto can use different resolutions.
+
 Past broadcasts show elapsed/total time and jumps back or forward by 30 seconds or 5 minutes.
 Press Down from Back to reach the jumps, Left/Right to choose, and Enter to seek; Up returns
 to Back. Seeking keeps focus on the jump without changing play/pause or mute. Jumps become

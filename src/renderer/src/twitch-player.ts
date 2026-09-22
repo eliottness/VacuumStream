@@ -15,11 +15,42 @@ export interface TwitchPlayerInstance {
   readonly getCurrentTime: () => number
   readonly getDuration: () => number
   readonly getMuted: () => boolean
+  readonly getQualities: () => unknown
+  readonly getQuality: () => string
   readonly isPaused: () => boolean
   readonly pause: () => void
   readonly play: () => void
   readonly seek: (seconds: number) => void
   readonly setMuted: (muted: boolean) => void
+  readonly setQuality: (qualityId: string) => void
+}
+
+export type TwitchQuality = {
+  readonly id: string
+  readonly label: string
+}
+
+// The documented string list and the official-forum group/name shape share this boundary.
+export const normalizeTwitchQualities = (value: unknown): readonly TwitchQuality[] => {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry: unknown): TwitchQuality[] => {
+    if (typeof entry === "string" && entry.trim() !== "") {
+      return [{ id: entry, label: entry }]
+    }
+    if (
+      typeof entry === "object" &&
+      entry !== null &&
+      "group" in entry &&
+      typeof entry.group === "string" &&
+      entry.group.trim() !== "" &&
+      "name" in entry &&
+      typeof entry.name === "string" &&
+      entry.name.trim() !== ""
+    ) {
+      return [{ id: entry.group, label: entry.name }]
+    }
+    return []
+  })
 }
 
 type TwitchPlayerConstructor = {

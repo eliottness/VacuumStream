@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { App } from "../App"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
 import { type PlayerSource, PlayerView } from "./PlayerView"
 
@@ -40,12 +41,17 @@ const playerView = (playerSource: PlayerSource = source) => (
 const installPlayerHarness = (
   activationResults: readonly boolean[],
   timeline = { currentTime: 0, duration: 0 },
+  quality: { available: unknown; current: string } = { available: [], current: "" },
 ) => {
   vi.useFakeTimers()
   const listeners = new Map<string, () => void>()
   const constructed = vi.fn()
   const getCurrentTime = vi.fn(() => timeline.currentTime)
   const getDuration = vi.fn(() => timeline.duration)
+  const getQualities = vi.fn(() => quality.available)
+  const getQuality = vi.fn(() => quality.current)
+  const pause = vi.fn()
+  const setQuality = vi.fn()
   const play = vi.fn()
   const seek = vi.fn()
   let activationIndex = 0
@@ -73,11 +79,14 @@ const installPlayerHarness = (
     readonly getCurrentTime = getCurrentTime
     readonly getDuration = getDuration
     readonly getMuted = (): boolean => muted
+    readonly getQualities = getQualities
+    readonly getQuality = getQuality
     readonly isPaused = (): boolean => true
-    readonly pause = vi.fn()
+    readonly pause = pause
     readonly play = play
     readonly seek = seek
     readonly setMuted = setMuted
+    readonly setQuality = setQuality
   }
   const activateEmbeddedPlayer = vi.fn(async (_audible: boolean) => {
     const result = activationResults[activationIndex] ?? false
@@ -88,9 +97,14 @@ const installPlayerHarness = (
     configurable: true,
     value: { Player: TestPlayer },
   })
+  const restoreShellFullscreen = vi.fn(async () => undefined)
   Object.defineProperty(window, "vacuumStream", {
     configurable: true,
-    value: { system: { activateEmbeddedPlayer } },
+    value: {
+      auth: { snapshot: async () => ({ kind: "guest" }) },
+      settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
+      system: { activateEmbeddedPlayer, restoreShellFullscreen },
+    },
   })
   Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
     configurable: true,
@@ -103,10 +117,15 @@ const installPlayerHarness = (
     emit,
     getCurrentTime,
     getDuration,
+    getQualities,
+    getQuality,
     listeners,
+    pause,
     play,
+    restoreShellFullscreen,
     seek,
     setMuted,
+    setQuality,
   }
 }
 
@@ -117,6 +136,39 @@ const mountPlayer = async (playerSource: PlayerSource = videoSource) => {
   await act(async () => root.render(playerView(playerSource)))
   return { container, root }
 }
+
+const installNavigationSurface = (): void => {
+  // Only missing jsdom device/layout surfaces are supplied; navigation itself stays real.
+  vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockReturnValue(document.body)
+  vi.stubGlobal("matchMedia", () => ({ matches: true }))
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn(() => 1),
+  )
+  vi.stubGlobal("cancelAnimationFrame", vi.fn())
+}
+
+const pressKey = async (container: HTMLElement, key: string): Promise<void> => {
+  for (const button of container.querySelectorAll("button")) button.scrollIntoView = vi.fn()
+  await act(async () => dispatchControllerKey(key))
+}
+
+const mountNavigablePlayer = async (playerSource: PlayerSource = source) => {
+  installNavigationSurface()
+  const NavigablePlayer = () => {
+    useControllerNavigation()
+    return playerView(playerSource)
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  await act(async () => root.render(<NavigablePlayer />))
+  return { container, root }
+}
+
+const qualityButtons = (container: HTMLElement): HTMLButtonElement[] => [
+  ...container.querySelectorAll<HTMLButtonElement>(".player-quality__options button"),
+]
 
 const seekButtons = (container: HTMLElement): HTMLButtonElement[] => [
   ...container.querySelectorAll<HTMLButtonElement>(".player-transport button"),
@@ -217,8 +269,322 @@ describe("Twitch player surface", () => {
   })
 })
 
+describe("controller playback quality", () => {
+  it.each([source, videoSource])(
+    "populates an empty READY quality list on PLAYING for $kind and refreshes on open",
+    async (playerSource) => {
+      const quality = { available: [] as unknown, current: "initial-effective" }
+      const harness = installPlayerHarness([true], undefined, quality)
+      const { container, root } = await mountPlayer(playerSource)
+      const control = buttonById(container, "player-quality")
+      await act(async () => harness.emit("ready"))
+      expect(harness.getQualities).toHaveBeenCalledTimes(1)
+      expect(control.getAttribute("data-player-quality")).toBe("initial-effective")
+      expect(control.hasAttribute("data-requested-quality")).toBe(false)
+      await act(async () => control.click())
+      expect(qualityButtons(container)).toHaveLength(0)
+      expect(document.activeElement).toBe(buttonById(container, "player-quality-close"))
+
+      quality.available = [{ group: "unusual:517p59", name: "Custom stream quality" }, "auto"]
+      quality.current = "unusual:517p59"
+      await act(async () => harness.emit("playing"))
+      expect(harness.getQualities).toHaveBeenCalledTimes(3)
+      expect(control.getAttribute("data-player-quality")).toBe("unusual:517p59")
+      expect(qualityButtons(container).map((button) => button.textContent)).toEqual([
+        "Custom stream quality",
+        "auto",
+      ])
+      expect(container.querySelector(".player-frame .player-quality")).toBeNull()
+      await act(async () => buttonById(container, "player-quality-close").click())
+
+      quality.available = ["new-on-open"]
+      quality.current = "new-on-open"
+      await act(async () => control.click())
+      expect(harness.getQualities).toHaveBeenCalledTimes(4)
+      expect(control.getAttribute("data-player-quality")).toBe("new-on-open")
+      expect(qualityButtons(container).map((button) => button.textContent)).toEqual(["new-on-open"])
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each([source, videoSource])(
+    "reaches every quality and Close with real controller navigation for $kind without playback side effects",
+    async (playerSource) => {
+      const quality = {
+        available: ["auto", { group: "chunked", name: "Source" }, "custom:517p59"],
+        current: "chunked",
+      }
+      const harness = installPlayerHarness([true], undefined, quality)
+      const { container, root } = await mountNavigablePlayer(playerSource)
+      await act(async () => harness.emit("ready"))
+      // Autoplay completed before the quality interaction; isolate only its side effects.
+      harness.activateEmbeddedPlayer.mockClear()
+      harness.setMuted.mockClear()
+      expect(document.activeElement).toBe(buttonById(container, "player-back"))
+      for (const id of ["player-playback", "player-muted", "player-quality"]) {
+        await pressKey(container, "ArrowRight")
+        expect(document.activeElement).toBe(buttonById(container, id))
+      }
+      const control = buttonById(container, "player-quality")
+      await pressKey(container, "Enter")
+      const options = qualityButtons(container)
+      expect(options.map((button) => button.getAttribute("data-focus-id"))).toEqual([
+        "player-quality-option-auto",
+        "player-quality-option-chunked",
+        "player-quality-option-custom:517p59",
+      ])
+      for (const option of options) {
+        expect(document.activeElement).toBe(option)
+        expect(container.querySelector(".player-frame")?.contains(document.activeElement)).toBe(
+          false,
+        )
+        expect(option.getAttribute("data-focusable")).toBe("true")
+        for (const direction of ["down", "left", "right", "up"]) {
+          expect(option.hasAttribute(`data-focus-${direction}`)).toBe(true)
+        }
+        await pressKey(container, "Enter")
+        expect(document.activeElement).toBe(option)
+        expect(option.getAttribute("aria-pressed")).toBe("true")
+        await pressKey(container, "ArrowRight")
+      }
+      expect(harness.setQuality.mock.calls).toEqual([["auto"], ["chunked"], ["custom:517p59"]])
+      expect(harness.getQualities).toHaveBeenCalledTimes(5)
+      const close = buttonById(container, "player-quality-close")
+      expect(document.activeElement).toBe(close)
+      expect(close.getAttribute("data-focusable")).toBe("true")
+      for (const direction of ["down", "left", "right", "up"]) {
+        expect(close.hasAttribute(`data-focus-${direction}`)).toBe(true)
+      }
+      await pressKey(container, "ArrowLeft")
+      expect(document.activeElement).toBe(options.at(-1))
+      await pressKey(container, "ArrowUp")
+      expect(document.activeElement).toBe(control)
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(options[0])
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(close)
+      await pressKey(container, "Enter")
+      expect(container.querySelector(".player-quality")).toBeNull()
+      expect(document.activeElement).toBe(control)
+      await pressKey(container, "ArrowUp")
+      expect(document.activeElement).toBe(buttonById(container, "player-back"))
+      expect(harness.play).not.toHaveBeenCalled()
+      expect(harness.pause).not.toHaveBeenCalled()
+      expect(harness.setMuted).not.toHaveBeenCalled()
+      expect(harness.seek).not.toHaveBeenCalled()
+      expect(harness.activateEmbeddedPlayer).not.toHaveBeenCalled()
+      expect(harness.constructed).toHaveBeenCalledTimes(1)
+      await act(async () => root.unmount())
+    },
+  )
+
+  it("keeps requested Auto separate from the changing player-reported quality attribute", async () => {
+    const quality = { available: ["auto", "chunked", "custom:517p59"], current: "chunked" }
+    const harness = installPlayerHarness([true], undefined, quality)
+    const { container, root } = await mountPlayer()
+    await act(async () => harness.emit("ready"))
+    const control = buttonById(container, "player-quality")
+    await act(async () => control.click())
+    expect(
+      qualityButtons(container).every((button) => button.getAttribute("aria-pressed") === "false"),
+    ).toBe(true)
+    await act(async () => buttonById(container, "player-quality-option-auto").click())
+    expect(harness.setQuality).toHaveBeenCalledExactlyOnceWith("auto")
+    expect(control.getAttribute("data-requested-quality")).toBe("auto")
+    expect(control.getAttribute("data-player-quality")).toBe("chunked")
+
+    quality.current = "custom:517p59"
+    await act(async () => harness.emit("playing"))
+    expect(control.getAttribute("data-player-quality")).toBe("custom:517p59")
+    expect(control.getAttribute("data-requested-quality")).toBe("auto")
+    expect(buttonById(container, "player-quality-option-auto").getAttribute("aria-pressed")).toBe(
+      "true",
+    )
+    expect(
+      buttonById(container, "player-quality-option-custom:517p59").getAttribute("aria-pressed"),
+    ).toBe("false")
+    await act(async () => root.unmount())
+  })
+
+  it("revalidates a removed quality at selection and recovers focus without sending a stale id", async () => {
+    const quality = { available: ["old-id", "auto"], current: "old-id" }
+    const harness = installPlayerHarness([true], undefined, quality)
+    const { container, root } = await mountNavigablePlayer()
+    await act(async () => harness.emit("ready"))
+    await act(async () => buttonById(container, "player-quality").click())
+    expect(document.activeElement).toBe(buttonById(container, "player-quality-option-old-id"))
+    quality.available = []
+    await pressKey(container, "Enter")
+    expect(harness.getQualities).toHaveBeenCalledTimes(3)
+    expect(harness.setQuality).not.toHaveBeenCalled()
+    expect(qualityButtons(container)).toHaveLength(0)
+    expect(document.activeElement).toBe(buttonById(container, "player-quality-close"))
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+    await act(async () => root.unmount())
+  })
+
+  it("keeps an empty chooser escapable before READY, after READY and offline", async () => {
+    const harness = installPlayerHarness([true])
+    const { container, root } = await mountNavigablePlayer()
+    for (const event of [undefined, "ready", "offline"] as const) {
+      if (event !== undefined) await act(async () => harness.emit(event))
+      const back = buttonById(container, "player-back")
+      back.focus()
+      const steps = event === "ready" ? 3 : 1
+      for (let index = 0; index < steps; index += 1) await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+      await pressKey(container, "Enter")
+      expect(qualityButtons(container)).toHaveLength(0)
+      expect(document.activeElement).toBe(buttonById(container, "player-quality-close"))
+      await pressKey(container, "ArrowUp")
+      expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+      await pressKey(container, "ArrowUp")
+      expect(document.activeElement).toBe(back)
+      await act(async () => buttonById(container, "player-quality-close").click())
+    }
+    expect(harness.getQualities).toHaveBeenCalledTimes(2)
+    expect(harness.setQuality).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it("clears quality state offline and ignores PLAYING until the player is ready again", async () => {
+    const quality = { available: ["auto", "chunked"], current: "chunked" }
+    const harness = installPlayerHarness([true], undefined, quality)
+    const { container, root } = await mountPlayer()
+    await act(async () => harness.emit("ready"))
+    const control = buttonById(container, "player-quality")
+    await act(async () => control.click())
+    await act(async () => buttonById(container, "player-quality-option-auto").click())
+    await act(async () => harness.emit("offline"))
+    const reads = harness.getQualities.mock.calls.length
+    await act(async () => harness.emit("playing"))
+    expect(harness.getQualities).toHaveBeenCalledTimes(reads)
+    expect(qualityButtons(container)).toHaveLength(0)
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    expect(control.hasAttribute("data-player-quality")).toBe(false)
+    expect(document.activeElement).toBe(buttonById(container, "player-quality-close"))
+    expect(buttonById(container, "player-back").disabled).toBe(false)
+    await act(async () => harness.emit("ready"))
+    expect(qualityButtons(container)).toHaveLength(2)
+    expect(control.getAttribute("data-player-quality")).toBe("chunked")
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    await act(async () => root.unmount())
+  })
+
+  it("resets qualities on source replacement and ignores all late callbacks from the old instance", async () => {
+    const quality = { available: ["old-source", "auto"], current: "old-source" }
+    const harness = installPlayerHarness([true, true], undefined, quality)
+    const { container, root } = await mountPlayer(source)
+    await act(async () => harness.emit("ready"))
+    await act(async () => buttonById(container, "player-quality").click())
+    await act(async () => buttonById(container, "player-quality-option-auto").click())
+    const oldListeners = new Map(harness.listeners)
+    quality.available = []
+    quality.current = ""
+    await act(async () => root.render(playerView(videoSource)))
+    const control = buttonById(container, "player-quality")
+    expect(container.querySelector(".player-quality")).toBeNull()
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    expect(control.hasAttribute("data-player-quality")).toBe(false)
+    await act(async () => control.click())
+    expect(qualityButtons(container)).toHaveLength(0)
+    const reads = harness.getQualities.mock.calls.length
+    await act(async () => {
+      for (const callback of oldListeners.values()) callback()
+    })
+    expect(harness.getQualities).toHaveBeenCalledTimes(reads)
+    expect(harness.getQuality).toHaveBeenCalledTimes(reads)
+    expect(container.querySelector(".player-frame")?.getAttribute("aria-busy")).toBe("true")
+    quality.available = ["new-source"]
+    quality.current = "new-source"
+    await act(async () => harness.emit("ready"))
+    await act(async () => {
+      for (const callback of oldListeners.values()) callback()
+    })
+    expect(qualityButtons(container).map((button) => button.textContent)).toEqual(["new-source"])
+    expect(control.getAttribute("data-player-quality")).toBe("new-source")
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    expect(container.querySelector(".player-frame")?.getAttribute("aria-busy")).toBe("false")
+    expect(harness.constructed).toHaveBeenCalledTimes(2)
+    await act(async () => root.unmount())
+    const finalReads = harness.getQualities.mock.calls.length
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("offline")
+    })
+    expect(harness.getQualities).toHaveBeenCalledTimes(finalReads)
+  })
+
+  it("does not claim a request when the official quality setter throws", async () => {
+    const harness = installPlayerHarness([true], undefined, {
+      available: ["auto"],
+      current: "source",
+    })
+    const { container, root } = await mountPlayer()
+    await act(async () => harness.emit("ready"))
+    const control = buttonById(container, "player-quality")
+    await act(async () => control.click())
+    harness.setQuality.mockImplementationOnce(() => {
+      throw new Error("Player unavailable")
+    })
+    await act(async () => buttonById(container, "player-quality-option-auto").click())
+    expect(control.hasAttribute("data-requested-quality")).toBe(false)
+    expect(control.getAttribute("data-player-quality")).toBe("source")
+    expect(buttonById(container, "player-quality-option-auto").getAttribute("aria-pressed")).toBe(
+      "false",
+    )
+    expect(buttonById(container, "player-quality-close").disabled).toBe(false)
+    await act(async () => root.unmount())
+  })
+
+  it("keeps quality API read failures escapable and recovers on PLAYING", async () => {
+    const harness = installPlayerHarness([true], undefined, {
+      available: ["auto"],
+      current: "source",
+    })
+    const { container, root } = await mountPlayer()
+    await act(async () => harness.emit("ready"))
+    harness.getQualities.mockImplementationOnce(() => {
+      throw new Error("Player unavailable")
+    })
+    const control = buttonById(container, "player-quality")
+    await act(async () => control.click())
+    expect(qualityButtons(container)).toHaveLength(0)
+    expect(control.hasAttribute("data-player-quality")).toBe(false)
+    expect(document.activeElement).toBe(buttonById(container, "player-quality-close"))
+    await act(async () => harness.emit("playing"))
+    expect(qualityButtons(container)).toHaveLength(1)
+    expect(control.getAttribute("data-player-quality")).toBe("source")
+    await act(async () => root.unmount())
+  })
+
+  it("preserves Escape to Home from the open chooser through the real app controller", async () => {
+    const harness = installPlayerHarness([true], undefined, {
+      available: ["auto"],
+      current: "chunked",
+    })
+    installNavigationSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "stream-preview-twitch").click())
+    await act(async () => harness.emit("ready"))
+    await act(async () => buttonById(container, "player-quality").click())
+    expect(document.activeElement).toBe(buttonById(container, "player-quality-option-auto"))
+    await pressKey(container, "Escape")
+    expect(container.querySelector(".player-view")).toBeNull()
+    expect(container.querySelector(".browse-view")).not.toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+    expect(harness.restoreShellFullscreen).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+  })
+})
+
 describe("VOD controller seeking", () => {
-  it("keeps live controls unchanged without reading a timeline", async () => {
+  it("keeps the exact live toolbar without VOD controls or timeline reads", async () => {
     const harness = installPlayerHarness([true], { currentTime: 600, duration: 3600 })
     const { container, root } = await mountPlayer(source)
 
@@ -238,6 +604,7 @@ describe("VOD controller seeking", () => {
       "player-back",
       "player-playback",
       "player-muted",
+      "player-quality",
       "player-vods",
       "player-fullscreen",
     ])

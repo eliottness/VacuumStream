@@ -13,6 +13,7 @@ import {
   loadTwitchPlayerApi,
   type TwitchPlayerInstance,
 } from "../twitch-player"
+import { usePlayerQuality } from "./usePlayerQuality"
 
 export type PlayerSource =
   | {
@@ -67,6 +68,10 @@ export const PlayerView = ({
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
+  const { qualityButton, qualityChooser, refreshQualities, resetQualities } = usePlayerQuality(
+    playerRef,
+    frameState === "ready",
+  )
 
   const cancelAutoStart = useCallback((): void => {
     autoStartGenerationRef.current += 1
@@ -84,6 +89,7 @@ export const PlayerView = ({
     setFrameState("loading")
     setPosition(undefined)
     setDuration(undefined)
+    resetQualities()
     const autoStartGeneration = autoStartGenerationRef.current + 1
     autoStartGenerationRef.current = autoStartGeneration
     let autoStartDeadline = 0
@@ -128,6 +134,7 @@ export const PlayerView = ({
           if (!active || player === undefined) return
           ready = true
           setFrameState("ready")
+          refreshQualities(player)
           if (source.kind === "video") {
             refreshTimeline()
             if (timelineTimer === undefined) {
@@ -142,8 +149,12 @@ export const PlayerView = ({
             attemptAutoStart()
           }
         })
+        player.addEventListener(api.Player.PLAYING, () => {
+          if (!active || !ready || player === undefined) return
+          refreshQualities(player)
+          refreshTimeline()
+        })
         if (source.kind === "video") {
-          player.addEventListener(api.Player.PLAYING, refreshTimeline)
           player.addEventListener(api.Player.SEEK, refreshTimeline)
         }
         player.addEventListener(api.Player.PLAY, () => {
@@ -161,6 +172,7 @@ export const PlayerView = ({
           clearInterval(timelineTimer)
           timelineTimer = undefined
           setFrameState("error")
+          resetQualities(false)
         })
       })
       .catch(() => {
@@ -174,7 +186,7 @@ export const PlayerView = ({
       playerRef.current = undefined
       document.querySelector("#twitch-player-root")?.replaceChildren()
     }
-  }, [source, cancelAutoStart])
+  }, [source, cancelAutoStart, refreshQualities, resetQualities])
 
   const togglePlayback = (): void => {
     cancelAutoStart()
@@ -220,7 +232,7 @@ export const PlayerView = ({
         <button
           data-focus-down={source.kind === "video" ? "player-seek-back-5m" : undefined}
           data-focus-id="player-back"
-          data-focus-right="player-playback"
+          data-focus-right={frameState === "ready" ? "player-playback" : "player-quality"}
           data-focusable="true"
           onClick={onBack}
           ref={backButtonRef}
@@ -249,7 +261,7 @@ export const PlayerView = ({
           aria-label={muted ? "Unmute" : "Mute"}
           data-focus-id="player-muted"
           data-focus-left="player-playback"
-          data-focus-right="player-vods"
+          data-focus-right="player-quality"
           data-focusable="true"
           disabled={frameState !== "ready"}
           onClick={toggleMuted}
@@ -261,9 +273,10 @@ export const PlayerView = ({
             <SpeakerSimpleXIcon aria-hidden="true" />
           )}
         </button>
+        {qualityButton}
         <button
           data-focus-id="player-vods"
-          data-focus-left="player-muted"
+          data-focus-left="player-quality"
           data-focus-right="player-fullscreen"
           data-focusable="true"
           onClick={() => onPastBroadcasts(source.userId)}
@@ -305,6 +318,7 @@ export const PlayerView = ({
           </output>
         </section>
       ) : null}
+      {qualityChooser}
       <div aria-busy={frameState === "loading"} className="player-frame">
         {frameState === "error" ? (
           <div className="player-status" role="alert">
