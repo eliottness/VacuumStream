@@ -124,6 +124,10 @@ export const test = base.extend<E2EFixtures>({
     await page.waitForLoadState("domcontentloaded")
     await page.waitForSelector("[data-focus-id]", { timeout: 30_000 })
     await use(page)
+    const info = test.info()
+    const path = info.outputPath("final-state.png")
+    await page.screenshot({ path }).catch(() => undefined)
+    await info.attach("final-state", { contentType: "image/png", path }).catch(() => undefined)
   },
 
   controller: async ({ window }, use) => {

@@ -33,13 +33,15 @@ const gateFor = (row: FlowRow): { readonly enabled: boolean; readonly reason: st
 export const flowTest = (id: string, body: LedgerTestBody): void => {
   const row = flowRow(id)
   const gate = gateFor(row)
-  test(`${id} ${row.title}`, async ({ app, controller, profileDirectory, window }, testInfo) => {
+  // A gated row is declared with test.skip so its reason is reported without launching the app.
+  const declare = gate.enabled ? test : test.skip
+  declare(`${id} ${row.title}`, async ({ app, controller, profileDirectory, window }, testInfo) => {
     testInfo.annotations.push(
       { description: row.verdict, type: "ledger-verdict" },
       { description: row.expected, type: "expected-colour" },
       { description: row.observable, type: "observable" },
+      { description: gate.reason, type: "gate" },
     )
-    test.skip(!gate.enabled, gate.reason)
     if (row.expected === "red") {
       test.fail(
         true,
