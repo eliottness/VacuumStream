@@ -61,6 +61,7 @@ are out of scope and are rejected without review.
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
+| 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -769,6 +770,44 @@ marker, and the test rejects with a plain `Error` shaped like a real transport; 
 the class would have passed against a broken `instanceof` check. And the first implementation
 regressed four pre-existing tests by reading Home-only state on every route; the fix was to gate
 those reads behind `route === "home"`, not to edit the assertions.
+
+### Cycle 17 — Centralize Home's inter-shelf focus wiring
+
+The first refactor this loop has scheduled, and only because it names a defect class rather than
+a feeling about file length. Home now composes four shelves, and two of them reach into ANOTHER
+component after rendering to overwrite its `data-focus-up`, restoring the previous value on
+cleanup, while the live shelf declares its own upward links in JSX. The composed graph therefore
+cannot be read from render output and depends on effect ordering.
+
+The defect class: stale or inconsistent links between shelves that load independently and can
+appear, fail, retry, keep their items during a refresh, or lose their last entry. Cycle 16
+already produced a regression in this area — Home-only state read on every route, caught only by
+older tests — so this is composition producing bugs, not merely long files.
+
+Target: one pure function computing navigation entry, each shelf's boundary and fallback ids and
+the live-entry upward target, with the two sibling-mutating effects deleted. Focus RECOVERY stays
+exactly as it is: computing a destination is not the same as restoring browser focus, and the
+card-removal rescue must survive untouched.
+
+The test that justifies the change is the one that fails today: asserting the composed focus
+attributes BEFORE effects run. Also preserved deliberately is the asymmetry where Down enters a
+shelf's first item while Up returns to its last action — reciprocal edges would be wrong here.
+
+Acceptance criteria:
+
+1. A table over guest/authenticated crossed with six states per local shelf — 72 combinations —
+   emits only existing targets with today's precedence.
+2. The composed graph is correct in a static render, before any effect; confirmed failing first
+   against the current wiring.
+3. Resolving the two listings in either order, plus retry, retained-item errors and auth
+   transitions, always leaves a connected path and steals no focus.
+4. Existing journeys pass unchanged, non-Home routes need no fabricated Home state, and no
+   assertion is weakened.
+5. Both shelves and Quick watch traverse in both directions on the target hardware.
+6. `bun run verify` passes in one run.
+
+Not in scope: extracting all of Home, splitting `PlayerView`, consolidating the three local
+stores, and changing the category shelf's geometric navigation.
 
 ## Autoplay injection: investigated, deferred with conditions
 
