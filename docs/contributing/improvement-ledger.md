@@ -63,7 +63,7 @@ are out of scope and are rejected without review.
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
-| 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | In progress |
+| 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -947,6 +947,28 @@ Acceptance criteria:
 Not in scope: cancellation policy, token storage, polling policy, scopes, embedded-player
 authentication, and any collapse of the Client ID editor into a new advanced-settings subsystem.
 Device Code Flow endpoints stay exactly as they are.
+
+Landed in `dcd7fb0`. The pre-fix run failed 25 cases, including
+`settings-open-activation: active element: expected 'BODY' to be 'BUTTON'` and
+`expected "vi.fn()" to be called 1 times, but got 2 times` for duplicate activation.
+
+On hardware, signed out: Settings opened with focus on the nav item, one Right press reached
+`settings-sign-in`, and pressing Enter requested a real device challenge - after which focus was
+on `settings-open-activation`, connected, rather than the body. Returning later while the
+challenge was outstanding, the same single Right press went straight to the activation action, so
+the entry target follows the current account state instead of a fixed id.
+
+The challenge was requested but never approved. The code and the `device-code` parameter were
+masked in the DOM before capture and the QR blurred; a first capture that still carried the code
+inside the activation URL was deleted rather than kept. Sign-in actually COMPLETING on hardware
+remains unverified and needs the owner to sign in on the device.
+
+This cycle also re-recorded cycle 16's rejected recovery evidence. With the player SDK blocked by
+`Network.setBlockedURLs`, a real live channel failed to start; after unblocking and pressing the
+real Retry control, sampling the video element inside the player frame showed currentTime moving
+from 25.31 to 31.38 over six seconds at 1920x1080, unpaused and unmuted at volume 0.5. That
+replaces both the offline-screen capture and the withdrawn "audible playback" inference with
+measurements.
 
 ## Device QA evidence: a capture error and its corrections
 
