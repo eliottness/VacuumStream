@@ -365,6 +365,10 @@
   border-radius: 0.75rem;
 }
 
+.video-card > span:first-child > .video-card__artwork-placeholder {
+  background: var(--color-rail);
+}
+
 .video-card svg {
   position: absolute;
   inset: 50% auto auto 50%;

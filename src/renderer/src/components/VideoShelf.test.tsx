@@ -3,7 +3,7 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { VideoCard } from "../../../shared/contracts"
+import { type VideoCard, VideoCardSchema } from "../../../shared/contracts"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
 import { VideoShelf } from "./VideoShelf"
 
@@ -19,6 +19,17 @@ const video: VideoCard = {
   userName: "Channel offline",
   viewCount: 42,
 }
+const missingArtworkVideo = VideoCardSchema.parse({
+  createdAt: "2026-09-20T12:00:00Z",
+  duration: "30m",
+  id: "recording-without-artwork",
+  publishedAt: "2026-09-20T12:00:00Z",
+  title: "A recording without artwork",
+  userId: "offline",
+  userLogin: "channeloffline",
+  userName: "Channel offline",
+  viewCount: 12,
+})
 const onBack = vi.fn()
 const onRetry = vi.fn()
 const onSelect = vi.fn<(video: VideoCard) => void>()
@@ -123,6 +134,22 @@ describe("VideoShelf", () => {
     expect(document.activeElement).toBe(recording)
     await act(async () => dispatchControllerKey("Enter"))
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(video)
+    await act(async () => dispatchControllerKey("ArrowUp"))
+    expect(document.activeElement).toBe(back)
+  })
+
+  it("keeps a validated recording without artwork selectable", async () => {
+    await act(async () => root?.render(<Harness videos={[missingArtworkVideo]} />))
+    const back = button("videos-back")
+    const recording = button("video-recording-without-artwork")
+    expect(recording.querySelector('img[src=""]')).toBeNull()
+    expect(recording.querySelector(".video-card__artwork-placeholder")).not.toBeNull()
+    back.focus()
+    await act(async () => dispatchControllerKey("ArrowDown"))
+    expect(document.activeElement).toBe(recording)
+    await act(async () => dispatchControllerKey("Enter"))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(missingArtworkVideo)
     await act(async () => dispatchControllerKey("ArrowUp"))
     expect(document.activeElement).toBe(back)
   })

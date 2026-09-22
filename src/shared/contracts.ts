@@ -68,7 +68,7 @@ export const VideoCardSchema = z.object({
   duration: z.string(),
   id: z.string(),
   publishedAt: z.string(),
-  thumbnailUrl: z.url(),
+  thumbnailUrl: z.url().optional(),
   title: z.string(),
   userId: z.string(),
   userLogin: z.string(),

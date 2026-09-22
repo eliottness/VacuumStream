@@ -1,6 +1,34 @@
+import type { VideoCard } from "../../shared/contracts"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { StreamShelf } from "./components/StreamShelf"
+import { VideoShelf } from "./components/VideoShelf"
 import { PREVIEW_CATEGORIES, PREVIEW_STREAMS } from "./demo-data"
+
+const PREVIEW_VIDEOS = [
+  {
+    createdAt: "2026-09-21T12:00:00Z",
+    duration: "1h",
+    id: "preview-recording",
+    publishedAt: "2026-09-21T12:00:00Z",
+    thumbnailUrl: "https://example.com/preview-recording.jpg",
+    title: "An archived stream",
+    userId: "preview",
+    userLogin: "preview",
+    userName: "Preview channel",
+    viewCount: 42,
+  },
+  {
+    createdAt: "2026-09-20T12:00:00Z",
+    duration: "30m",
+    id: "preview-no-artwork",
+    publishedAt: "2026-09-20T12:00:00Z",
+    title: "A recording without artwork",
+    userId: "preview",
+    userLogin: "preview",
+    userName: "Preview channel",
+    viewCount: 12,
+  },
+] satisfies readonly VideoCard[]
 
 export const Showcase = () => (
   <main className="showcase">
@@ -29,6 +57,14 @@ export const Showcase = () => (
       onSelect={() => undefined}
       streams={PREVIEW_STREAMS}
       title="Live card states"
+    />
+    <VideoShelf
+      error=""
+      loading={false}
+      onBack={() => undefined}
+      onRetry={() => undefined}
+      onSelect={() => undefined}
+      videos={PREVIEW_VIDEOS}
     />
     <StreamShelf
       emptyMessage=""

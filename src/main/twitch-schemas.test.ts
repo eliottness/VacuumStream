@@ -230,6 +230,125 @@ describe("Twitch response parsing", () => {
     })
   })
 
+  it("rejects a non-empty malformed video thumbnail URL", () => {
+    // Given a Helix video whose non-empty thumbnail is not a URL
+    const response = {
+      data: [
+        {
+          created_at: "2026-09-05T12:00:00Z",
+          duration: "30m",
+          id: "791",
+          published_at: "2026-09-05T12:05:00Z",
+          thumbnail_url: "not-a-url",
+          title: "A malformed broadcast",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 12,
+        },
+      ],
+      pagination: {},
+    }
+
+    // When the page crosses the renderer contract
+    const parse = (): unknown => PageSchema(VideoCardSchema).parse(parseVideosResponse(response))
+
+    // Then a malformed non-empty URL remains rejected
+    expect(parse).toThrow(z.ZodError)
+  })
+
+  it("preserves a mixed videos page when one recording has no thumbnail", () => {
+    // Given a Helix page containing templated, resolved, and empty artwork values
+    const response = {
+      data: [
+        {
+          created_at: "2026-09-05T12:00:00Z",
+          duration: "1h2m3s",
+          id: "791",
+          published_at: "2026-09-05T12:05:00Z",
+          thumbnail_url: "https://static-cdn.jtvnw.net/cf_vods/video-791-%{width}x%{height}.jpg",
+          title: "A templated broadcast",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 9876,
+        },
+        {
+          created_at: "2026-09-06T12:00:00Z",
+          duration: "30m",
+          id: "792",
+          published_at: "2026-09-06T12:05:00Z",
+          thumbnail_url: "https://static-cdn.jtvnw.net/cf_vods/video-792-320x180.jpg",
+          title: "A resolved broadcast",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 12,
+        },
+        {
+          created_at: "2026-09-07T12:00:00Z",
+          duration: "15m",
+          id: "793",
+          published_at: "2026-09-07T12:05:00Z",
+          thumbnail_url: "",
+          title: "A broadcast without artwork",
+          user_id: "456",
+          user_login: "streamer",
+          user_name: "Streamer",
+          view_count: 3,
+        },
+      ],
+      pagination: { cursor: "mixed-videos" },
+    }
+
+    // When the page crosses both the Helix parser and the real preload contract
+    const page = PageSchema(VideoCardSchema).parse(parseVideosResponse(response))
+
+    // Then all recordings retain their metadata and order, with only empty artwork absent
+    expect(page).toEqual({
+      cursor: "mixed-videos",
+      items: [
+        {
+          createdAt: "2026-09-05T12:00:00Z",
+          duration: "1h2m3s",
+          id: "791",
+          publishedAt: "2026-09-05T12:05:00Z",
+          thumbnailUrl: "https://static-cdn.jtvnw.net/cf_vods/video-791-320x180.jpg",
+          title: "A templated broadcast",
+          userId: "456",
+          userLogin: "streamer",
+          userName: "Streamer",
+          viewCount: 9876,
+        },
+        {
+          createdAt: "2026-09-06T12:00:00Z",
+          duration: "30m",
+          id: "792",
+          publishedAt: "2026-09-06T12:05:00Z",
+          thumbnailUrl: "https://static-cdn.jtvnw.net/cf_vods/video-792-320x180.jpg",
+          title: "A resolved broadcast",
+          userId: "456",
+          userLogin: "streamer",
+          userName: "Streamer",
+          viewCount: 12,
+        },
+        {
+          createdAt: "2026-09-07T12:00:00Z",
+          duration: "15m",
+          id: "793",
+          publishedAt: "2026-09-07T12:05:00Z",
+          title: "A broadcast without artwork",
+          userId: "456",
+          userLogin: "streamer",
+          userName: "Streamer",
+          viewCount: 3,
+        },
+      ],
+    })
+    expect(page.items.map(({ id }) => id)).toEqual(["791", "792", "793"])
+    expect(page.items[2]).not.toHaveProperty("thumbnailUrl")
+  })
+
   it("parses an empty Helix videos page", () => {
     // Given an empty videos page from Helix
     const response = { data: [], pagination: {} }

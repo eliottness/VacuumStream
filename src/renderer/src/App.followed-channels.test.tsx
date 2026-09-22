@@ -3,12 +3,14 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type {
-  AuthSnapshot,
-  FollowedChannelCard,
-  Page,
-  VacuumStreamApi,
-  VideoCard,
+import {
+  type AuthSnapshot,
+  type FollowedChannelCard,
+  type Page,
+  PageSchema,
+  type VacuumStreamApi,
+  type VideoCard,
+  VideoCardSchema,
 } from "../../shared/contracts"
 import { App } from "./App"
 import { dispatchControllerKey } from "./focus-navigation"
@@ -42,6 +44,23 @@ const video: VideoCard = {
   userName: "Channel offline",
   viewCount: 42,
 }
+const mixedArchivePage = PageSchema(VideoCardSchema).parse({
+  cursor: "mixed-videos",
+  items: [
+    video,
+    {
+      createdAt: "2026-09-20T12:00:00Z",
+      duration: "30m",
+      id: "recording-without-artwork",
+      publishedAt: "2026-09-20T12:00:00Z",
+      title: "A recording without artwork",
+      userId: "offline",
+      userLogin: "channeloffline",
+      userName: "Channel offline",
+      viewCount: 12,
+    },
+  ],
+})
 const deferred = <Value,>() => {
   let controls:
     | { readonly reject: (error: Error) => void; readonly resolve: (value: Value) => void }
@@ -361,6 +380,21 @@ describe("All channels in the mounted App", () => {
     await key("Enter")
     expect(constructedPlayer).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ video: "recording" }),
+    )
+  })
+
+  it("keeps mixed archives available until the selected recording starts the player", async () => {
+    const bridge = await enterDirectory((api) =>
+      api.catalog.videos.mockResolvedValueOnce(mixedArchivePage),
+    )
+    await activate("followed-channel-offline-videos")
+    expect(container.querySelector('.videos-view [role="alert"]')).toBeNull()
+    expect(constructedPlayer).not.toHaveBeenCalled()
+    expect(twitchPlayer.loadTwitchPlayerApi).not.toHaveBeenCalled()
+    await activate("video-recording-without-artwork")
+    expect(bridge.catalog.videos).toHaveBeenCalledExactlyOnceWith({ first: 30, userId: "offline" })
+    expect(constructedPlayer).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ video: "recording-without-artwork" }),
     )
   })
 

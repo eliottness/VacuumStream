@@ -80,7 +80,14 @@ export const VideoShelf = ({
               type="button"
             >
               <span>
-                <img alt="" height="360" src={video.thumbnailUrl} width="640" />
+                {video.thumbnailUrl ? (
+                  <img alt="" height="360" src={video.thumbnailUrl} width="640" />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="image-fallback video-card__artwork-placeholder"
+                  />
+                )}
                 <PlayIcon aria-hidden="true" weight="fill" />
                 <small>{video.duration}</small>
               </span>

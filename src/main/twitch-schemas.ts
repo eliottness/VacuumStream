@@ -196,7 +196,11 @@ export const parseVideosResponse = (input: unknown): Page<VideoCard> => {
     duration: video.duration,
     id: video.id,
     publishedAt: video.published_at,
-    thumbnailUrl: video.thumbnail_url.replace("%{width}", "320").replace("%{height}", "180"),
+    ...(video.thumbnail_url === ""
+      ? {}
+      : {
+          thumbnailUrl: video.thumbnail_url.replace("%{width}", "320").replace("%{height}", "180"),
+        }),
     title: video.title,
     userId: video.user_id,
     userLogin: video.user_login,
