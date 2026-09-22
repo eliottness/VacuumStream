@@ -64,7 +64,7 @@ are out of scope and are rejected without review.
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
-| 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | In progress |
+| 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -1004,6 +1004,26 @@ Not in scope: store consolidation, the `SettingsStore` weaknesses, power-loss co
 multi-window viewing, which this deliberately makes unsupported. Hardware evidence must separate
 "only one owner exists" from "the window became active", since compositor policy governs
 foregrounding.
+
+Landed in `d70dd54`. Against the old entry point the non-owner test failed loudly: it built a
+window, an HTTPS server and four persistence owners, and never quit.
+
+On hardware, with the app playing and MainPID 115013, running the same command again against the
+same profile exited with code 0 after one second; the MainPID, the player-frame CDP target and the
+`player-view` route were all untouched, and a window audit found one real app window plus two
+Electron helpers. A favourite saved through Search and a seeded bookmark then survived both that
+second launch and a `systemctl` restart, which moved MainPID to 125759 - so a fresh primary does
+start once the previous owner exits and the lock is not leaked.
+
+Two honest limits: native minimization never emitted an event under WSLg, so
+restore-when-minimized rests on the entry-point tests; and every guest-reachable source was
+offline at run time, so "frames still advancing" across the second launch was not observable
+(advancing playback itself was measured in cycle 19).
+
+One suspicion investigated and dismissed: pressing a Top category as a guest jumps to Settings,
+which looked like a focus desync. It is deliberate - the notice "Sign in to browse live streams by
+category" renders on arrival, confirmed on the device - and Enter delivery is otherwise sound,
+since the same surface opened a stream card into the player.
 
 ## Device QA evidence: a capture error and its corrections
 
