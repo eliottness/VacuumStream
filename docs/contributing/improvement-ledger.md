@@ -1043,12 +1043,31 @@ matrix, and the cycle 17 shelf boundary. Each needs re-recording with a real 108
 none of them indicates broken production behaviour, which remains covered by passing automated
 tests.
 
+**Progress on re-recording.** Cycle 19 closed the two worst: startup recovery is now proven by
+video `currentTime` advancing 25.31 -> 31.38 at a true 1920x1080, and the withdrawn audio
+inference is replaced by `muted: false, volume: 0.5`. A second batch closed four more on the
+`?showcase=1` surface, all driven by real arrow keys with `document.activeElement` read at each
+step: the Continue Watching shelf with the focus ring on an actual card rather than the decorative
+focus sample, the favourites state matrix including its error variants, the three artwork states
+with a focused card and nothing cropped, and the resume prompt at 1080p.
+
+Two remain: the combined captions + chat + quality panel size, and arrow traversal of the restored
+controls after an ONLINE transition. Both need a live channel rather than the showcase surface.
+
+A trap worth recording for whoever captures next: `captureBeyondViewport: true` returns the whole
+scrollable page (1279x7257 on the showcase), which is not layout evidence. Use
+`captureBeyondViewport: false` for a viewport view.
+
 **One real defect came out of the same review** and is being fixed in cycle 18: in Search, the
 favourites Retry control focused the submit button before removing itself, but submit is disabled
 while a search request is in flight, so focus fell to `document.body` and never recovered. The
 existing test could not catch it because its fixture pinned the idle state.
 
 ## Observed but not yet scheduled
+
+| Observation | Where | Source |
+| --- | --- | --- |
+| Walking Down through the Continue Watching showcase matrix jumps from the loading shelf's Home control straight to the read-error shelf's Home control, skipping `showcase-read-error-retry`, which sits above it | `Showcase.tsx`, `ContinueWatchingShelf.tsx` | Cycle 20 QA re-record |
 
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
