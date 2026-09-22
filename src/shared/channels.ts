@@ -12,6 +12,7 @@ export const CHANNELS = {
   chatInputBegin: "chat-input:begin",
   chatInputEnd: "chat-input:end",
   chatInputEscape: "chat-input:escape",
+  chatInputPress: "chat-input:press",
   favouritesAdd: "favourites:add",
   favouritesList: "favourites:list",
   favouritesRemove: "favourites:remove",

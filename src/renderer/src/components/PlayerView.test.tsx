@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { EventEmitter } from "node:events"
-import type { BrowserWindow } from "electron"
+import type { BrowserWindow, WebFrameMain } from "electron"
 import { act, StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -9,7 +9,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createChatInput } from "../../../main/chat-input"
 import type { PlaybackBookmark, VacuumStreamApi } from "../../../shared/contracts"
 import { App } from "../App"
-import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
+import {
+  CHAT_GAMEPAD_EVENT,
+  dispatchControllerKey,
+  useControllerNavigation,
+} from "../focus-navigation"
 import type { TwitchPlayerOptions } from "../twitch-player"
 import { type PlayerSource, PlayerView } from "./PlayerView"
 
@@ -132,11 +136,56 @@ const installPlayerHarness = (
     value: { Player: TestPlayer },
   })
   const restoreShellFullscreen = vi.fn(async () => undefined)
-  const chatNotifications = new Set<(session: string) => void>()
-  const chatContents = Object.assign(new EventEmitter(), {
-    send: (_channel: string, session: string) => {
-      for (const listener of chatNotifications) listener(session)
+  type EscapeListener = Parameters<VacuumStreamApi["chatInput"]["onEscape"]>[0]
+  const chatNotifications = new Set<EscapeListener>()
+  let attached = false
+  const chatDebugger = Object.assign(new EventEmitter(), {
+    attach: vi.fn(() => {
+      attached = true
+    }),
+    detach: vi.fn(() => {
+      attached = false
+      chatDebugger.emit("detach", {}, "target closed")
+    }),
+    isAttached: vi.fn(() => attached),
+    sendCommand: vi.fn<(method: string, params: unknown) => Promise<unknown>>(async () => ({})),
+  })
+  const frames = new WeakMap<HTMLIFrameElement, WebFrameMain>()
+  const mainFrame = {
+    get frames() {
+      return [...document.querySelectorAll("iframe")].map(webFrame)
     },
+  }
+  const webFrame = (element: HTMLIFrameElement): WebFrameMain => {
+    const existing = frames.get(element)
+    if (existing !== undefined) return existing
+    const frame = {
+      get detached() {
+        return !element.isConnected
+      },
+      isDestroyed: () => !element.isConnected,
+      parent: mainFrame,
+      top: mainFrame,
+      get url() {
+        return element.src
+      },
+    } as unknown as WebFrameMain
+    frames.set(element, frame)
+    return frame
+  }
+  const chatContents = Object.assign(new EventEmitter(), {
+    debugger: chatDebugger,
+    isDestroyed: () => false,
+    mainFrame,
+    send: (_channel: string, session: string, failure?: "transport") => {
+      for (const listener of chatNotifications) listener(session, failure)
+    },
+  })
+  Object.defineProperty(chatContents, "focusedFrame", {
+    get: () =>
+      document.activeElement instanceof HTMLIFrameElement
+        ? webFrame(document.activeElement)
+        : mainFrame,
   })
   const chatInput = createChatInput({
     isFocused: () => true,
@@ -144,7 +193,8 @@ const installPlayerHarness = (
   } as unknown as BrowserWindow)
   const beginChatInput = vi.fn(async (session: string) => chatInput.begin(session))
   const endChatInput = vi.fn(async (session: string) => chatInput.end(session))
-  const onChatEscape = vi.fn((listener: (session: string) => void) => {
+  const pressChatInput = vi.fn<VacuumStreamApi["chatInput"]["press"]>(chatInput.press)
+  const onChatEscape = vi.fn((listener: EscapeListener) => {
     chatNotifications.add(listener)
     return () => {
       chatNotifications.delete(listener)
@@ -165,7 +215,12 @@ const installPlayerHarness = (
     value: {
       auth: { snapshot: async () => ({ kind: "guest" }) },
       catalog,
-      chatInput: { begin: beginChatInput, end: endChatInput, onEscape: onChatEscape },
+      chatInput: {
+        begin: beginChatInput,
+        end: endChatInput,
+        onEscape: onChatEscape,
+        press: pressChatInput,
+      },
       playbackProgress: progress,
       settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },
@@ -183,6 +238,7 @@ const installPlayerHarness = (
     bookmarks,
     catalog,
     chatContents,
+    chatDebugger,
     chatInput,
     chatKey,
     chatNotifications,
@@ -200,6 +256,7 @@ const installPlayerHarness = (
     onChatEscape,
     pause,
     play,
+    pressChatInput,
     progress,
     restoreShellFullscreen,
     seek,
@@ -225,6 +282,30 @@ const installNavigationSurface = (): void => {
     vi.fn(() => 1),
   )
   vi.stubGlobal("cancelAnimationFrame", vi.fn())
+}
+
+const installNativeChatSurface = () => {
+  installNavigationSurface()
+  let nextFrame: FrameRequestCallback | undefined
+  let buttons: readonly GamepadButton[] = []
+  vi.stubGlobal("navigator", {
+    getGamepads: () => [{ axes: [0, 0], buttons, connected: true }],
+  })
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    nextFrame = callback
+    return 1
+  })
+  return async (now: number, pressed: readonly number[] = []): Promise<void> => {
+    buttons = Array.from({ length: 16 }, (_, index) => ({
+      pressed: pressed.includes(index),
+      touched: pressed.includes(index),
+      value: pressed.includes(index) ? 1 : 0,
+    }))
+    const callback = nextFrame
+    if (callback === undefined) throw new Error("Missing gamepad animation frame")
+    nextFrame = undefined
+    await act(async () => callback(now))
+  }
 }
 
 const pressKey = async (container: HTMLElement, key: string): Promise<void> => {
@@ -1454,6 +1535,183 @@ describe("controller captions", () => {
 })
 
 describe("live chat sidebar", () => {
+  it("forwards session-scoped next and activate from the real native bridge without replaying entry", async () => {
+    const harness = installPlayerHarness([])
+    const frame = installNativeChatSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "stream-preview-twitch").click())
+    await act(async () => buttonById(container, "player-chat").click())
+    buttonById(container, "player-chat-enter").focus()
+    const outerClick = vi.spyOn(chatFrame(container), "click")
+    await frame(1, [0])
+    const session = harness.beginChatInput.mock.calls[0]?.[0]
+    expect(session).toBeDefined()
+    expect(document.activeElement).toBe(chatFrame(container))
+    expect(harness.pressChatInput).not.toHaveBeenCalled()
+    await frame(501, [0])
+    expect(harness.pressChatInput).not.toHaveBeenCalled()
+    await frame(502)
+    await frame(503, [13])
+    await frame(504)
+    await frame(505, [0])
+    expect.soft(harness.pressChatInput).toHaveBeenNthCalledWith(1, session, "next")
+    expect.soft(harness.pressChatInput).toHaveBeenNthCalledWith(2, session, "activate")
+    expect.soft(outerClick).not.toHaveBeenCalled()
+    await frame(1005, [0])
+    expect(harness.pressChatInput).toHaveBeenCalledTimes(2)
+    await frame(1006)
+    await frame(1007, [0])
+    expect(harness.pressChatInput).toHaveBeenNthCalledWith(3, session, "activate")
+    for (const [index, button] of [12, 14, 15].entries()) {
+      await frame(1008 + index, [button])
+    }
+    expect(harness.pressChatInput.mock.calls.slice(3)).toEqual([
+      [session, "previous"],
+      [session, "previous"],
+      [session, "next"],
+    ])
+    for (const [index, button] of [2, 3, 9].entries()) await frame(1011 + index, [button])
+    expect(harness.pressChatInput).toHaveBeenCalledTimes(6)
+    expect(document.activeElement).toBe(chatFrame(container))
+    expect(container.querySelector(".player-view")).not.toBeNull()
+    await frame(1014, [1])
+    await frame(1514, [1])
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(container.querySelector(".player-view")).not.toBeNull()
+    expect(harness.restoreShellFullscreen).not.toHaveBeenCalled()
+    expect(harness.chatNotifications.size).toBe(0)
+    expect(outerClick).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it.each(["exit", "reload", "source", "blur", "load", "navigation", "crash", "detach"] as const)(
+    "cancels queued native actions on %s and ignores pending completion after re-entry",
+    async (reason) => {
+      const harness = installPlayerHarness([])
+      const frame = installNativeChatSurface()
+      const Surface = ({ current }: { readonly current: PlayerSource }) => {
+        useControllerNavigation()
+        return playerView(current)
+      }
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      await act(async () => root.render(<Surface current={source} />))
+      await act(async () => buttonById(container, "player-chat").click())
+      buttonById(container, "player-chat-enter").focus()
+      await frame(1, [0])
+      await frame(2)
+      const completion = controlledPromise<unknown>()
+      const started = controlledPromise<void>()
+      harness.chatDebugger.sendCommand.mockImplementationOnce(() => {
+        started.resolve(undefined)
+        return completion.promise
+      })
+      await frame(3, [13])
+      await started.promise
+      await frame(4)
+      await frame(5, [0])
+      const toggle = buttonById(container, "player-chat")
+      const restored = vi.fn()
+      toggle.addEventListener("focus", () => restored(toggle.isConnected))
+      await act(async () => {
+        switch (reason) {
+          case "exit":
+            document.dispatchEvent(
+              new CustomEvent(CHAT_GAMEPAD_EVENT, { cancelable: true, detail: "exit" }),
+            )
+            break
+          case "reload":
+            buttonById(container, "player-chat-reload").click()
+            break
+          case "source":
+            root.render(<Surface current={{ ...source, channel: "other" }} />)
+            break
+          case "blur":
+            harness.chatInput.blur()
+            break
+          case "load":
+            chatFrame(container).dispatchEvent(new Event("load"))
+            break
+          case "navigation":
+            harness.chatContents.emit("did-start-navigation", { isMainFrame: true })
+            break
+          case "crash":
+            harness.chatContents.emit("render-process-gone")
+            break
+          case "detach":
+            harness.chatDebugger.emit("detach", {}, "replaced")
+            break
+        }
+      })
+      expect(restored).toHaveBeenCalledExactlyOnceWith(true)
+      expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+      expect(harness.chatNotifications.size).toBe(0)
+      expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+      expect(harness.chatContents.listenerCount("did-start-navigation")).toBe(0)
+      expect(harness.chatContents.listenerCount("render-process-gone")).toBe(0)
+      expect(harness.chatDebugger.listenerCount("detach")).toBe(0)
+      expect(
+        document.dispatchEvent(
+          new CustomEvent(CHAT_GAMEPAD_EVENT, { cancelable: true, detail: "consume" }),
+        ),
+      ).toBe(true)
+      expect(container.querySelector('[role="alert"]') !== null).toBe(reason === "detach")
+      if (reason === "source") await act(async () => buttonById(container, "player-chat").click())
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      const nextSession = harness.beginChatInput.mock.calls[1]?.[0]
+      expect(nextSession).not.toBe(harness.beginChatInput.mock.calls[0]?.[0])
+      await act(async () => {
+        completion.reject(new Error("Old command rejected"))
+        await Promise.allSettled(harness.pressChatInput.mock.results.map((result) => result.value))
+      })
+      expect(harness.chatDebugger.sendCommand).toHaveBeenCalledTimes(2)
+      expect(document.activeElement).toBe(chatFrame(container))
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["busy", "command"] as const)(
+    "restores connected shell focus with a visible %s error but permits keyboard-only re-entry",
+    async (reason) => {
+      const harness = installPlayerHarness([])
+      const frame = installNativeChatSurface()
+      const Surface = () => {
+        useControllerNavigation()
+        return playerView()
+      }
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      await act(async () => root.render(<Surface />))
+      await act(async () => buttonById(container, "player-chat").click())
+      harness.chatDebugger.isAttached.mockReturnValue(reason === "busy")
+      if (reason === "command")
+        harness.chatDebugger.sendCommand.mockRejectedValueOnce(new Error("rejected"))
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      expect(harness.chatDebugger.attach).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(chatFrame(container))
+      await frame(1, [13])
+      expect(container.querySelector('[role="alert"]')).not.toBeNull()
+      expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+      expect(document.activeElement?.isConnected).toBe(true)
+      expect(harness.chatDebugger.detach).toHaveBeenCalledTimes(reason === "busy" ? 0 : 1)
+      expect(harness.chatNotifications.size).toBe(0)
+      const attachments = harness.chatDebugger.attach.mock.calls.length
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      expect(harness.chatDebugger.attach).toHaveBeenCalledTimes(attachments)
+      expect(document.activeElement).toBe(chatFrame(container))
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      await act(async () => harness.chatKey("keyDown"))
+      expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+      await act(async () => root.unmount())
+    },
+  )
+
   it("keeps focus in the shell until explicit entry is armed and never forwards the entry key", async () => {
     const harness = installPlayerHarness([])
     const { container, root } = await mountNavigablePlayer()

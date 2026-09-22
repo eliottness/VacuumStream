@@ -118,6 +118,8 @@ const moveFocusTo = (element: HTMLElement): void => {
   })
 }
 
+export const CHAT_GAMEPAD_EVENT = "vacuumstream:chat-gamepad"
+export type ChatGamepadAction = "next" | "previous" | "activate" | "exit" | "consume"
 export const SEARCH_GAMEPAD_EVENT = "vacuumstream:search-gamepad"
 export type SearchGamepadAction = "delete" | "submit"
 type GamepadInput = string | 2 | 3
@@ -145,6 +147,26 @@ export const dispatchControllerKey = (key: string): void => {
 }
 
 const dispatchGamepadInput = (input: GamepadInput): void => {
+  // Resolve chat semantics only after physical press detection, before any shell click/shortcut.
+  const action: ChatGamepadAction =
+    input === "Enter"
+      ? "activate"
+      : input === "Escape"
+        ? "exit"
+        : input === "ArrowDown" || input === "ArrowRight"
+          ? "next"
+          : input === "ArrowUp" || input === "ArrowLeft"
+            ? "previous"
+            : "consume"
+  if (
+    !document.dispatchEvent(
+      new CustomEvent<ChatGamepadAction>(CHAT_GAMEPAD_EVENT, {
+        cancelable: true,
+        detail: action,
+      }),
+    )
+  )
+    return
   if (typeof input === "string") {
     dispatchControllerKey(input)
     return

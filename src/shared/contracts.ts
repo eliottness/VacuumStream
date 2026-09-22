@@ -1,6 +1,10 @@
 import { z } from "zod"
 
+export const ChatInputActionSchema = z.enum(["next", "previous", "activate"])
+export type ChatInputAction = z.infer<typeof ChatInputActionSchema>
+export const ChatInputFailureSchema = z.literal("transport")
 export const ChatInputSessionSchema = z.uuid()
+export const ChatInputPressSchema = z.tuple([ChatInputSessionSchema, ChatInputActionSchema])
 
 export const ClientIdSchema = z
   .string()
@@ -216,7 +220,10 @@ export interface VacuumStreamApi {
   readonly chatInput: {
     readonly begin: (session: string) => Promise<void>
     readonly end: (session: string) => Promise<void>
-    readonly onEscape: (listener: (session: string) => void) => () => void
+    readonly onEscape: (
+      listener: (session: string, failure?: z.infer<typeof ChatInputFailureSchema>) => void,
+    ) => () => void
+    readonly press: (session: string, action: ChatInputAction) => Promise<void>
   }
   readonly favourites: {
     readonly add: (entry: Favourite) => Promise<readonly Favourite[]>

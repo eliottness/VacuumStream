@@ -2,6 +2,7 @@ import { type BrowserWindow, type IpcMainInvokeEvent, ipcMain, shell } from "ele
 import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
 import {
+  ChatInputPressSchema,
   ChatInputSessionSchema,
   CursorInputSchema,
   FavouritesAddInputSchema,
@@ -20,7 +21,7 @@ import type { TwitchService } from "./twitch-service"
 import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
 type IpcOptions = {
-  readonly chatInput: Pick<ChatInput, "begin" | "end">
+  readonly chatInput: Pick<ChatInput, "begin" | "end" | "press">
   readonly favourites: Pick<FavouritesStore, "add" | "list" | "remove">
   readonly mainWindow: BrowserWindow
   readonly playbackProgress: Pick<PlaybackProgressStore, "get" | "list" | "remove" | "save">
@@ -59,6 +60,11 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     const [session] = z.tuple([ChatInputSessionSchema]).parse(input)
     options.chatInput.end(session)
+  })
+  ipcMain.handle(CHANNELS.chatInputPress, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [session, action] = ChatInputPressSchema.parse(input)
+    await options.chatInput.press(session, action)
   })
   ipcMain.handle(CHANNELS.settingsSnapshot, async (event) => {
     authorize(event)

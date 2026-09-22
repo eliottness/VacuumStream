@@ -4,6 +4,7 @@ import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
+  CHAT_GAMEPAD_EVENT,
   chooseNextFocus,
   dispatchControllerKey,
   focusDirectionalOverride,
@@ -174,6 +175,57 @@ describe("native gamepad press identity", () => {
     document.body.replaceChildren()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it("offers cancelable chat actions after press detection and before shell activation or shortcuts", async () => {
+    const actions: Event[] = []
+    const activate = vi.fn()
+    target.addEventListener("click", activate)
+    const consume = (event: Event) => {
+      actions.push(event)
+      event.preventDefault()
+    }
+    document.addEventListener(CHAT_GAMEPAD_EVENT, consume)
+    try {
+      for (const [index, button] of [0, 1, 2, 3, 9, 12, 13, 14, 15].entries()) {
+        await frame(index * 1000 + 1, [button])
+        // Non-directional holds never produce extra actions.
+        await frame(index * 1000 + 400, [button])
+      }
+      expect(actions.map((event) => (event as CustomEvent).detail)).toEqual([
+        "activate",
+        "exit",
+        "consume",
+        "consume",
+        "consume",
+        "previous",
+        "next",
+        "previous",
+        "next",
+      ])
+      expect(actions.every((event) => event.cancelable && event.defaultPrevented)).toBe(true)
+      expect(activate).not.toHaveBeenCalled()
+      expect(keys).toEqual([])
+    } finally {
+      document.removeEventListener(CHAT_GAMEPAD_EVENT, consume)
+    }
+    await frame(9001)
+    await frame(9002, [0])
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([2, 3])("keeps search face button %s latched when chat consumes it", async (button) => {
+    const consume = (event: Event) => event.preventDefault()
+    document.addEventListener(CHAT_GAMEPAD_EVENT, consume)
+    await frame(1, [button])
+    document.removeEventListener(CHAT_GAMEPAD_EVENT, consume)
+    await frame(501, [button])
+    await frame(502, [0, button])
+    await frame(503, [button])
+    expect(keys).toEqual([])
+    await frame(504)
+    await frame(505, [button])
+    expect(keys).toEqual(["/"])
   })
 
   it("offers distinct local cancelable actions before falling back to slash once per press", async () => {

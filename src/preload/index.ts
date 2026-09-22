@@ -5,6 +5,8 @@ import {
   AuthSnapshotSchema,
   CategoryCardSchema,
   ChannelCardSchema,
+  ChatInputFailureSchema,
+  ChatInputPressSchema,
   ChatInputSessionSchema,
   DeviceChallengeSchema,
   FavouritesAddInputSchema,
@@ -69,14 +71,24 @@ const api = {
         .invoke(CHANNELS.chatInputEnd, ChatInputSessionSchema.parse(session))
         .then(() => undefined),
     onEscape: (listener) => {
-      const onEscape = (_event: Electron.IpcRendererEvent, session: unknown): void => {
-        listener(ChatInputSessionSchema.parse(session))
+      const onEscape = (
+        _event: Electron.IpcRendererEvent,
+        session: unknown,
+        failure: unknown,
+      ): void => {
+        const id = ChatInputSessionSchema.parse(session)
+        if (failure === undefined) listener(id)
+        else listener(id, ChatInputFailureSchema.parse(failure))
       }
       ipcRenderer.on(CHANNELS.chatInputEscape, onEscape)
       return () => {
         ipcRenderer.removeListener(CHANNELS.chatInputEscape, onEscape)
       }
     },
+    press: (...input) =>
+      ipcRenderer
+        .invoke(CHANNELS.chatInputPress, ...ChatInputPressSchema.parse(input))
+        .then((value) => z.void().parse(value)),
   },
   favourites: {
     add: (entry) =>

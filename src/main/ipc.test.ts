@@ -16,7 +16,9 @@ const handlers = vi.hoisted(() => new Map<string, Handler>())
 const preload = vi.hoisted(() => ({
   exposeInMainWorld: vi.fn<(name: string, api: VacuumStreamApi) => void>(),
   invoke: vi.fn<(channel: string, ...input: unknown[]) => Promise<unknown>>(),
-  on: vi.fn<(channel: string, listener: (event: unknown, input: unknown) => void) => void>(),
+  on: vi.fn<
+    (channel: string, listener: (event: unknown, input: unknown, failure?: unknown) => void) => void
+  >(),
   removeListener: vi.fn(),
 }))
 
@@ -34,7 +36,7 @@ const webContents = { id: 1, mainFrame }
 const event = { sender: webContents, senderFrame: mainFrame } as IpcMainInvokeEvent
 const followedChannels = vi.fn<TwitchService["followedChannels"]>()
 const live = vi.fn<TwitchService["live"]>()
-const chatInput = { begin: vi.fn(), cancel: vi.fn(), end: vi.fn() }
+const chatInput = { begin: vi.fn(), cancel: vi.fn(), end: vi.fn(), press: vi.fn() }
 const favourites = {
   add: vi.fn<FavouritesStore["add"]>(),
   list: vi.fn<FavouritesStore["list"]>(),
@@ -64,6 +66,7 @@ beforeEach(() => {
   handlers.clear()
   chatInput.begin.mockReset()
   chatInput.end.mockReset()
+  chatInput.press.mockReset().mockResolvedValue(undefined)
   favourites.add.mockReset().mockResolvedValue([])
   favourites.list.mockReset().mockResolvedValue([])
   favourites.remove.mockReset().mockResolvedValue([])
@@ -165,7 +168,7 @@ describe("chat input capability", () => {
     },
   )
 
-  it("exposes only begin/end and a validated removable Escape subscription, never raw input", async () => {
+  it("exposes only begin/end/press and a validated removable Escape subscription, never raw input", async () => {
     preload.invoke.mockImplementation((channel, ...input) => invoke(channel, event, ...input))
     await import("../preload/index")
     const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
@@ -180,7 +183,7 @@ describe("chat input capability", () => {
       "settings",
       "system",
     ])
-    expect([...Object.keys(api.chatInput)].sort()).toEqual(["begin", "end", "onEscape"])
+    expect([...Object.keys(api.chatInput)].sort()).toEqual(["begin", "end", "onEscape", "press"])
     expect([...Object.keys(api.system)].sort()).toEqual([
       "activateEmbeddedPlayer",
       "isSteamGameMode",
@@ -203,11 +206,93 @@ describe("chat input capability", () => {
     expect(listener).toHaveBeenCalledExactlyOnceWith(session)
     expect(() => notification(privilegedEvent, { key: "Escape" })).toThrow(z.ZodError)
     expect(listener).toHaveBeenCalledTimes(1)
+    notification(privilegedEvent, session, "transport")
+    expect(listener).toHaveBeenLastCalledWith(session, "transport")
+    expect(() => notification(privilegedEvent, session, "arbitrary")).toThrow(z.ZodError)
+    expect(listener).toHaveBeenCalledTimes(2)
+    for (const action of ["next", "previous", "activate"] as const) {
+      await api.chatInput.press(session, action)
+      expect(chatInput.press).toHaveBeenLastCalledWith(session, action)
+    }
+    const press: (...input: unknown[]) => unknown = api.chatInput.press as (
+      ...input: unknown[]
+    ) => unknown
+    for (const input of [
+      [session, "Enter"],
+      ["bad", "next"],
+      [session, "next", undefined],
+    ]) {
+      expect(() => press(...input)).toThrow(z.ZodError)
+    }
+    expect(chatInput.press).toHaveBeenCalledTimes(3)
     unsubscribe()
     expect(preload.removeListener).toHaveBeenCalledExactlyOnceWith(
       CHANNELS.chatInputEscape,
       notification,
     )
+  })
+})
+
+describe("bounded chat press IPC", () => {
+  const session = "81c9fdf9-2f3c-4e75-a10d-8694e97843da"
+  const invoke = async (sender: IpcMainInvokeEvent, ...input: unknown[]) => {
+    const handler = handlers.get(CHANNELS.chatInputPress)
+    if (handler === undefined) throw new Error("Missing chat press handler")
+    return handler(sender, ...input)
+  }
+
+  it("accepts exactly the three session-scoped actions and propagates transport rejection", async () => {
+    for (const action of ["next", "previous", "activate"]) {
+      await invoke(event, session, action)
+      expect(chatInput.press).toHaveBeenLastCalledWith(session, action)
+    }
+    const failure = new Error("Debugger unavailable")
+    chatInput.press.mockRejectedValueOnce(failure)
+    await expect(invoke(event, session, "next")).rejects.toBe(failure)
+  })
+
+  it("rejects invalid UUIDs, actions, missing and extra arguments before the transport", async () => {
+    for (const input of [
+      [],
+      [session],
+      [session, undefined],
+      [session, null],
+      [session, 1],
+      [session, false],
+      [session, ""],
+      [session, "Tab"],
+      [session, "Escape"],
+      [session, "Input.dispatchKeyEvent"],
+      [session, { key: "Enter" }],
+      [session, "next", undefined],
+      [session, "next", "#button"],
+      [session, "activate", "https://www.twitch.tv"],
+      ["invalid", "next"],
+      [null, "next"],
+    ]) {
+      await expect(invoke(event, ...input)).rejects.toBeInstanceOf(z.ZodError)
+    }
+    expect(chatInput.press).not.toHaveBeenCalled()
+  })
+
+  it("rejects missing, child, foreign-window, foreign-origin and malformed-origin senders before the transport", async () => {
+    for (const sender of [
+      { ...event, senderFrame: null },
+      { ...event, senderFrame: { url: mainFrame.url } as IpcMainInvokeEvent["senderFrame"] },
+      { ...event, sender: { ...webContents, id: 2 } as IpcMainInvokeEvent["sender"] },
+    ]) {
+      await expect(invoke(sender, session, "next")).rejects.toBeInstanceOf(InvalidIpcSenderError)
+    }
+    const original = mainFrame.url
+    try {
+      for (const url of ["https://www.twitch.tv/", "https://localhost:9999/", "invalid"]) {
+        mainFrame.url = url
+        await expect(invoke(event, session, "next")).rejects.toBeInstanceOf(InvalidIpcSenderError)
+      }
+    } finally {
+      mainFrame.url = original
+    }
+    expect(chatInput.press).not.toHaveBeenCalled()
   })
 })
 

@@ -176,14 +176,21 @@ the player is loading or offline. Showing or reloading chat does not move focus 
 
 On a fresh profile, Twitch may ask for cookie/advertising consent before showing messages.
 Choose **Enter chat** to interact with **Twitch's own interface**, not a VacuumStream dialog.
-Use a physical keyboard or Steam Input keyboard mapping: **Tab / Shift+Tab** moves among
-Twitch's controls, **Enter** activates the focused choice, and **Escape** returns to Hide chat.
-A persistent hint outside the embeds remains visible in this mode. Holding Escape exits chat
-only; release and press Escape again to return Home. Hide, Reload, a source change, leaving
-playback, or switching away from the window also ends the mode; returning never resumes it.
-**Native gamepad input into the chat frame is not yet supported.** Map Tab, Shift+Tab, Enter,
-and Escape in Steam Input for consent controls. There is no VacuumStream controller chat
-composer or VOD chat replay. Twitch handles chat's connection and error messages;
+With a native gamepad, **Down/Right** on the D-pad or left stick moves to the next control,
+**Up/Left** moves to the previous control, **A** activates it, and **B** returns to Hide chat.
+Release the entry press before choosing anything: entering chat never activates a Twitch choice.
+Physical keyboards and Steam Input keyboard mappings still use **Tab / Shift+Tab**, **Enter**,
+and **Escape**. Twitch's Accept/Customize/Reject choices remain entirely yours; VacuumStream
+does not automatically accept consent, seed cookies, or store a consent decision.
+
+A persistent hint outside the embeds remains visible in this mode. Holding B/Escape exits chat
+only; release and press again to return Home. Search and Settings gamepad shortcuts are consumed
+while in chat. Hide, Reload, a source change, chat navigation, leaving playback, or switching away
+from the window ends the mode; returning never resumes it.
+Native chat actions use a limited privileged input transport, attached only on the first native
+action. If it is unavailable (for example, another debugger owns the window) or fails, an error
+appears and focus returns to Hide chat. You can enter again and use a keyboard or Steam Input
+without that transport. There is no VacuumStream controller chat composer or VOD chat replay. Twitch handles chat's connection and error messages;
 VacuumStream sign-in does not sign you into chat. The enlarged pane stacks below the video
 on smaller screens, with scrolling rather than covering or shrinking the video below 400x300.
 

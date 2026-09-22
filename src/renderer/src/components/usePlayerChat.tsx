@@ -1,5 +1,9 @@
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from "react"
-import { markControllerFocus } from "../focus-navigation"
+import {
+  CHAT_GAMEPAD_EVENT,
+  type ChatGamepadAction,
+  markControllerFocus,
+} from "../focus-navigation"
 import type { PlayerSource } from "./PlayerView"
 
 const focusControl = (button: HTMLButtonElement | null): void => {
@@ -81,10 +85,29 @@ export const usePlayerChat = (
     if (frame === null || sessionRef.current !== undefined) return
     const id = crypto.randomUUID()
     setError("")
-    const unsubscribe = window.vacuumStream.chatInput.onEscape((escapedSession) => {
-      if (sessionRef.current?.id === escapedSession) endInteraction()
+    const transportFailed = (): void => {
+      if (sessionRef.current?.id !== id) return
+      endInteraction()
+      setError(
+        "Native chat input unavailable. Enter chat again to use a keyboard or Steam Input; Escape returns here.",
+      )
+    }
+    const unsubscribe = window.vacuumStream.chatInput.onEscape((escapedSession, failure) => {
+      if (sessionRef.current?.id !== escapedSession) return
+      if (failure === "transport") transportFailed()
+      else endInteraction()
     })
-    // Native gamepad events remain in the shell; do not mistake them for iframe input.
+    let ready = false
+    const onGamepad = (event: Event): void => {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const action = (event as CustomEvent<ChatGamepadAction>).detail
+      if (action === "exit") endInteraction()
+      else if (ready && action !== "consume") {
+        void window.vacuumStream.chatInput.press(id, action).catch(transportFailed)
+      }
+    }
+    // Keyboard events in Twitch stay native. Shell shortcuts cannot escape this mode.
     // Capture also makes B/Escape an exit rather than the app's Home shortcut.
     const onKeyDown = (event: KeyboardEvent): void => {
       event.preventDefault()
@@ -92,10 +115,14 @@ export const usePlayerChat = (
       if (event.key === "Escape") endInteraction()
     }
     document.addEventListener("keydown", onKeyDown, true)
+    document.addEventListener(CHAT_GAMEPAD_EVENT, onGamepad, true)
+    frame.addEventListener("load", endInteraction)
     sessionRef.current = {
       cleanup: () => {
         unsubscribe()
         document.removeEventListener("keydown", onKeyDown, true)
+        document.removeEventListener(CHAT_GAMEPAD_EVENT, onGamepad, true)
+        frame.removeEventListener("load", endInteraction)
       },
       frame,
       id,
@@ -104,6 +131,7 @@ export const usePlayerChat = (
     void window.vacuumStream.chatInput.begin(id).then(
       () => {
         if (sessionRef.current?.id !== id) return
+        ready = true
         setInteracting(true)
         frame.tabIndex = 0
         document
@@ -169,9 +197,9 @@ export const usePlayerChat = (
     ) : null,
     chatHint: interacting ? (
       <p className="player-chat-hint" id="player-chat-hint" role="status">
-        Twitch's interface: Tab / Shift+Tab to move, Enter to activate, Escape to return to Hide
-        chat. Use a keyboard or Steam Input keyboard mapping; native gamepad input into chat is not
-        supported yet.
+        Twitch's interface: D-pad / left stick Down or Right moves next, Up or Left moves previous;
+        A activates, B returns to Hide chat. Keyboard or Steam Input: Tab / Shift+Tab to move, Enter
+        to activate, Escape to return.
       </p>
     ) : error !== "" ? (
       <p className="player-chat-hint" role="alert">

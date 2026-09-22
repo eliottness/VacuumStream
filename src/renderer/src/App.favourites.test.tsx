@@ -77,6 +77,7 @@ const makeBridge = (items: readonly Favourite[], auth: AuthSnapshot, withContinu
       begin: vi.fn<VacuumStreamApi["chatInput"]["begin"]>(),
       end: vi.fn<VacuumStreamApi["chatInput"]["end"]>().mockResolvedValue(undefined),
       onEscape: vi.fn<VacuumStreamApi["chatInput"]["onEscape"]>().mockReturnValue(() => undefined),
+      press: vi.fn<VacuumStreamApi["chatInput"]["press"]>().mockResolvedValue(undefined),
     },
     favourites: {
       add: vi.fn<VacuumStreamApi["favourites"]["add"]>(async (entry) => {

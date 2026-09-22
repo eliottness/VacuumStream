@@ -62,8 +62,31 @@ with `webContents.before-input-event` and calls `preventDefault()` before notify
 because a focused cross-origin Twitch frame cannot bubble that key to React. The mode listener
 is removed immediately; a release-only guard consumes repeats and the matching keyUp so the
 same held press cannot also navigate Home. Blur and window teardown remove all input listeners.
-The renderer restores shell focus and rejects stale notifications. This exposes no generic input,
-frame targeting or debugging capability and does not synthesize keys into Twitch.
+The renderer restores shell focus and rejects stale notifications and pending completions.
+
+Native gamepad chat interaction adds exactly `chatInput.press(session, action)`, with actions
+`next | previous | activate`. Preload and main validate the UUID, enum and exact argument count;
+main also authorizes the sender window, main frame and renderer origin. A cancelable chat action
+event runs after physical press/repeat detection and before shell click/shortcut dispatch, preserving
+Search's face-button latches. Chat consumes unrelated shortcuts; B exits locally. Entry is never
+forwarded. Physical keyboard and Steam Input keyboard events continue through Chromium normally.
+
+This feature deliberately uses a **limited privileged CDP transport**, not DOM clicks or
+`sendInputEvent`. On the first native action only, main acquires an app-owned
+`webContents.debugger` attachment, refusing an already attached debugger. Main captures the current
+official direct chat child at entry and rechecks window focus, focused-frame identity, membership
+in this window's current frame tree, frame lifetime and unchanged official
+`https://www.twitch.tv/embed/<channel>/chat?parent=localhost` URL before dispatch. The only commands
+are fixed `Input.dispatchKeyEvent` down/up pairs: Tab, Shift+Tab (`modifiers: 8`), and Enter.
+Pairs are submitted together in protocol order and serialized; obsolete queued actions are discarded.
+No renderer-supplied key, selector, URL, JavaScript, target id or debugger command is accepted.
+
+Exit, reload, source replacement, blur, navigation, crash and debugger loss invalidate the session
+and remove its listeners. Only a feature-owned attachment is detached. A busy debugger or rejected
+command ends native forwarding, reports an escapable error and restores shell focus; keyboard-only
+re-entry never needs a debugger. A pair already submitted cannot be recalled, but no later queued
+pair is sent after invalidation. Twitch owns its UI, focus order and consent decisions. This does
+not add cookie pre-seeding, consent persistence, automatic acceptance or a separate partition.
 
 ### Preload
 
