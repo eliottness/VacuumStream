@@ -75,6 +75,12 @@ export const usePlayerQuality = (
     setOpen(false)
     focusControl(buttonRef.current)
   }
+  const dismissChooser = useCallback((): boolean => {
+    if (!open) return false
+    setOpen(false)
+    focusControl(buttonRef.current)
+    return true
+  }, [open])
   const selectQuality = (id: string): void => {
     const player = playerRef.current
     if (!ready || player === undefined) return
@@ -137,7 +143,7 @@ export const usePlayerQuality = (
               data-focus-id={optionFocusId(quality.id)}
               data-focus-left={
                 index === 0
-                  ? "player-quality"
+                  ? "player-quality-close"
                   : optionFocusId(qualities[index - 1]?.id ?? quality.id)
               }
               data-focus-right={
@@ -156,12 +162,12 @@ export const usePlayerQuality = (
           ))}
         </div>
         <button
-          data-focus-down="player-quality-close"
+          data-focus-down="player-quality"
           data-focus-id="player-quality-close"
           data-focus-left={
             lastQuality === undefined ? "player-quality" : optionFocusId(lastQuality.id)
           }
-          data-focus-right="player-quality-close"
+          data-focus-right={firstId}
           data-focus-up="player-quality"
           data-focusable="true"
           onClick={closeChooser}
@@ -171,6 +177,7 @@ export const usePlayerQuality = (
         </button>
       </section>
     ) : null,
+    dismissQualityChooser: dismissChooser,
     refreshQualities,
     resetQualities,
   }

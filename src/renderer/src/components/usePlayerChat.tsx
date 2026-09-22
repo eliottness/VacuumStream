@@ -237,7 +237,7 @@ export const usePlayerChat = (
       ) : null,
     chatReloadButton: visible ? (
       <button
-        data-focus-down="player-chat-reload"
+        data-focus-down="player-chat"
         data-focus-id="player-chat-reload"
         data-focus-left="player-chat-enter"
         data-focus-right="player-fullscreen"

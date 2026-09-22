@@ -8,7 +8,7 @@ import {
   SpeakerSimpleXIcon,
 } from "@phosphor-icons/react"
 import { cloneElement, useCallback, useEffect, useRef, useState } from "react"
-import { markControllerFocus } from "../focus-navigation"
+import { markControllerFocus, registerBackDismissal } from "../focus-navigation"
 import {
   createTwitchPlayerOptions,
   loadTwitchPlayerApi,
@@ -48,6 +48,9 @@ const SEEK_ACTIONS = [
   { id: "player-seek-forward-5m", label: "Forward 5 minutes", seconds: 300 },
 ] as const
 
+const FIRST_SEEK_ACTION = SEEK_ACTIONS[0]
+const LAST_SEEK_ACTION = SEEK_ACTIONS.at(-1) ?? FIRST_SEEK_ACTION
+
 const formatTime = (seconds: number | undefined, showHours: boolean): string => {
   if (seconds === undefined) return "--:--"
   const wholeSeconds = Math.floor(Math.max(0, seconds))
@@ -77,6 +80,7 @@ export const PlayerView = ({
   const autoStartGenerationRef = useRef(0)
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
+  const seekButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
   const progressRef = useRef<VideoProgress | undefined>(undefined)
   const { beginProgress, canPlay, progressStatus, resumePrompt, startingPosition } = useVideoResume(
@@ -85,15 +89,40 @@ export const PlayerView = ({
   )
   const { chatButton, chatEnterButton, chatHint, chatPane, chatReloadButton, fullscreenLeft } =
     usePlayerChat(source, backButtonRef)
-  const { qualityButton, qualityChooser, refreshQualities, resetQualities } = usePlayerQuality(
-    playerRef,
-    frameState === "ready",
-  )
+  const { dismissQualityChooser, qualityButton, qualityChooser, refreshQualities, resetQualities } =
+    usePlayerQuality(playerRef, frameState === "ready")
 
-  const { captionsButton, captionsChooser, resetCaptions } = usePlayerCaptions(
-    playerRef,
-    frameState === "ready",
-  )
+  const { captionsButton, captionsChooser, dismissCaptionsChooser, resetCaptions } =
+    usePlayerCaptions(playerRef, frameState === "ready")
+
+  const dismissSeekTransport = useCallback((): boolean => {
+    if (!seekTransportOpen) return false
+    setSeekTransportOpen(false)
+    const seekButton = seekButtonRef.current
+    if (seekButton !== null) {
+      markControllerFocus(seekButton)
+      seekButton.focus()
+    }
+    return true
+  }, [seekTransportOpen])
+
+  // Back closes the submenu the viewer is in, or the first one still open, before leaving.
+  const dismissSubmenu = useCallback((): boolean => {
+    const focused = document.activeElement
+    const submenus = [
+      { dismiss: dismissQualityChooser, id: "player-quality-chooser" },
+      { dismiss: dismissCaptionsChooser, id: "player-captions-chooser" },
+      { dismiss: dismissSeekTransport, id: "player-seek-transport" },
+    ]
+    const focusedSubmenu = submenus.find(
+      ({ id }) => focused instanceof Element && focused.closest(`#${id}`) !== null,
+    )
+    return focusedSubmenu === undefined
+      ? submenus.some(({ dismiss }) => dismiss())
+      : focusedSubmenu.dismiss()
+  }, [dismissCaptionsChooser, dismissQualityChooser, dismissSeekTransport])
+
+  useEffect(() => registerBackDismissal(dismissSubmenu), [dismissSubmenu])
 
   const cancelAutoStart = useCallback((): void => {
     autoStartGenerationRef.current += 1
@@ -358,6 +387,7 @@ export const PlayerView = ({
               : undefined
           }
           data-focus-id="player-back"
+          data-focus-left="player-fullscreen"
           data-focus-right={
             frameState === "startup-error"
               ? "player-retry"
@@ -450,6 +480,7 @@ export const PlayerView = ({
             data-focusable="true"
             disabled={!seekTransportUsable}
             onClick={() => setSeekTransportOpen((open) => !open)}
+            ref={seekButtonRef}
             type="button"
           >
             Seek
@@ -462,6 +493,7 @@ export const PlayerView = ({
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
           data-focus-left={toolbarFullscreenLeft}
+          data-focus-right="player-back"
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
@@ -477,9 +509,10 @@ export const PlayerView = ({
         >
           {SEEK_ACTIONS.map((action, index) => (
             <button
+              data-focus-down="player-back"
               data-focus-id={action.id}
-              data-focus-left={SEEK_ACTIONS[index - 1]?.id ?? action.id}
-              data-focus-right={SEEK_ACTIONS[index + 1]?.id ?? action.id}
+              data-focus-left={SEEK_ACTIONS[index - 1]?.id ?? LAST_SEEK_ACTION.id}
+              data-focus-right={SEEK_ACTIONS[index + 1]?.id ?? FIRST_SEEK_ACTION.id}
               data-focus-up="player-back"
               data-focusable="true"
               disabled={!seekTransportUsable}

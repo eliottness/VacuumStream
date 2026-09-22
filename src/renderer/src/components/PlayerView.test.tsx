@@ -1177,7 +1177,7 @@ describe("controller playback quality", () => {
     await act(async () => root.unmount())
   })
 
-  it("preserves Escape to Home from the open chooser through the real app controller", async () => {
+  it("closes the open chooser on Escape and reaches Home only on the next press", async () => {
     const harness = installPlayerHarness([true], undefined, {
       available: ["auto"],
       current: "chunked",
@@ -1191,6 +1191,11 @@ describe("controller playback quality", () => {
     await act(async () => harness.emit("ready"))
     await act(async () => buttonById(container, "player-quality").click())
     expect(document.activeElement).toBe(buttonById(container, "player-quality-option-auto"))
+    await pressKey(container, "Escape")
+    expect(container.querySelector(".player-quality")).toBeNull()
+    expect(container.querySelector(".player-view")).not.toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+    expect(harness.restoreShellFullscreen).not.toHaveBeenCalled()
     await pressKey(container, "Escape")
     expect(container.querySelector(".player-view")).toBeNull()
     expect(container.querySelector(".browse-view")).not.toBeNull()
@@ -1404,17 +1409,17 @@ describe("controller captions", () => {
       await move("ArrowRight", "player-captions-close")
       await move("ArrowLeft", "player-captions-hide")
       await move("ArrowLeft", "player-captions-show")
-      await move("ArrowLeft", "player-captions")
+      await move("ArrowLeft", "player-captions-close")
+      await move("ArrowRight", "player-captions-show")
+      await move("ArrowUp", "player-captions")
       await move("ArrowDown", "player-captions-show")
       await move("ArrowDown", "player-captions-close")
-      await move("ArrowUp", "player-captions")
+      await move("ArrowDown", "player-captions")
       await move("ArrowDown", "player-captions-show")
       await move("ArrowRight", "player-captions-hide")
       await move("ArrowUp", "player-captions")
       await move("ArrowDown", "player-captions-show")
       await move("ArrowRight", "player-captions-hide")
-      await move("ArrowDown", "player-captions-close")
-      await move("ArrowRight", "player-captions-close")
       await move("ArrowDown", "player-captions-close")
       await move("Enter", "player-captions")
       expect(container.querySelector(".player-captions")).toBeNull()
@@ -1424,6 +1429,46 @@ describe("controller captions", () => {
       await act(async () => root.unmount())
     },
   )
+
+  it("loops the toolbar, the seek transport and each chooser at both ends", async () => {
+    const harness = installPlayerHarness(
+      [true],
+      { currentTime: 60, duration: 3600 },
+      { available: ["auto", "chunked"], current: "auto" },
+    )
+    const { container, root } = await mountNavigablePlayer(videoSource)
+    await act(async () => harness.emit("ready"))
+    const focusId = (): string | null | undefined =>
+      document.activeElement?.getAttribute("data-focus-id")
+    const move = async (key: string, id: string): Promise<void> => {
+      await pressKey(container, key)
+      expect(focusId()).toBe(id)
+    }
+
+    buttonById(container, "player-fullscreen").focus()
+    await move("ArrowRight", "player-back")
+    await move("ArrowLeft", "player-fullscreen")
+
+    await openSeekTransport(container)
+    buttonById(container, "player-seek-forward-5m").focus()
+    await move("ArrowRight", "player-seek-back-5m")
+    await move("ArrowLeft", "player-seek-forward-5m")
+
+    await act(async () => buttonById(container, "player-quality").click())
+    expect(focusId()).toBe("player-quality-option-auto")
+    await move("ArrowLeft", "player-quality-close")
+    await move("ArrowRight", "player-quality-option-auto")
+    await move("ArrowDown", "player-quality-close")
+    await move("ArrowDown", "player-quality")
+
+    await act(async () => buttonById(container, "player-captions").click())
+    expect(focusId()).toBe("player-captions-show")
+    await move("ArrowLeft", "player-captions-close")
+    await move("ArrowRight", "player-captions-show")
+    await move("ArrowDown", "player-captions-close")
+    await move("ArrowDown", "player-captions")
+    await act(async () => root.unmount())
+  })
 
   it.each(["show", "hide"] as const)(
     "recovers offline focus from the disabled %s command to Close and keeps loading controls reachable",
@@ -1602,7 +1647,7 @@ describe("controller captions", () => {
   })
 
   it.each(["loading", "ready", "offline"] as const)(
-    "preserves Escape to Home from captions through the real App controller while %s",
+    "closes captions on Escape before returning Home through the real App controller while %s",
     async (state) => {
       const harness = installPlayerHarness([true])
       installNavigationSurface()
@@ -1620,6 +1665,11 @@ describe("controller captions", () => {
       expect(document.activeElement).toBe(
         buttonById(container, state === "ready" ? "player-captions-show" : "player-captions-close"),
       )
+      await pressKey(container, "Escape")
+      expect(container.querySelector(".player-captions")).toBeNull()
+      expect(container.querySelector(".player-view")).not.toBeNull()
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      expect(harness.restoreShellFullscreen).not.toHaveBeenCalled()
       await pressKey(container, "Escape")
       expect(container.querySelector(".player-view")).toBeNull()
       expect(container.querySelector(".browse-view")).not.toBeNull()
@@ -2257,6 +2307,8 @@ describe("live chat sidebar", () => {
       await move("Enter", "player-chat-reload")
       expect(container.querySelectorAll(".player-chat iframe")).toHaveLength(1)
       expect(container.querySelector(".player-chat iframe")).not.toBe(oldFrame)
+      await move("ArrowDown", "player-chat")
+      await move("ArrowDown", "player-chat-enter")
       await move("ArrowDown", "player-chat-reload")
       await move("ArrowRight", "player-fullscreen")
       await move("ArrowLeft", "player-chat-reload")
@@ -2475,6 +2527,29 @@ describe("VOD controller seeking", () => {
     await act(async () => root.unmount())
   })
 
+  it("closes the seek transport on Escape and reaches Home only on the next press", async () => {
+    const harness = installPlayerHarness([true], { currentTime: 600, duration: 3600 })
+    harness.bookmarks.set("legacy", { ...savedBookmark, videoId: "legacy" })
+    installNavigationSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "continue-legacy-open").click())
+    await pressKey(container, "Enter")
+    await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
+    expect(seekButtons(container)).toHaveLength(4)
+    await pressKey(container, "Escape")
+    expect(container.querySelector(".player-transport")).toBeNull()
+    expect(container.querySelector(".player-view")).not.toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-seek"))
+    await pressKey(container, "Escape")
+    expect(container.querySelector(".player-view")).toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+    await act(async () => root.unmount())
+  })
+
   it("keeps VOD seeking hidden by default until READY supplies a finite positive duration", async () => {
     const harness = installPlayerHarness([true], { currentTime: 600, duration: 3600 })
     const { container, root } = await mountPlayer()
@@ -2671,6 +2746,11 @@ describe("VOD controller seeking", () => {
       expect(document.activeElement).toBe(button)
       await act(async () => dispatchControllerKey("Enter"))
       expect(document.activeElement).toBe(button)
+      await act(async () => dispatchControllerKey("ArrowRight"))
+    }
+    // Right from the last jump wraps to the first, so walk back out to the last one.
+    expect(document.activeElement).toBe(buttonById(container, seekIds[0] ?? ""))
+    for (let index = 1; index < seekIds.length; index += 1) {
       await act(async () => dispatchControllerKey("ArrowRight"))
     }
     for (const id of [...seekIds].reverse()) {

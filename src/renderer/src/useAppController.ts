@@ -9,6 +9,7 @@ import type {
 } from "../../shared/contracts"
 import type { RouteName } from "./components/Navigation"
 import { PREVIEW_CATEGORIES } from "./demo-data"
+import { dismissOpenSurface } from "./focus-navigation"
 import { type Screen, shouldNavigateHomeOnBack } from "./screen"
 import { useContinueWatching } from "./useContinueWatching"
 import {
@@ -232,9 +233,16 @@ export const useAppController = () => {
         event.preventDefault()
         navigate("settings")
       }
-      if (event.key === "Escape" && shouldNavigateHomeOnBack(screen)) {
-        event.preventDefault()
-        navigateHome()
+      if (event.key === "Escape") {
+        // An open surface owns Back first: closing a submenu must not also leave its screen.
+        if (dismissOpenSurface()) {
+          event.preventDefault()
+          return
+        }
+        if (shouldNavigateHomeOnBack(screen)) {
+          event.preventDefault()
+          navigateHome()
+        }
       }
     }
     document.addEventListener("keydown", onShortcut)

@@ -143,6 +143,22 @@ const keyboardForGamepad = (
   return undefined
 }
 
+const backDismissals: (() => boolean)[] = []
+
+// Back closes the innermost open surface before leaving the screen. Controller Back is dispatched
+// on document itself, where capture and bubble listeners run in registration order, so an open
+// surface cannot count on intercepting the event first. It registers here and the shell asks.
+export const registerBackDismissal = (dismiss: () => boolean): (() => void) => {
+  backDismissals.push(dismiss)
+  return () => {
+    const index = backDismissals.lastIndexOf(dismiss)
+    if (index >= 0) backDismissals.splice(index, 1)
+  }
+}
+
+// Only the surface registered last answers: an outer one must never consume Back for an inner one.
+export const dismissOpenSurface = (): boolean => backDismissals.at(-1)?.() === true
+
 export const dispatchControllerKey = (key: string): void => {
   const activeElement = document.activeElement
   if (key === "Enter" && activeElement instanceof HTMLElement) {

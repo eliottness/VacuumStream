@@ -55,6 +55,12 @@ export const usePlayerCaptions = (
     setOpen(false)
     focusControl(buttonRef.current)
   }
+  const dismissChooser = useCallback((): boolean => {
+    if (!open) return false
+    setOpen(false)
+    focusControl(buttonRef.current)
+    return true
+  }, [open])
   const requestCaptions = (setting: "show" | "hide"): void => {
     const player = playerRef.current
     if (!ready || player === undefined) return
@@ -111,7 +117,7 @@ export const usePlayerCaptions = (
             aria-pressed={requested === "show"}
             data-focus-down="player-captions-close"
             data-focus-id="player-captions-show"
-            data-focus-left="player-captions"
+            data-focus-left="player-captions-close"
             data-focus-right="player-captions-hide"
             data-focus-up="player-captions"
             data-focusable="true"
@@ -137,10 +143,10 @@ export const usePlayerCaptions = (
           </button>
         </div>
         <button
-          data-focus-down="player-captions-close"
+          data-focus-down="player-captions"
           data-focus-id="player-captions-close"
           data-focus-left={ready ? "player-captions-hide" : "player-captions"}
-          data-focus-right="player-captions-close"
+          data-focus-right={ready ? "player-captions-show" : "player-captions-close"}
           data-focus-up="player-captions"
           data-focusable="true"
           onClick={closeChooser}
@@ -150,6 +156,7 @@ export const usePlayerCaptions = (
         </button>
       </section>
     ) : null,
+    dismissCaptionsChooser: dismissChooser,
     resetCaptions,
   }
 }
