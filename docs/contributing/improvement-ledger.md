@@ -52,6 +52,7 @@ are out of scope and are rejected without review.
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
 | 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed, one criterion failing |
+| 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -360,6 +361,47 @@ old frame, and Reload simply re-keys the iframe. Readability is a transform on t
 wrapper with compensating dimensions, which scales Twitch's own UI without touching the
 cross-origin document. Verified with `bun run verify` at 253 tests.
 
+### Cycle 8 — Make chat consent reachable without a pointer
+
+Cycle 7's chat pane is blocked by Twitch's consent dialog, which a viewer with no mouse cannot
+dismiss. Two experiments settled how to fix it. Real OS key events **do** reach the focused
+cross-origin frame: with the iframe focused, Tab walked a visible ring through Accept, Customize
+and Reject, and Enter on Reject dismissed the gate and revealed real chat. But Electron's
+`webContents.sendInputEvent` does **not** reach an out-of-process iframe — it moved focus to the
+next shell button instead — so synthesised gamepad input cannot be forwarded that way. The only
+measured path for synthesised input is a main-process debugger attachment driving
+`Input.dispatchKeyEvent`.
+
+This cycle deliberately takes the smaller half. It adds an explicit **Enter chat** mode that hands
+focus to the frame and a guaranteed way back out, which makes consent operable with a physical
+keyboard and with Steam Input controller-to-keyboard mapping — the path this project's own user
+guide already documents for undetected controllers. Attaching Chromium's debugger in production
+solely to forward D-pad presses is a real architectural cost and is not paid on the strength of
+one blocked dialog; it is recorded below for a later cycle.
+
+The delicate part is the way out. Twitch owns the focus ring once the frame has it, so Escape is
+intercepted in the main process before the frame sees it, and one held Escape must leave chat
+without also navigating Home.
+
+Acceptance criteria:
+
+1. Entry is explicit: focus stays in the shell until Enter chat is activated, and showing,
+   reloading or hiding chat never focuses the frame on its own. VODs offer no chat interaction.
+2. Escape always returns to a shell control, is intercepted before Twitch receives it, exits once
+   per held press, and a later press still navigates Home.
+3. Hide, Reload, source replacement, blur, leaving playback and unmount all end the mode, remove
+   the listener, restore `tabIndex=-1` and land focus on an existing control.
+4. Entering, using and leaving chat mode cause no player construction, activation, play, pause,
+   mute, seek or quality call; the toolbar walks Hide → Enter → Reload → Fullscreen in both
+   directions.
+5. On the target hardware, signed out, the real consent gate is dismissed without a pointer and
+   chat appears; the report states which input path was used.
+6. `bun run verify` passes with no new scope, no debugger attachment, and `window-controls.ts`
+   untouched.
+
+Not in scope: native Gamepad API forwarding into the frame, native EventSub chat, message
+composition, and any change to the autoplay mechanism.
+
 ## Observed but not yet scheduled
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
@@ -374,7 +416,8 @@ an unrelated change. Each is a candidate for a future cycle.
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
 | ~~A channel with no archives renders an empty Past broadcasts screen~~ — closed in cycle 6 with a status element and reachable Back | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3; fixed cycle 6 |
 | Cursor exhaustion on a live shelf and an induced shelf request failure cannot be staged against real Twitch data, so both remain test-only rather than hardware-verified | `src/renderer/src/components/StreamShelf.tsx` | Cycle 4 hardware QA; recorded as a verification limit, not a defect |
-| Chat's consent gate is unreachable without pointer input, so the pane shows a dialog instead of messages for a controller-only viewer | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; observed, blocks the feature's purpose |
+| Chat's consent gate is unreachable without pointer input — being addressed in cycle 8 for keyboard and Steam Input paths | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; observed, blocks the feature's purpose |
+| Native Gamepad API input cannot reach the chat frame: the bridge dispatches DOM events, which never cross into a cross-origin document, and `webContents.sendInputEvent` does not reach an out-of-process iframe. The only measured path is a main-process debugger attachment driving `Input.dispatchKeyEvent`, which is privileged and conflicts with DevTools | `src/renderer/src/focus-navigation.ts`, `src/main/` | Cycle 8 scouting; deferred as an architectural decision, not an oversight |
 | ~~With chat open, ArrowRight from Hide chat skips Reload~~ — withdrawn: secondary panel actions live on the down axis by convention, matching the quality chooser, and the tests assert it | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; re-assessed and withdrawn |
 | The HTPC test account is signed out after an in-app Client ID change during QA; Device Code Flow needs the user, so authenticated hardware checks are paused | n/a | Cycle 6 hardware QA |
 | `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
