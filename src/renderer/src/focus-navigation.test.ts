@@ -277,6 +277,24 @@ describe("native gamepad press identity", () => {
     },
   )
 
+  it.each([
+    { name: "west then overlapping north", presses: [[2], [2, 3], [3]] },
+    { name: "both faces together", presses: [[2, 3], [2, 3], [3]] },
+  ])("dispatches each face edge once: $name", async ({ presses }) => {
+    const actions: string[] = []
+    target.addEventListener(SEARCH_GAMEPAD_EVENT, (event) => {
+      actions.push((event as CustomEvent<string>).detail)
+      event.preventDefault()
+    })
+    for (const [index, buttons] of presses.entries()) await frame(index + 1, buttons)
+    await frame(1003, [3])
+    expect(actions).toEqual(["delete", "submit"])
+    expect(keys).toEqual([])
+    await frame(1004)
+    await frame(1005, [3])
+    expect(actions).toEqual(["delete", "submit", "submit"])
+  })
+
   it("preserves A, B and Settings actions without hold repeats", async () => {
     const activate = vi.fn()
     target.addEventListener("click", activate)

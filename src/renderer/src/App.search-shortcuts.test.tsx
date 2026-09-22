@@ -232,6 +232,32 @@ describe("native gamepad Search shortcuts in App", () => {
     expect(bridge.auth.snapshot).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    { name: "west then overlapping north", presses: [[2], [2, 3], [3]] },
+    { name: "both faces together", presses: [[2, 3], [2, 3], [3]] },
+  ])("deletes and submits once through Search: $name", async ({ presses }) => {
+    const { bridge, constructed } = await mount({
+      displayName: "Viewer",
+      kind: "authenticated",
+      login: "viewer",
+    })
+    await activate("nav-search")
+    await typeQuery("twitchx")
+    const focused = input()
+    for (const buttons of presses) await frame(buttons)
+    await frame([3], 1000)
+    expect(input().value).toBe("twitch")
+    expect(bridge.catalog.search.mock.calls).toEqual([[{ first: 30, query: "twitch" }]])
+    expect(document.activeElement).toBe(focused)
+    expect(keys).toEqual([])
+    expect(constructed).not.toHaveBeenCalled()
+    await press(3)
+    expect(bridge.catalog.search.mock.calls).toEqual([
+      [{ first: 30, query: "twitch" }],
+      [{ first: 30, query: "twitch" }],
+    ])
+  })
+
   it("submits the authenticated trimmed query once and consumes presses until the deferred request settles", async () => {
     const { bridge, constructed } = await mount({
       displayName: "Viewer",

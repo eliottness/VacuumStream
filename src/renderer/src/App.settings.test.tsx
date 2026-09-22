@@ -291,6 +291,140 @@ describe("Settings in the mounted App", () => {
     expect(bridge.settings.saveClientId).not.toHaveBeenCalled()
   })
 
+  it("keeps the newer challenge when begin requests complete newer-then-older across a Settings remount", async () => {
+    const bridge = await mount()
+    const older = deferred<DeviceChallenge>()
+    const newer = deferred<DeviceChallenge>()
+    const olderChallenge = { ...challenge, userCode: "CODE0001" }
+    const newerChallenge = {
+      ...challenge,
+      flowId: "123e4567-e89b-12d3-a456-426614174001",
+      userCode: "CODE0002",
+    }
+    bridge.auth.begin.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    await activate("settings-sign-in")
+    await activate("nav-search")
+    await activate("nav-settings")
+    await activate("settings-sign-in")
+    expect(bridge.auth.begin).toHaveBeenCalledTimes(2)
+    await act(async () => newer.resolve(newerChallenge))
+    expect(container.querySelector(".device-code strong")?.textContent).toBe("CODE0002")
+    await act(async () => older.resolve(olderChallenge))
+    expect(container.querySelector(".device-code strong")?.textContent).toBe("CODE0002")
+    expect(controller().auth).toEqual({ challenge: newerChallenge, kind: "authorizing" })
+    expectFocus("settings-open-activation")
+    await key("Enter")
+    expect(bridge.auth.openActivation).toHaveBeenCalledExactlyOnceWith(newerChallenge.flowId)
+  })
+
+  it("keeps the remounted request pending and guarded when an older begin settles first", async () => {
+    const bridge = await mount()
+    const older = deferred<DeviceChallenge>()
+    const newer = deferred<DeviceChallenge>()
+    bridge.auth.begin.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    await activate("settings-sign-in")
+    await activate("nav-search")
+    await activate("nav-settings")
+    await activate("settings-sign-in")
+    await act(async () => older.resolve({ ...challenge, userCode: "CODE0001" }))
+    expect(controller().auth).toEqual({ kind: "guest" })
+    expect(target("settings-sign-in").getAttribute("aria-busy")).toBe("true")
+    await key("Enter")
+    expect(bridge.auth.begin).toHaveBeenCalledTimes(2)
+    await act(async () => newer.resolve(challenge))
+    expect(controller().auth).toEqual(authorizing)
+    expectFocus("settings-open-activation")
+  })
+
+  it.each(["begin", "logout"] as const)(
+    "discards pending %s after an upstream account change without a remount",
+    async (operation) => {
+      const bridge = await mount(operation === "logout" ? authenticated : { kind: "guest" })
+      const pending = deferred<DeviceChallenge>()
+      bridge.auth.begin.mockReturnValueOnce(pending.promise)
+      bridge.auth.logout.mockImplementationOnce(async () => {
+        await pending.promise
+      })
+      await activate(operation === "logout" ? "settings-logout" : "settings-sign-in")
+      const newerAuth: AuthSnapshot = {
+        displayName: "New Viewer",
+        kind: "authenticated",
+        login: "new_viewer",
+      }
+      await deliverAuth(newerAuth)
+      await act(async () => pending.resolve(challenge))
+      expect(controller().auth).toEqual(newerAuth)
+      expectFocus("settings-logout")
+      expect(target("settings-logout").getAttribute("aria-disabled")).toBe("false")
+    },
+  )
+
+  it("does not let an old logout remove a newer challenge after a Settings remount", async () => {
+    const bridge = await mount(authenticated)
+    const logout = deferred<void>()
+    const begin = deferred<DeviceChallenge>()
+    bridge.auth.logout.mockReturnValueOnce(logout.promise)
+    bridge.auth.begin.mockReturnValueOnce(begin.promise)
+    await activate("settings-logout")
+    await activate("nav-search")
+    // The upstream session is now guest while the original logout response is still in flight.
+    await deliverAuth({ kind: "guest" })
+    await activate("nav-settings")
+    await activate("settings-sign-in")
+    await act(async () => begin.resolve(challenge))
+    expect(controller().auth).toEqual(authorizing)
+    await act(async () => logout.resolve(undefined))
+    expect(controller().auth).toEqual(authorizing)
+    expect(container.querySelector(".device-code strong")?.textContent).toBe(challenge.userCode)
+    expectFocus("settings-open-activation")
+  })
+
+  it.each([
+    { destination: "home", outgoing: "home-refresh", survivor: "home-sign-in" },
+    { destination: "following", outgoing: "following-refresh", survivor: "following-connect" },
+    { destination: "settings", outgoing: "settings-logout", survivor: "settings-sign-in" },
+  ])(
+    "keeps connected enabled focus when logout completes on $destination",
+    async ({ destination, outgoing, survivor }) => {
+      const bridge = await mount(authenticated)
+      const logout = deferred<void>()
+      bridge.auth.logout.mockReturnValueOnce(logout.promise)
+      await activate("settings-logout")
+      if (destination !== "settings") {
+        await activate(`nav-${destination}`)
+        await key("ArrowRight")
+      }
+      expectFocus(outgoing)
+      const focused = target(outgoing)
+      await act(async () => logout.resolve(undefined))
+      expect(controller().auth).toEqual({ kind: "guest" })
+      expect(container.querySelector(`[data-focus-id="${outgoing}"]`)).toBeNull()
+      expect(document.activeElement).not.toBe(document.body)
+      expectFocus(survivor)
+      expect(target(survivor).isConnected).toBe(true)
+      expect(target(survivor).hasAttribute("disabled")).toBe(false)
+      expect(target(survivor).getAttribute("aria-disabled")).not.toBe("true")
+      expect(target(`nav-${destination}`).getAttribute("data-focus-right")).toBe(survivor)
+      if (destination === "settings") expect(target(survivor)).toBe(focused)
+      else expect(focused.isConnected).toBe(false)
+    },
+  )
+
+  it("does not reclaim Home focus when logout removes a previously focused Refresh", async () => {
+    const bridge = await mount(authenticated)
+    const logout = deferred<void>()
+    bridge.auth.logout.mockReturnValueOnce(logout.promise)
+    await activate("settings-logout")
+    await activate("nav-home")
+    await key("ArrowRight")
+    expectFocus("home-refresh")
+    await key("ArrowLeft")
+    expectFocus("nav-home")
+    await act(async () => logout.resolve(undefined))
+    expect(container.querySelector('[data-focus-id="home-refresh"]')).toBeNull()
+    expectFocus("nav-home")
+  })
+
   it.each(["begin", "logout", "openActivation"] as const)(
     "does not navigate back after leaving Settings during %s",
     async (operation) => {

@@ -1,5 +1,5 @@
 import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
-import { useEffect, useLayoutEffect } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { CategoryView } from "./components/CategoryView"
 import { ContinueWatchingShelf, recordingTitle } from "./components/ContinueWatchingShelf"
@@ -29,6 +29,12 @@ export const App = () => {
   useControllerNavigation()
   const controller = useAppController()
   const favourites = useFavourites()
+  const accountGeneration = useRef(0)
+  const accountContext = useRef({
+    auth: controller.auth,
+    clientId: controller.settings.clientId,
+  })
+  const focusedControl = useRef<HTMLElement | null>(null)
   const screenTitle =
     controller.screen.kind === "browse"
       ? ROUTE_TITLES[controller.screen.route]
@@ -45,6 +51,37 @@ export const App = () => {
     const focusId = screenEntryFocusId(controller.screen)
     document.querySelector<HTMLElement>(`[data-focus-id="${focusId}"]`)?.focus()
   }, [controller.screen])
+  useLayoutEffect(() => {
+    // An upstream auth/settings change also supersedes an in-flight account request.
+    if (
+      accountContext.current.auth === controller.auth &&
+      accountContext.current.clientId === controller.settings.clientId
+    )
+      return
+    accountGeneration.current += 1
+    accountContext.current = {
+      auth: controller.auth,
+      clientId: controller.settings.clientId,
+    }
+    const previous = focusedControl.current
+    if (previous === null || previous.isConnected) return
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    // Account completion can remove controls on a different route (for example Home Refresh).
+    // Respect any focus recovery already performed by the current screen or its shelves.
+    const entryId = screenEntryFocusId(controller.screen)
+    const entry = document.querySelector<HTMLElement>(`[data-focus-id="${entryId}"]`)
+    const contentId = entry?.getAttribute("data-focus-right")
+    const content = document.querySelector<HTMLElement>(
+      `[data-focus-id="${contentId}"]:not(:disabled):not([aria-disabled="true"])`,
+    )
+    ;(content ?? entry)?.focus()
+  })
+  useLayoutEffect(
+    () => () => {
+      accountGeneration.current += 1
+    },
+    [],
+  )
 
   if (controller.screen.kind === "player") {
     return (
@@ -89,7 +126,12 @@ export const App = () => {
       : undefined
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onFocusCapture={(event) => {
+        focusedControl.current = event.target
+      }}
+    >
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -314,6 +356,10 @@ export const App = () => {
         {route === "settings" ? (
           <SettingsPanel
             auth={controller.auth}
+            onAccountRequest={() => {
+              const generation = ++accountGeneration.current
+              return () => generation === accountGeneration.current
+            }}
             onAuthChange={controller.setAuth}
             onSettingsChange={controller.updateSettings}
             settings={controller.settings}

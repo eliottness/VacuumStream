@@ -124,9 +124,15 @@ export const SEARCH_GAMEPAD_EVENT = "vacuumstream:search-gamepad"
 export type SearchGamepadAction = "delete" | "submit"
 type GamepadInput = string | 2 | 3
 
-const keyboardForGamepad = (gamepad: Gamepad): GamepadInput | undefined => {
+const keyboardForGamepad = (
+  gamepad: Gamepad,
+  dispatchedFaces: ReadonlySet<number>,
+): GamepadInput | undefined => {
   if (gamepad.buttons[0]?.pressed === true) return "Enter"
   if (gamepad.buttons[1]?.pressed === true) return "Escape"
+  if (gamepad.buttons[2]?.pressed === true && !dispatchedFaces.has(2)) return 2
+  if (gamepad.buttons[3]?.pressed === true && !dispatchedFaces.has(3)) return 3
+  // Once both edges are handled, held faces retain their priority over lower-priority controls.
   if (gamepad.buttons[2]?.pressed === true) return 2
   if (gamepad.buttons[3]?.pressed === true) return 3
   if (gamepad.buttons[9]?.pressed === true) return "F10"
@@ -197,21 +203,21 @@ export const shouldRepeatControllerKey = (key: string | undefined): boolean =>
 const installGamepadBridge = (): (() => void) => {
   let animationFrame = 0
   let activeInput: GamepadInput | undefined
-  let searchButtonsHeld = [false, false]
+  const dispatchedFaces = new Set<number>()
   let pressedAt = 0
   let repeatedAt = 0
 
   const poll = (now: number): void => {
     const gamepad = navigator.getGamepads().find((candidate) => candidate?.connected === true)
+    // Only a dispatched edge is consumed. A held face must not hide another face's new edge.
+    for (const button of dispatchedFaces) {
+      if (gamepad?.buttons[button]?.pressed !== true) dispatchedFaces.delete(button)
+    }
     const input =
-      gamepad === undefined || gamepad === null ? undefined : keyboardForGamepad(gamepad)
-    // Latch physical face buttons until release, even across focus or priority changes.
-    const changed =
-      typeof input === "number" ? !searchButtonsHeld[input - 2] : input !== activeInput
-    searchButtonsHeld = [
-      gamepad?.buttons[2]?.pressed === true,
-      gamepad?.buttons[3]?.pressed === true,
-    ]
+      gamepad === undefined || gamepad === null
+        ? undefined
+        : keyboardForGamepad(gamepad, dispatchedFaces)
+    const changed = typeof input === "number" ? !dispatchedFaces.has(input) : input !== activeInput
     const repeats =
       typeof input === "string" &&
       shouldRepeatControllerKey(input) &&
@@ -219,6 +225,8 @@ const installGamepadBridge = (): (() => void) => {
       (repeatedAt === 0 || now - repeatedAt >= 100)
 
     if (input !== undefined && (changed || repeats)) {
+      // Latch before dispatch: opening Search or leaving chat cannot reinterpret this press.
+      if (typeof input === "number") dispatchedFaces.add(input)
       dispatchGamepadInput(input)
       if (changed) {
         pressedAt = now

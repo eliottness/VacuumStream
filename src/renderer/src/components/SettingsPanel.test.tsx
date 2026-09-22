@@ -54,6 +54,7 @@ describe("settings account panel", () => {
           },
           kind: "authorizing",
         }}
+        onAccountRequest={() => () => true}
         onAuthChange={() => undefined}
         onSettingsChange={() => undefined}
         settings={{ clientId: "abcdefghijklmnopqrstuvwxyz1234", secureStorage: false }}
@@ -75,6 +76,7 @@ describe("settings account focus continuity", () => {
   const logout = vi.fn<() => Promise<void>>()
   const openActivation = vi.fn<(flowId: string) => Promise<void>>()
   const saveClientId = vi.fn<(clientId: string) => Promise<SettingsSnapshot>>()
+  const onAccountRequest = vi.fn<() => () => boolean>(() => () => true)
   const onSettingsChange = vi.fn<(next: SettingsSnapshot, resetAuth: boolean) => void>()
   const onAuthChange = vi.fn<(next: AuthSnapshot) => void>((next) => {
     currentAuth = next
@@ -83,6 +85,7 @@ describe("settings account focus continuity", () => {
   const panel = (configuration = settings) => (
     <SettingsPanel
       auth={currentAuth}
+      onAccountRequest={onAccountRequest}
       onAuthChange={onAuthChange}
       onSettingsChange={onSettingsChange}
       settings={configuration}
@@ -93,6 +96,7 @@ describe("settings account focus continuity", () => {
     logout.mockReset()
     openActivation.mockReset()
     saveClientId.mockReset()
+    onAccountRequest.mockReset().mockImplementation(() => () => true)
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
     vi.stubGlobal("vacuumStream", {
       auth: { begin, logout, openActivation },
@@ -245,6 +249,40 @@ describe("settings account focus continuity", () => {
       expect(document.activeElement).toBe(outgoing)
     },
   )
+
+  it.each(requests)(
+    "discards an obsolete $id failure without disabling the current action",
+    async ({ auth, id }) => {
+      let current = true
+      onAccountRequest.mockReturnValueOnce(() => current)
+      const pending = pendingRequest()
+      await render(auth)
+      const outgoing = action(id)
+      outgoing.focus()
+      await act(async () => outgoing.click())
+      current = false
+      await act(async () => pending.reject(new Error("Obsolete request")))
+      expect(onAuthChange).not.toHaveBeenCalled()
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+      expectSurvivor(outgoing, id)
+      expect(outgoing.getAttribute("aria-busy")).toBe("false")
+      expect(outgoing.getAttribute("aria-disabled")).toBe("false")
+    },
+  )
+
+  it("discards an obsolete Client ID save instead of resetting a newer account", async () => {
+    let current = true
+    onAccountRequest.mockReturnValueOnce(() => current)
+    const pending = deferred<SettingsSnapshot>()
+    saveClientId.mockReturnValueOnce(pending.promise)
+    await render(authenticated)
+    await act(async () => action("settings-save").click())
+    expect(saveClientId).toHaveBeenCalledTimes(1)
+    current = false
+    await act(async () => pending.resolve({ ...settings, clientId: "newclientidentifier1234" }))
+    expect(onSettingsChange).not.toHaveBeenCalled()
+    expect(action("settings-save").disabled).toBe(false)
+  })
 
   it("keeps an unconfigured sign-in reachable but does not start authorization", async () => {
     await render({ kind: "guest" }, { ...settings, clientId: "" })

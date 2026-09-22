@@ -5,6 +5,7 @@ import type { AuthSnapshot, SettingsSnapshot } from "../../../shared/contracts"
 
 type SettingsPanelProps = {
   readonly auth: AuthSnapshot
+  readonly onAccountRequest: () => () => boolean
   readonly onAuthChange: (auth: AuthSnapshot) => void
   readonly onSettingsChange: (settings: SettingsSnapshot, resetAuth: boolean) => void
   readonly settings: SettingsSnapshot
@@ -28,6 +29,7 @@ const errorMessage = (error: unknown): string =>
 
 export const SettingsPanel = ({
   auth,
+  onAccountRequest,
   onAuthChange,
   onSettingsChange,
   settings,
@@ -55,13 +57,14 @@ export const SettingsPanel = ({
       return
     }
     pending.current = true
+    const isCurrent = onAccountRequest()
     setBusy(true)
     setError("")
     try {
       const nextSettings = await window.vacuumStream.settings.saveClientId(clientId)
-      onSettingsChange(nextSettings, nextSettings.clientId !== settings.clientId)
+      if (isCurrent()) onSettingsChange(nextSettings, nextSettings.clientId !== settings.clientId)
     } catch (caught) {
-      setError(errorMessage(caught))
+      if (isCurrent()) setError(errorMessage(caught))
     } finally {
       pending.current = false
       setBusy(false)
@@ -72,24 +75,28 @@ export const SettingsPanel = ({
     // aria-disabled keeps controller focus; the ref also blocks clicks before React commits.
     if (pending.current || needsClientId) return
     pending.current = true
+    // App owns currentness across routes; this mount still owns its synchronous click guard.
+    const isCurrent = onAccountRequest()
     setBusy(true)
     setError("")
     try {
       if (auth.kind === "authenticated") {
         await window.vacuumStream.auth.logout()
-        onAuthChange({ kind: "guest" })
+        if (isCurrent()) onAuthChange({ kind: "guest" })
       } else if (auth.kind === "authorizing") {
         await window.vacuumStream.auth.openActivation(auth.challenge.flowId)
       } else {
         const challenge = await window.vacuumStream.auth.begin()
-        onAuthChange({ challenge, kind: "authorizing" })
+        if (isCurrent()) onAuthChange({ challenge, kind: "authorizing" })
       }
     } catch (caught) {
-      setError(
-        auth.kind === "authorizing"
-          ? "Could not open a browser. Enter the code manually at the address shown below"
-          : errorMessage(caught),
-      )
+      if (isCurrent()) {
+        setError(
+          auth.kind === "authorizing"
+            ? "Could not open a browser. Enter the code manually at the address shown below"
+            : errorMessage(caught),
+        )
+      }
     } finally {
       pending.current = false
       setBusy(false)
