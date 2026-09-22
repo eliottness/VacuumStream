@@ -2,12 +2,8 @@ import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
 import { useEffect, useLayoutEffect } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { CategoryView } from "./components/CategoryView"
-import {
-  ContinueWatchingShelf,
-  continueWatchingEntryId,
-  recordingTitle,
-} from "./components/ContinueWatchingShelf"
-import { FavouritesShelf, favouritesEntryId } from "./components/FavouritesShelf"
+import { ContinueWatchingShelf, recordingTitle } from "./components/ContinueWatchingShelf"
+import { FavouritesShelf } from "./components/FavouritesShelf"
 import { FollowedChannelsView } from "./components/FollowedChannelsView"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
@@ -17,6 +13,7 @@ import { StreamShelf } from "./components/StreamShelf"
 import { VideoShelf } from "./components/VideoShelf"
 import { PREVIEW_STREAMS } from "./demo-data"
 import { useControllerNavigation } from "./focus-navigation"
+import { homeFocus } from "./home-focus"
 import { screenEntryFocusId } from "./screen"
 import { useAppController } from "./useAppController"
 import { useFavourites } from "./useFavourites"
@@ -82,19 +79,14 @@ export const App = () => {
   const route = controller.screen.kind === "browse" ? controller.screen.route : undefined
   const allChannels =
     controller.screen.kind === "browse" && controller.screen.followingMode === "all"
-  const continueEntry =
-    route === "home" ? continueWatchingEntryId(controller.continueWatching) : undefined
-  const favouriteEntry = route === "home" ? favouritesEntryId(favourites) : undefined
-  const liveEntry =
-    controller.auth.kind === "authenticated" ? "home-refresh" : "stream-preview-twitch"
-  const homeFallback = controller.auth.kind === "authenticated" ? "home-refresh" : "home-sign-in"
-  const lastContinue = route === "home" ? controller.continueWatching.items.at(-1) : undefined
-  const favouritesUpper =
-    route === "home" && controller.continueWatching.status === "error"
-      ? "continue-retry"
-      : lastContinue === undefined
-        ? "nav-home"
-        : `continue-${lastContinue.videoId}-forget`
+  const home =
+    route === "home"
+      ? homeFocus(
+          controller.auth.kind === "authenticated" ? "authenticated" : "guest",
+          controller.continueWatching,
+          favourites,
+        )
+      : undefined
 
   return (
     <div className="app-shell">
@@ -107,8 +99,7 @@ export const App = () => {
       <Navigation
         active={route ?? "home"}
         entryFocusId={
-          continueEntry ??
-          favouriteEntry ??
+          home?.entryFocusId ??
           (allChannels
             ? "following-all"
             : controller.auth.kind === "authenticated" &&
@@ -132,7 +123,7 @@ export const App = () => {
             streams={controller.categoryCatalog.items}
           />
         ) : null}
-        {route === "home" ? (
+        {home !== undefined ? (
           <main className="browse-view" id="main-content" tabIndex={-1}>
             <header className="home-heading">
               <div>
@@ -147,7 +138,7 @@ export const App = () => {
               {controller.auth.kind !== "authenticated" ? (
                 <button
                   className="primary-button"
-                  data-focus-down={continueEntry ?? favouriteEntry ?? liveEntry}
+                  data-focus-down={home.signInDownFocusId}
                   data-focus-id="home-sign-in"
                   data-focus-left="nav-home"
                   data-focusable="true"
@@ -163,8 +154,7 @@ export const App = () => {
             </header>
             <ContinueWatchingShelf
               {...controller.continueWatching}
-              fallbackFocusId={favouriteEntry ?? homeFallback}
-              lowerFocusId={favouriteEntry ?? liveEntry}
+              {...home.continueWatching}
               onForget={(videoId) => void controller.continueWatching.forget(videoId)}
               onRetry={() => void controller.continueWatching.retry()}
               onSelect={(bookmark) =>
@@ -177,8 +167,7 @@ export const App = () => {
             />
             <FavouritesShelf
               {...favourites}
-              fallbackFocusId={continueEntry ?? homeFallback}
-              lowerFocusId={liveEntry}
+              {...home.favourites}
               onOpen={(entry) =>
                 controller.openChannel({
                   displayName: entry.login,
@@ -188,7 +177,6 @@ export const App = () => {
               }
               onRemove={(login) => void favourites.remove(login)}
               onRetry={() => void favourites.retry()}
-              upperFocusId={favouritesUpper}
             />
             <StreamShelf
               {...(controller.auth.kind === "authenticated"
@@ -206,6 +194,7 @@ export const App = () => {
                   }
                 : {})}
               emptyMessage="No live channels are available right now."
+              entryUpperFocusId={home.liveEntryUpperFocusId}
               onSelect={controller.openStream}
               streams={
                 controller.auth.kind === "authenticated" ? controller.live.items : PREVIEW_STREAMS

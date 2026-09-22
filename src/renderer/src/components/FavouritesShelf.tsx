@@ -3,16 +3,6 @@ import type { Favourite } from "../../../shared/contracts"
 import { markControllerFocus } from "../focus-navigation"
 import type { FavouritesState } from "../useFavourites"
 
-export const favouritesEntryId = (
-  state: Pick<FavouritesState, "items" | "status">,
-  prefix = "favourite",
-): string | undefined =>
-  state.items[0] === undefined
-    ? state.status === "error"
-      ? `${prefix}-retry`
-      : undefined
-    : `${prefix}-${state.items[0].login}-open`
-
 type FavouritesShelfProps = FavouritesState & {
   readonly fallbackFocusId: string
   readonly focusPrefix?: string
@@ -78,20 +68,6 @@ export const FavouritesShelf = ({
   })
 
   const last = items.at(-1)
-  const returnId =
-    status === "error" ? retryId : last === undefined ? undefined : removeId(last.login)
-  // Compose with the live shelf's existing graph, restoring its edge when we disappear.
-  useLayoutEffect(() => {
-    if (returnId === undefined) return
-    const lower = focusTarget(lowerFocusId)
-    if (lower === undefined) return
-    const previous = lower.getAttribute("data-focus-up")
-    lower.setAttribute("data-focus-up", returnId)
-    return () => {
-      if (previous === null) lower.removeAttribute("data-focus-up")
-      else lower.setAttribute("data-focus-up", previous)
-    }
-  })
 
   const feedback = (
     <>

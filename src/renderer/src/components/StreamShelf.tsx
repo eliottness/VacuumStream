@@ -6,6 +6,7 @@ type StreamShelfProps = {
   readonly emptyActionFocusId?: string
   readonly emptyActionLabel?: string
   readonly emptyMessage: string
+  readonly entryUpperFocusId?: string
   readonly error?: string
   readonly focusPrefix?: string
   readonly onEmptyAction?: () => void
@@ -29,6 +30,7 @@ export const StreamShelf = ({
   emptyActionFocusId,
   emptyActionLabel,
   emptyMessage,
+  entryUpperFocusId,
   error = "Could not load this shelf.",
   focusPrefix,
   onEmptyAction,
@@ -82,7 +84,7 @@ export const StreamShelf = ({
               data-focus-id={refreshId}
               data-focus-left={navId}
               data-focus-right={actionId}
-              data-focus-up={navId}
+              data-focus-up={entryUpperFocusId ?? navId}
               data-focusable="true"
               onClick={() => {
                 if (!refreshing) onRefresh()
@@ -150,7 +152,9 @@ export const StreamShelf = ({
                     ? actionId
                     : `stream-${streams[index + 1]?.id}`
               }
-              data-focus-up={onRefresh === undefined ? undefined : refreshId}
+              data-focus-up={
+                onRefresh === undefined ? (index === 0 ? entryUpperFocusId : undefined) : refreshId
+              }
               data-focusable="true"
               key={stream.id}
               onClick={() => onSelect(stream)}

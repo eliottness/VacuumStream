@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Favourite } from "../../../shared/contracts"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
 import type { FavouritesState } from "../useFavourites"
-import { FavouritesShelf, favouritesEntryId } from "./FavouritesShelf"
+import { FavouritesShelf } from "./FavouritesShelf"
 
 const items: readonly Favourite[] = [
   { login: "alpha" },
@@ -28,11 +28,19 @@ const onRetry = vi.fn<() => void>()
 const scrollFeedback = vi.fn()
 const Surface = ({ state }: { readonly state: FavouritesState }) => {
   useControllerNavigation()
+  const first = state.items[0]
+  const last = state.items.at(-1)
   return (
     <>
       <button
         data-focus-id="nav-home"
-        data-focus-right={favouritesEntryId(state) ?? "home-control"}
+        data-focus-right={
+          first === undefined
+            ? state.status === "error"
+              ? "favourite-retry"
+              : "home-control"
+            : `favourite-${first.login}-open`
+        }
         data-focusable="true"
         type="button"
       >
@@ -49,7 +57,13 @@ const Surface = ({ state }: { readonly state: FavouritesState }) => {
       />
       <button
         data-focus-id="home-control"
-        data-focus-up="nav-home"
+        data-focus-up={
+          state.status === "error"
+            ? "favourite-retry"
+            : last === undefined
+              ? "nav-home"
+              : `favourite-${last.login}-remove`
+        }
         data-focusable="true"
         type="button"
       >

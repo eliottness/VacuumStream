@@ -4,6 +4,57 @@ import { PREVIEW_STREAMS } from "../demo-data"
 import { StreamShelf } from "./StreamShelf"
 
 describe("stream shelf", () => {
+  describe.each(["error", "loading", "ready"] as const)("%s entry boundary", (state) => {
+    it.each([false, true])(
+      "overrides only the entry's Up link and preserves omitted-prop defaults (Refresh: %s)",
+      (withRefresh) => {
+        const render = (withBoundary: boolean) =>
+          renderToStaticMarkup(
+            <>
+              <button data-focus-id="shelf-upper" data-focusable="true" type="button">
+                Previous shelf
+              </button>
+              <StreamShelf
+                {...(withRefresh
+                  ? {
+                      cursor: "next",
+                      focusPrefix: "following",
+                      onLoadMore: () => undefined,
+                      onRefresh: () => undefined,
+                      onRetry: () => undefined,
+                    }
+                  : {})}
+                {...(withBoundary ? { entryUpperFocusId: "shelf-upper" } : {})}
+                emptyMessage="Empty"
+                onSelect={() => undefined}
+                state={state}
+                streams={PREVIEW_STREAMS}
+                title="Live"
+              />
+            </>,
+          )
+        const defaults = render(false)
+        const composed = render(true)
+        const entryId = withRefresh ? "following-refresh" : "stream-preview-twitch"
+        const entryTag = composed.match(
+          new RegExp(`<button[^>]*data-focus-id="${entryId}"[^>]*>`),
+        )?.[0]
+        expect(entryTag).toContain('data-focus-up="shelf-upper"')
+        expect(composed.match(/data-focus-up="shelf-upper"/g)).toHaveLength(1)
+        const edges = (markup: string) =>
+          markup.match(/data-focus-(?:down|id|left|right|up)="[^"]*"/g)
+        expect(
+          edges(
+            composed.replace(
+              ' data-focus-up="shelf-upper"',
+              withRefresh ? ' data-focus-up="nav-following"' : "",
+            ),
+          ),
+        ).toEqual(edges(defaults))
+      },
+    )
+  })
+
   it("renders broadcaster profile images on stream cards", () => {
     // Given a live stream enriched with its broadcaster profile image
     const stream = {

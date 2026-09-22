@@ -113,8 +113,20 @@ export const Showcase = () => {
               status={
                 fixture === "loading" ? "loading" : fixture === "read-error" ? "error" : "ready"
               }
+              upperFocusId={`showcase-${fixture}-home`}
             />
-            <button data-focus-id={`showcase-${fixture}-home`} data-focusable="true" type="button">
+            <button
+              data-focus-id={`showcase-${fixture}-home`}
+              data-focus-up={
+                fixture === "loading"
+                  ? undefined
+                  : fixture === "read-error"
+                    ? `showcase-${fixture}-retry`
+                    : `showcase-${fixture}-123456789-forget`
+              }
+              data-focusable="true"
+              type="button"
+            >
               Home control
             </button>
           </div>
@@ -151,6 +163,13 @@ export const Showcase = () => {
           />
           <button
             data-focus-id={`showcase-favourites-${fixture}-home`}
+            data-focus-up={
+              fixture === "error"
+                ? `showcase-favourites-${fixture}-retry`
+                : fixture === "populated" || fixture === "removal-error"
+                  ? `showcase-favourites-${fixture}-very_long_channel_login_25-remove`
+                  : undefined
+            }
             data-focusable="true"
             type="button"
           >

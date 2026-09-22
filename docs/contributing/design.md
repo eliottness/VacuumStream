@@ -85,6 +85,34 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 - **Accessibility**: real links/buttons, visible label and icon, `aria-current`.
 - **Motion**: focus lift only; labels never slide or collapse while focused.
 
+### Home shelf focus composition
+
+`home-focus.ts` is the pure Home-specific boundary model, evaluated only on App's Home route.
+It takes guest/authenticated mode and the items/status of Continue Watching and favourites.
+App renders its navigation entry, sign-in Down link, each local shelf's upper/lower and removal
+fallback links, and the live entry's Up link from that one snapshot. No shelf edits a sibling's
+DOM attributes. Standalone fixtures, including Showcase, declare their own boundary links.
+
+- Entry precedence is Continue Watching, favourites, then Refresh (authenticated) or Connect
+  Twitch (guest). A populated shelf enters at its first item even during loading or error; an
+  empty error enters at Retry, while empty ready/loading shelves are skipped.
+- Down leaves Continue Watching for the first favourite (or its empty-error Retry), then the
+  live entry: Refresh for authenticated viewers, the first preview stream for guests.
+- Up from the live entry returns to favourites, then Continue Watching, preferring an error's
+  Retry over the last Remove/Forget action. With neither local shelf available, it returns to
+  the Home rail when authenticated or Connect Twitch when guest. Up from favourites returns
+  to Continue Watching's Retry/last Forget action, otherwise the Home rail.
+- These edges are intentionally asymmetric: entering the first item does not imply returning
+  to that same item. Retained items stay in the graph during refresh, and independently
+  completed requests recompute the entire boundary snapshot without effect ordering.
+- Removal fallback prefers the other local shelf's entry, then Refresh/Connect Twitch. The
+  model only computes destinations: focused-card tracking, next/previous survivor rescue,
+  Retry disappearance recovery, controller-focus marking, and scroll feedback remain owned
+  by the shelves. A completion must not steal focus the viewer has already moved elsewhere.
+- `StreamShelf.entryUpperFocusId` overrides only Refresh's Up link, or the first card's Up
+  link when there is no Refresh. Omitting it preserves other callers' existing defaults and
+  all internal live-shelf links.
+
 ### ActionButton
 
 - **Variants**: primary, secondary, quiet, danger, icon.

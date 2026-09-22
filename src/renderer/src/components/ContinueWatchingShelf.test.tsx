@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { PlaybackBookmark } from "../../../shared/contracts"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
 import type { ContinueWatchingState } from "../useContinueWatching"
-import { ContinueWatchingShelf, continueWatchingEntryId } from "./ContinueWatchingShelf"
+import { ContinueWatchingShelf } from "./ContinueWatchingShelf"
 
 const items: readonly PlaybackBookmark[] = [
   {
@@ -32,11 +32,19 @@ const onRetry = vi.fn<() => void>()
 const onSelect = vi.fn<(bookmark: PlaybackBookmark) => void>()
 const Surface = ({ state }: { readonly state: ContinueWatchingState }) => {
   useControllerNavigation()
+  const first = state.items[0]
+  const last = state.items.at(-1)
   return (
     <>
       <button
         data-focus-id="nav-home"
-        data-focus-right={continueWatchingEntryId(state) ?? "home-control"}
+        data-focus-right={
+          first === undefined
+            ? state.status === "error"
+              ? "continue-retry"
+              : "home-control"
+            : `continue-${first.videoId}-open`
+        }
         data-focusable="true"
         type="button"
       >
@@ -49,10 +57,17 @@ const Surface = ({ state }: { readonly state: ContinueWatchingState }) => {
         onForget={onForget}
         onRetry={onRetry}
         onSelect={onSelect}
+        upperFocusId="nav-home"
       />
       <button
         data-focus-id="home-control"
-        data-focus-up="nav-home"
+        data-focus-up={
+          state.status === "error"
+            ? "continue-retry"
+            : last === undefined
+              ? "nav-home"
+              : `continue-${last.videoId}-forget`
+        }
         data-focusable="true"
         type="button"
       >

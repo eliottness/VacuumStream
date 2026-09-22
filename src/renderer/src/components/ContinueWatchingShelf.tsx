@@ -6,16 +6,6 @@ import type { ContinueWatchingState } from "../useContinueWatching"
 export const recordingTitle = (bookmark: PlaybackBookmark): string =>
   bookmark.details?.title ?? `Recording ${bookmark.videoId}`
 
-export const continueWatchingEntryId = (
-  state: Pick<ContinueWatchingState, "items" | "status">,
-  prefix = "continue",
-): string | undefined =>
-  state.items[0] === undefined
-    ? state.status === "error"
-      ? `${prefix}-retry`
-      : undefined
-    : `${prefix}-${state.items[0].videoId}-open`
-
 type ContinueWatchingShelfProps = ContinueWatchingState & {
   readonly fallbackFocusId: string
   readonly focusPrefix?: string
@@ -23,6 +13,7 @@ type ContinueWatchingShelfProps = ContinueWatchingState & {
   readonly onForget: (videoId: string) => void
   readonly onRetry: () => void
   readonly onSelect: (bookmark: PlaybackBookmark) => void
+  readonly upperFocusId: string
 }
 
 const formatTime = (value: number): string => {
@@ -54,6 +45,7 @@ export const ContinueWatchingShelf = ({
   removalError,
   removingId,
   status,
+  upperFocusId,
 }: ContinueWatchingShelfProps) => {
   const openId = (videoId: string): string => `${focusPrefix}-${videoId}-open`
   const forgetId = (videoId: string): string => `${focusPrefix}-${videoId}-forget`
@@ -79,22 +71,7 @@ export const ContinueWatchingShelf = ({
     focus(next === undefined ? fallbackFocusId : openId(next.videoId))
   })
 
-  // Compose the upward edge with the existing live shelf without changing its internal graph.
-  // Restore its own edge when this local shelf disappears or the lower control changes.
   const last = items.at(-1)
-  const returnId =
-    status === "error" ? retryId : last === undefined ? undefined : forgetId(last.videoId)
-  useLayoutEffect(() => {
-    if (returnId === undefined) return
-    const lower = focusTarget(lowerFocusId)
-    if (lower === undefined) return
-    const previous = lower.getAttribute("data-focus-up")
-    lower.setAttribute("data-focus-up", returnId)
-    return () => {
-      if (previous === null) lower.removeAttribute("data-focus-up")
-      else lower.setAttribute("data-focus-up", previous)
-    }
-  })
 
   const feedback = (
     <>
@@ -109,7 +86,7 @@ export const ContinueWatchingShelf = ({
             data-focus-id={retryId}
             data-focus-left="nav-home"
             data-focus-right={items[0] === undefined ? lowerFocusId : openId(items[0].videoId)}
-            data-focus-up={last === undefined ? "nav-home" : forgetId(last.videoId)}
+            data-focus-up={last === undefined ? upperFocusId : forgetId(last.videoId)}
             data-focusable="true"
             onClick={onRetry}
             ref={keepActionFocus}
@@ -153,7 +130,7 @@ export const ContinueWatchingShelf = ({
                 data-focus-right={
                   next === undefined ? forgetId(bookmark.videoId) : openId(next.videoId)
                 }
-                data-focus-up="nav-home"
+                data-focus-up={upperFocusId}
                 data-focusable="true"
                 onClick={() => onSelect(bookmark)}
                 onFocus={(event) => {
