@@ -13,6 +13,7 @@ decides whether that test is expected to pass or expected to fail.
 bun run build          # the suite launches out/main/index.js through package.json "main"
 bun run test:e2e       # all rows that can run on this machine
 bun run test:e2e:coverage  # every ledger row has a test, and every test has a ledger row
+node scripts/check-e2e-outcomes.mjs test-results/e2e/report.json  # every executed row matched its ledger colour
 ```
 
 A desktop session is required (`DISPLAY` must point at an X server; WSLg's `:0` works). On a
@@ -73,9 +74,24 @@ The ledgers are the source of truth, so a test's expected colour is derived, nev
 | flow row PARTIAL or FAIL | `test.fail()` - it asserts the row's FULL observable, which the app does not meet yet |
 | flow row BLOCKED | skipped behind `E2E_RUN_BLOCKED`, printing the environment limit |
 | NEEDS-AUTH / NEEDS-HARDWARE | skipped behind its gate |
-| open defect row | `test.fail()` - it asserts the fixed behaviour |
+| open defect row with a UI seam | `defectTest(...)` - `test.fail()`, asserting the fixed behaviour |
+| open defect row in a module | a vitest case marked `it.fails` next to that module's tests |
+| ledger row a test cannot express | one entry with a reason in `test/e2e/ledger-exclusions.json` |
+
+`scripts/check-e2e-outcomes.mjs` closes the loop from the other side: it reads a run's JSON report and
+fails when any row's outcome disagrees with its ledger verdict, so a row that quietly stops running is
+caught as well as one whose colour flipped.
 
 An expected-red test that starts passing FAILS the run with "Expected to fail, but passed". That
 is the point: the day a defect is fixed, its test turns the suite red until the ledger row and the
 `test.fail()` come off together. Never silence a red test - either fix the row it names or record
 why the observable changed.
+
+## When a row's verdict is wrong
+
+Four rows recorded PARTIAL in the review turned out to meet their observable once the suite could
+create the condition the manual pass could not - a seeded past broadcast that really plays, a retry
+request held until after departure, an armed chat session, focus measured across a challenge
+arrival. Each one was re-run twice, its ledger row updated to PASS with the new evidence, and its
+test became green. Do the same rather than weakening an assertion: change the ledger, in the same
+commit, with the measurement that justifies it.
