@@ -84,6 +84,22 @@ are blocked on an environment limit, an account, or hardware, and each says whic
 | xc-docs | 1 (1 major, 0 minor) | 8 | 2 (2 pass, 0 partial, 0 fail) | FINDINGS - major |
 | manual-qa | 4 (2 major, 2 minor) | 0 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
 
+## Gate review history
+
+The review itself was audited three times by an independent gate reviewer. Each round's
+blockers were about the accuracy of this review, not about product fixes.
+
+| round | verdict | blockers raised | disposition |
+| --- | --- | --- | --- |
+| 1 | REJECT | two manual-QA findings described intended behaviour; several flow verdicts exceeded their evidence; journeys that needed only local fixture data were skipped as auth-only | D-manual-qa-1 and D-manual-qa-4 withdrawn; disputed rows re-executed or downgraded; bookmarks and favourites seeded as JSON and the fixture journeys executed |
+| 2 | REJECT | four rows still overstated (second Settings width, Save focus sampling, narrow-chat scrolling, chooser traversal), three newly executed rows missing their defining condition, and four VOD rows blocked on a prerequisite that does not exist | all re-executed with the viewport measured in-page and observers armed before the action; the past-broadcast rows ran against a real public VOD seeded as a bookmark; F-cycle-07-6 now fails honestly and is filed as D-manual-qa-5 |
+| 3 | REJECT | startup-failure graph started from the wrong control, startup race not observed mid-startup, VOD paused state not actually established, browser launch target not measured | all four closed: the graph trace now matches from Back, the race is observed with the first instance still starting, the activation URL is measured off the browser command line, and the paused-state failure is filed as D-manual-qa-6 |
+
+The third round's four items were fixed and re-verified with captured evidence; a fourth review
+was not run. Anyone re-opening this review should start from that round's report,
+`.omo/evidence/review-cycles-1-22-delta2-gate-review.md`, and the artifacts under
+`.omo/review/qa/`.
+
 ## Defects
 
 | id | lane | severity | location | observed | why it is wrong | suggested fix | confidence |
