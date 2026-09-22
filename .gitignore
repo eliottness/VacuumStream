@@ -2,6 +2,8 @@ node_modules/
 out/
 dist/
 coverage/
+test-results/
+playwright-report/
 .flatpak-build/
 .flatpak-repository/
 .flatpak-builder/
