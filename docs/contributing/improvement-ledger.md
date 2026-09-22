@@ -51,7 +51,7 @@ are out of scope and are rejected without review.
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
-| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | In progress |
+| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -338,6 +338,12 @@ Acceptance criteria:
 
 Not in scope: composing messages, scrolling chat history with the controller, third-party emotes,
 VOD chat replay, and any change to the autoplay mechanism.
+
+Landed in `970d67c`, with the logic in a `usePlayerChat` hook so the player component barely grew.
+The pane resets during render when the source changes, so a returning channel cannot revive its
+old frame, and Reload simply re-keys the iframe. Readability is a transform on the frame's
+wrapper with compensating dimensions, which scales Twitch's own UI without touching the
+cross-origin document. Verified with `bun run verify` at 253 tests.
 
 ## Observed but not yet scheduled
 
