@@ -10,7 +10,8 @@ const PREVIEW_VIDEOS = [
     duration: "1h",
     id: "preview-recording",
     publishedAt: "2026-09-21T12:00:00Z",
-    thumbnailUrl: "https://example.com/preview-recording.jpg",
+    // A bundled asset so the loaded-artwork card is a real comparison for the placeholder.
+    thumbnailUrl: new URL("signal-preview.svg", location.origin).href,
     title: "An archived stream",
     userId: "preview",
     userLogin: "preview",
