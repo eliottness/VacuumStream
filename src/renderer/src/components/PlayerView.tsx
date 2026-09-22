@@ -73,6 +73,7 @@ export const PlayerView = ({
   const [paused, setPaused] = useState(true)
   const [position, setPosition] = useState<number | undefined>(undefined)
   const [duration, setDuration] = useState<number | undefined>(undefined)
+  const [seekTransportOpen, setSeekTransportOpen] = useState(false)
   const autoStartGenerationRef = useRef(0)
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
@@ -106,6 +107,19 @@ export const PlayerView = ({
     if (canPlay) backButtonRef.current?.focus()
   }, [canPlay])
   useEffect(() => {
+    if (frameState !== "ready") return undefined
+    // Ads and Twitch's own controls change playback without always emitting PLAY or PAUSE, so the
+    // toolbar would keep offering the action the viewer already has. Resync when they reach for it.
+    const resync = (): void => {
+      const player = playerRef.current
+      if (player === undefined) return
+      setPaused(player.isPaused())
+      setMuted(player.getMuted())
+    }
+    document.addEventListener("keydown", resync)
+    return () => document.removeEventListener("keydown", resync)
+  }, [frameState])
+  useEffect(() => {
     let active = true
     let initialized = false
     let offline = false
@@ -115,6 +129,7 @@ export const PlayerView = ({
     setDuration(undefined)
     resetQualities()
     resetCaptions()
+    setSeekTransportOpen(false)
     if (!canPlay) return
     const progress =
       source.kind === "video" ? beginProgress(source, startingPosition, () => active) : undefined
@@ -270,10 +285,8 @@ export const PlayerView = ({
     cancelAutoStart()
     const player = playerRef.current
     if (player === undefined) return
-    if (paused) {
-      const frame = document.querySelector<HTMLIFrameElement>("#twitch-player-root iframe")
-      if (frame === null) return
-      frame.focus()
+    // Twitch pauses for ads without always emitting PAUSE, so the player's own state decides.
+    if (player.isPaused()) {
       void window.vacuumStream.system.activateEmbeddedPlayer(false).then((playbackStarted) => {
         setMuted(player.getMuted())
         if (playbackStarted) setPaused(false)
@@ -306,16 +319,44 @@ export const PlayerView = ({
 
   const showHours = duration !== undefined && duration >= 3600
   const unknownBroadcaster = source.kind === "video" && source.userId === "0"
+  const seekTransportUsable =
+    source.kind === "video" && frameState === "ready" && duration !== undefined
+  const captionsRight = unknownBroadcaster
+    ? seekTransportUsable
+      ? "player-seek"
+      : "player-fullscreen"
+    : "player-vods"
+  const vodsRight =
+    source.kind === "live"
+      ? "player-chat"
+      : seekTransportUsable
+        ? "player-seek"
+        : "player-fullscreen"
+  const seekLeft = unknownBroadcaster ? "player-captions" : "player-vods"
+  const toolbarFullscreenLeft =
+    source.kind === "video" ? (seekTransportUsable ? "player-seek" : seekLeft) : fullscreenLeft
 
   if (resumePrompt !== null) {
     return <main className="player-view player-view--resume">{resumePrompt}</main>
   }
 
   return (
-    <main className={source.kind === "video" ? "player-view player-view--video" : "player-view"}>
+    <main
+      className={
+        source.kind === "video" && seekTransportOpen
+          ? "player-view player-view--video"
+          : "player-view"
+      }
+    >
       <header className="player-toolbar">
         <button
-          data-focus-down={source.kind === "video" ? "player-seek-back-5m" : undefined}
+          data-focus-down={
+            source.kind === "video"
+              ? seekTransportOpen
+                ? "player-seek-back-5m"
+                : "player-back"
+              : undefined
+          }
           data-focus-id="player-back"
           data-focus-right={
             frameState === "startup-error"
@@ -374,21 +415,21 @@ export const PlayerView = ({
           type="button"
         >
           {muted ? (
-            <SpeakerHighIcon aria-hidden="true" />
+            <SpeakerSimpleXIcon aria-hidden="true" data-icon-state="muted" />
           ) : (
-            <SpeakerSimpleXIcon aria-hidden="true" />
+            <SpeakerHighIcon aria-hidden="true" data-icon-state="audible" />
           )}
         </button>
         {frameState === "startup-error"
           ? cloneElement(qualityButton, { "data-focus-left": "player-retry" })
           : qualityButton}
         {unknownBroadcaster
-          ? cloneElement(captionsButton, { "data-focus-right": "player-fullscreen" })
+          ? cloneElement(captionsButton, { "data-focus-right": captionsRight })
           : captionsButton}
         <button
           data-focus-id="player-vods"
           data-focus-left="player-captions"
-          data-focus-right={source.kind === "live" ? "player-chat" : "player-fullscreen"}
+          data-focus-right={vodsRight}
           data-focusable="true"
           disabled={unknownBroadcaster}
           onClick={() => onPastBroadcasts(source.userId)}
@@ -397,13 +438,30 @@ export const PlayerView = ({
           <FilmStripIcon aria-hidden="true" />
           Past broadcasts
         </button>
+        {source.kind === "video" ? (
+          <button
+            aria-controls={seekTransportOpen ? "player-seek-transport" : undefined}
+            aria-expanded={seekTransportOpen}
+            data-focus-down={seekTransportOpen ? "player-seek-back-5m" : "player-seek"}
+            data-focus-id="player-seek"
+            data-focus-left={seekLeft}
+            data-focus-right="player-fullscreen"
+            data-focus-up="player-back"
+            data-focusable="true"
+            disabled={!seekTransportUsable}
+            onClick={() => setSeekTransportOpen((open) => !open)}
+            type="button"
+          >
+            Seek
+          </button>
+        ) : null}
         {chatButton}
         {chatEnterButton}
         {chatReloadButton}
         <button
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
-          data-focus-left={unknownBroadcaster ? "player-captions" : fullscreenLeft}
+          data-focus-left={toolbarFullscreenLeft}
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
@@ -411,8 +469,12 @@ export const PlayerView = ({
           <CornersOutIcon aria-hidden="true" />
         </button>
       </header>
-      {source.kind === "video" ? (
-        <section aria-label="Past broadcast seeking" className="player-transport">
+      {source.kind === "video" && seekTransportOpen ? (
+        <section
+          aria-label="Past broadcast seeking"
+          className="player-transport"
+          id="player-seek-transport"
+        >
           {SEEK_ACTIONS.map((action, index) => (
             <button
               data-focus-id={action.id}
@@ -420,7 +482,7 @@ export const PlayerView = ({
               data-focus-right={SEEK_ACTIONS[index + 1]?.id ?? action.id}
               data-focus-up="player-back"
               data-focusable="true"
-              disabled={frameState !== "ready" || duration === undefined}
+              disabled={!seekTransportUsable}
               key={action.id}
               onClick={() => seekRelative(action.seconds)}
               type="button"
@@ -431,9 +493,9 @@ export const PlayerView = ({
           <output aria-label="Playback position" aria-live="off" className="player-transport__time">
             {formatTime(position, showHours)} / {formatTime(duration, showHours)}
           </output>
-          {progressStatus}
         </section>
       ) : null}
+      {progressStatus}
       {qualityChooser}
       {captionsChooser}
       {chatHint}

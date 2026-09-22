@@ -234,7 +234,7 @@ describe("PlayerView defect regressions", () => {
     ])
   })
 
-  it.fails("D-cycle-15-3 keeps Play recovery focused in the shell and advances from Back with an arrow", async () => {
+  it("D-cycle-15-3 keeps Play recovery focused in the shell and advances from Back with an arrow", async () => {
     const manualActivation = controlledPromise<boolean>()
     let activationCount = 0
     const harness = installHarness({
@@ -262,6 +262,7 @@ describe("PlayerView defect regressions", () => {
     const harness = installHarness({ activation: async () => true })
     const { container, root } = await mountPlayer(videoSource, true)
     await act(async () => harness.player().emit("ready"))
+    await act(async () => button(container, "player-seek").click())
 
     button(container, "player-seek-forward-30s").focus()
     harness.timeline.duration = 0
@@ -296,6 +297,7 @@ describe("PlayerView defect regressions", () => {
     })
     const { container, root } = await mountPlayer(videoSource)
     await act(async () => harness.player().emit("ready"))
+    await act(async () => button(container, "player-seek").click())
     await act(async () => button(container, "player-seek-back-30s").click())
     await act(async () => frameReady.resolve(undefined))
     await act(async () => root.unmount())

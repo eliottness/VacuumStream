@@ -141,6 +141,8 @@ test.describe("cycle-12 toolbar, chooser, and Close", () => {
       "ArrowRight",
       "ArrowRight",
       "ArrowRight",
+      "ArrowRight",
+      "ArrowLeft",
       "ArrowLeft",
       "Enter",
       "ArrowRight",
@@ -154,6 +156,8 @@ test.describe("cycle-12 toolbar, chooser, and Close", () => {
       "player-muted",
       "player-quality",
       "player-captions",
+      "player-vods",
+      "player-seek",
       "player-vods",
       "player-captions",
       "player-captions-show",
@@ -332,7 +336,11 @@ test.describe("cycle-12 legacy recording bypass and caption chooser", () => {
     await controller.press("ArrowRight", 4)
     await controller.waitForFocus("player-captions")
     await controller.press("ArrowRight")
+    await controller.waitForFocus("player-seek")
+    await controller.press("ArrowRight")
     await controller.waitForFocus("player-fullscreen")
+    await controller.press("ArrowLeft")
+    await controller.waitForFocus("player-seek")
     await controller.press("ArrowLeft")
     await controller.waitForFocus("player-captions")
     await controller.press("Enter")

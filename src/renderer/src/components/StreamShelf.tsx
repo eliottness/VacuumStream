@@ -18,6 +18,7 @@ type StreamShelfProps = {
   readonly state?: "error" | "loading" | "ready"
   readonly streams: readonly StreamCardModel[]
   readonly title: string
+  readonly wrap?: boolean
 }
 
 const formatViewers = (viewers: number): string =>
@@ -42,6 +43,7 @@ export const StreamShelf = ({
   state = "ready",
   streams,
   title,
+  wrap = false,
 }: StreamShelfProps) => {
   const headingId = useId()
   const refreshRef = useRef<HTMLButtonElement>(null)
@@ -67,9 +69,93 @@ export const StreamShelf = ({
   const refreshId = `${prefix}-refresh`
   const action = state === "error" ? onRetry : cursor === undefined ? undefined : onLoadMore
   const actionId =
-    action === undefined ? undefined : `${prefix}-${state === "error" ? "retry" : "more"}`
+    action === undefined
+      ? wrap
+        ? `${prefix}-end`
+        : undefined
+      : `${prefix}-${state === "error" ? "retry" : "more"}`
   const firstId = streams[0] === undefined ? actionId : `stream-${streams[0].id}`
   const navId = focusPrefix === undefined ? undefined : `nav-${focusPrefix}`
+
+  useLayoutEffect(() => {
+    const reel = reelRef.current
+    if (!wrap || reel === null) return
+    const updateEdges = (): void => {
+      const cards = [...reel.querySelectorAll<HTMLButtonElement>('[data-focusable="true"]')]
+      const rows: HTMLButtonElement[][] = []
+      for (const card of cards) {
+        const row = rows.at(-1)
+        if (row?.[0]?.offsetTop === card.offsetTop) row.push(card)
+        else rows.push([card])
+      }
+      const edge = (card: HTMLElement, direction: string, id: string | null | undefined): void => {
+        if (id === undefined || id === null) card.removeAttribute(`data-focus-${direction}`)
+        else card.setAttribute(`data-focus-${direction}`, id)
+      }
+      rows.forEach((row, rowIndex) => {
+        row.forEach((card, column) => {
+          const previousRow = rows[rowIndex - 1]
+          const nextRow = rows[rowIndex + 1]
+          edge(
+            card,
+            "left",
+            row[column - 1]?.getAttribute("data-focus-id") ??
+              navId ??
+              card.getAttribute("data-focus-id"),
+          )
+          edge(
+            card,
+            "right",
+            row[column + 1]?.getAttribute("data-focus-id") ?? card.getAttribute("data-focus-id"),
+          )
+          edge(
+            card,
+            "up",
+            previousRow === undefined
+              ? onRefresh === undefined
+                ? entryUpperFocusId
+                : refreshId
+              : previousRow[Math.min(column, previousRow.length - 1)]?.getAttribute(
+                  "data-focus-id",
+                ),
+          )
+          edge(
+            card,
+            "down",
+            nextRow?.[Math.min(column, nextRow.length - 1)]?.getAttribute("data-focus-id"),
+          )
+        })
+      })
+    }
+    updateEdges()
+    window.addEventListener("resize", updateEdges)
+    return () => window.removeEventListener("resize", updateEdges)
+  })
+
+  const trailing =
+    actionId === undefined ? null : (
+      <button
+        aria-disabled={state === "loading" || action === undefined}
+        className="shelf__action"
+        data-focus-id={actionId}
+        data-focus-left={onRefresh === undefined ? navId : refreshId}
+        data-focus-up={streams.length === 0 ? refreshId : `stream-${streams.at(-1)?.id}`}
+        data-focusable="true"
+        onClick={() => {
+          if (state !== "loading") action?.()
+        }}
+        ref={keepActionFocus}
+        type="button"
+      >
+        {action === undefined
+          ? state === "loading"
+            ? "Loading channels..."
+            : "No more channels"
+          : state === "error"
+            ? "Retry"
+            : "Load more"}
+      </button>
+    )
 
   return (
     <section aria-busy={state === "loading"} aria-labelledby={headingId} className="shelf">
@@ -117,9 +203,13 @@ export const StreamShelf = ({
           <span>{emptyMessage}</span>
           {onEmptyAction === undefined || emptyActionLabel === undefined ? null : (
             <button
+              data-focus-down={wrap ? actionId : undefined}
               data-focus-id={emptyActionFocusId}
               data-focus-left={
                 emptyActionFocusId === "following-connect" ? "nav-following" : undefined
+              }
+              data-focus-up={
+                emptyActionFocusId === "following-connect" ? "following-live" : undefined
               }
               data-focusable="true"
               onClick={onEmptyAction}
@@ -130,8 +220,8 @@ export const StreamShelf = ({
           )}
         </div>
       ) : null}
-      {streams.length > 0 ? (
-        <div className="shelf__reel" ref={reelRef}>
+      {streams.length > 0 || wrap ? (
+        <div className={wrap ? "shelf__reel shelf__reel--wrapped" : "shelf__reel"} ref={reelRef}>
           {streams.map((stream, index) => (
             <button
               aria-label={`Watch ${stream.userName}: ${stream.title}`}
@@ -175,7 +265,7 @@ export const StreamShelf = ({
                   src={stream.thumbnailUrl}
                   width="640"
                 />
-                <span className="live-badge">Live</span>
+                {stream.startedAt === "" ? null : <span className="live-badge">Live</span>}
                 <span className="viewer-badge">{formatViewers(stream.viewerCount)}</span>
               </span>
               <span className="stream-card__copy">
@@ -202,25 +292,10 @@ export const StreamShelf = ({
               </span>
             </button>
           ))}
+          {wrap ? trailing : null}
         </div>
       ) : null}
-      {action === undefined ? null : (
-        <button
-          aria-disabled={state === "loading"}
-          className="shelf__action"
-          data-focus-id={actionId}
-          data-focus-left={onRefresh === undefined ? navId : refreshId}
-          data-focus-up={streams.length === 0 ? refreshId : `stream-${streams.at(-1)?.id}`}
-          data-focusable="true"
-          onClick={() => {
-            if (state !== "loading") action()
-          }}
-          ref={keepActionFocus}
-          type="button"
-        >
-          {state === "error" ? "Retry" : "Load more"}
-        </button>
-      )}
+      {wrap ? null : trailing}
     </section>
   )
 }

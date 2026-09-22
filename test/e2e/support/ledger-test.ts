@@ -1,6 +1,6 @@
 import type { TestInfo } from "@playwright/test"
 import { type E2EFixtures, test } from "./fixtures"
-import { type DefectRow, defectRow, type FlowRow, flowRow } from "./ledger"
+import { type DefectRow, defectRow, type FlowRow, flowRow, isDefectFixed } from "./ledger"
 
 const { E2E_GAMEPAD, E2E_RUN_BLOCKED, E2E_TWITCH_AUTH } = process.env
 
@@ -55,12 +55,13 @@ export const flowTest = (id: string, body: LedgerTestBody): void => {
 export const defectTest = (id: string, body: LedgerTestBody): void => {
   const row = defectRow(id)
   test(`${id} ${row.reason}`, async ({ app, controller, profileDirectory, window }, testInfo) => {
+    const fixed = isDefectFixed(id)
     testInfo.annotations.push(
       { description: row.severity, type: "defect-severity" },
       { description: row.location, type: "defect-location" },
-      { description: "red", type: "expected-colour" },
+      { description: fixed ? "green" : "red", type: "expected-colour" },
     )
-    test.fail(true, `${id} asserts the fixed behaviour of an open defect (${row.location})`)
+    test.fail(!fixed, `${id} asserts the fixed behaviour of an open defect (${row.location})`)
     await body({ app, controller, profileDirectory, window }, testInfo)
   })
 }

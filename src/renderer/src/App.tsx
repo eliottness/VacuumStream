@@ -1,5 +1,6 @@
 import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
-import { useEffect, useLayoutEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { CategoryView } from "./components/CategoryView"
 import { ContinueWatchingShelf, recordingTitle } from "./components/ContinueWatchingShelf"
@@ -35,6 +36,17 @@ export const App = () => {
     clientId: controller.settings.clientId,
   })
   const focusedControl = useRef<HTMLElement | null>(null)
+  const [followingTools, setFollowingTools] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    // Compose the mode controls into either shelf without changing the directory component.
+    const tools = document.querySelector<HTMLElement>(".following-view .shelf__tools")
+    setFollowingTools(tools)
+    const refresh = tools?.querySelector<HTMLElement>('[data-focus-id$="-refresh"]')
+    if (refresh !== null && refresh !== undefined) {
+      refresh.setAttribute("data-focus-right", "following-live")
+      refresh.setAttribute("data-focus-up", "nav-following")
+    }
+  })
   const screenTitle =
     controller.screen.kind === "browse"
       ? ROUTE_TITLES[controller.screen.route]
@@ -49,8 +61,9 @@ export const App = () => {
   }, [screenTitle])
   useLayoutEffect(() => {
     const focusId = screenEntryFocusId(controller.screen)
-    document.querySelector<HTMLElement>(`[data-focus-id="${focusId}"]`)?.focus()
-  }, [controller.screen])
+    const scope = focusId === "following-all" ? followingTools : document
+    scope?.querySelector<HTMLElement>(`[data-focus-id="${focusId}"]`)?.focus()
+  }, [controller.screen, followingTools])
   useLayoutEffect(() => {
     // An upstream auth/settings change also supersedes an in-flight account request.
     if (
@@ -239,11 +252,13 @@ export const App = () => {
                 : {})}
               emptyMessage="No live channels are available right now."
               entryUpperFocusId={home.liveEntryUpperFocusId}
+              focusPrefix="home"
               onSelect={controller.openStream}
               streams={
                 controller.auth.kind === "authenticated" ? controller.live.items : PREVIEW_STREAMS
               }
               title={controller.auth.kind === "authenticated" ? "Recommended live" : "Quick watch"}
+              wrap
             />
             <CategoryShelf
               categories={controller.categories}
@@ -252,7 +267,7 @@ export const App = () => {
           </main>
         ) : null}
         {route === "following" ? (
-          <main className="browse-view" id="main-content" tabIndex={-1}>
+          <main className="browse-view following-view" id="main-content" tabIndex={-1}>
             <header className="page-heading">
               <span>Your channels</span>
               <h1>Following</h1>
@@ -283,38 +298,63 @@ export const App = () => {
                     ? "No followed channels are live right now."
                     : "Connect Twitch to see live channels you follow."
                 }
+                focusPrefix="following"
                 onSelect={controller.openStream}
                 streams={controller.followed.items}
                 title="Live from your follows"
+                wrap
               />
             )}
-            <fieldset aria-label="Following view" className="following-modes">
-              <button
-                aria-pressed={!allChannels}
-                data-focus-down={allChannels ? "following-directory-refresh" : "following-refresh"}
-                data-focus-id="following-live"
-                data-focus-left="nav-following"
-                data-focus-right="following-all"
-                data-focus-up={allChannels ? "nav-following" : "following-refresh"}
-                data-focusable="true"
-                onClick={() => controller.navigate("following")}
-                type="button"
-              >
-                Live now
-              </button>
-              <button
-                aria-pressed={allChannels}
-                data-focus-down={allChannels ? "following-directory-refresh" : "following-refresh"}
-                data-focus-id="following-all"
-                data-focus-left="following-live"
-                data-focus-up={allChannels ? "nav-following" : "following-refresh"}
-                data-focusable="true"
-                onClick={controller.showAllChannels}
-                type="button"
-              >
-                All channels
-              </button>
-            </fieldset>
+            {followingTools === null
+              ? null
+              : createPortal(
+                  <fieldset aria-label="Following view" className="following-modes">
+                    <button
+                      aria-pressed={!allChannels}
+                      data-focus-down={
+                        controller.auth.kind !== "authenticated"
+                          ? "following-connect"
+                          : allChannels
+                            ? "following-directory-refresh"
+                            : "following-refresh"
+                      }
+                      data-focus-id="following-live"
+                      data-focus-left={
+                        controller.auth.kind !== "authenticated"
+                          ? "nav-following"
+                          : allChannels
+                            ? "following-directory-refresh"
+                            : "following-refresh"
+                      }
+                      data-focus-right="following-all"
+                      data-focus-up="nav-following"
+                      data-focusable="true"
+                      onClick={() => controller.navigate("following")}
+                      type="button"
+                    >
+                      Live now
+                    </button>
+                    <button
+                      aria-pressed={allChannels}
+                      data-focus-down={
+                        controller.auth.kind !== "authenticated"
+                          ? "following-connect"
+                          : allChannels
+                            ? "following-directory-refresh"
+                            : "following-refresh"
+                      }
+                      data-focus-id="following-all"
+                      data-focus-left="following-live"
+                      data-focus-up="nav-following"
+                      data-focusable="true"
+                      onClick={controller.showAllChannels}
+                      type="button"
+                    >
+                      All channels
+                    </button>
+                  </fieldset>,
+                  followingTools,
+                )}
             {allChannels ? (
               <FollowedChannelsView
                 channels={controller.followedChannels.items}

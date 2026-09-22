@@ -107,12 +107,27 @@ export const usePlayerChat = (
         void window.vacuumStream.chatInput.press(id, action).catch(transportFailed)
       }
     }
-    // Keyboard events in Twitch stay native. Shell shortcuts cannot escape this mode.
+    // Chat navigation is forwarded through the native input bridge. Shell shortcuts cannot escape.
     // Capture also makes B/Escape an exit rather than the app's Home shortcut.
     const onKeyDown = (event: KeyboardEvent): void => {
       event.preventDefault()
       event.stopImmediatePropagation()
-      if (event.key === "Escape") endInteraction()
+      if (event.key === "Escape") {
+        endInteraction()
+        return
+      }
+      if (!ready) return
+      const action =
+        event.key === "ArrowDown" || event.key === "ArrowRight"
+          ? "next"
+          : event.key === "ArrowUp" || event.key === "ArrowLeft"
+            ? "previous"
+            : event.key === "Enter"
+              ? "activate"
+              : undefined
+      if (action !== undefined) {
+        void window.vacuumStream.chatInput.press(id, action).catch(transportFailed)
+      }
     }
     document.addEventListener("keydown", onKeyDown, true)
     document.addEventListener(CHAT_GAMEPAD_EVENT, onGamepad, true)

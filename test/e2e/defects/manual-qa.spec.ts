@@ -196,7 +196,18 @@ test.describe("D-manual-qa-6 stalled past broadcast playback toggle", () => {
       "aria-label",
       "Pause",
     )
+    await window.waitForFunction(
+      () =>
+        document.querySelector<HTMLButtonElement>('[data-focus-id="player-seek"]')?.disabled ===
+        false,
+    )
+    await controller.press("ArrowRight", 5)
+    await controller.waitForFocus("player-seek")
+    await controller.press("Enter")
+    await controller.waitForFocus("player-seek")
     await expect(window.locator(".player-transport__time")).toHaveText("0:10:19 / 2:00:00")
+    await controller.press("ArrowUp")
+    await controller.waitForFocus("player-back")
 
     const resumeCallCount = (): Promise<number> =>
       app.evaluate(

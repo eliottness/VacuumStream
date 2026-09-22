@@ -98,7 +98,7 @@ const enterChat = async (): Promise<void> => {
 }
 
 describe("usePlayerChat defect regressions", () => {
-  it.fails("D-cycle-07-1 translates physical and mapped arrows into bounded chat navigation while preserving Enter and Escape", async () => {
+  it("D-cycle-07-1 maps keyboard navigation and activation to chat input and exits on Escape", async () => {
     await enterChat()
     const frame = chatFrame()
     const session = bridge.begin.mock.calls[0]?.[0]
@@ -118,7 +118,13 @@ describe("usePlayerChat defect regressions", () => {
     expect.soft(document.activeElement).toBe(frame)
 
     await keyDown("Enter")
-    expect(bridge.press).toHaveBeenCalledTimes(4)
+    expect(bridge.press.mock.calls).toEqual([
+      [session, "next"],
+      [session, "next"],
+      [session, "previous"],
+      [session, "previous"],
+      [session, "activate"],
+    ])
     expect(frame.tabIndex).toBe(0)
     expect(document.activeElement).toBe(frame)
 

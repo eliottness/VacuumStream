@@ -9,6 +9,8 @@ test.describe("cycle-02 guest category sign-in route", () => {
     await controller.press("ArrowDown")
     await controller.waitForFocus("stream-preview-twitch")
     await controller.press("ArrowDown")
+    await controller.waitForFocus("home-end")
+    await controller.press("ArrowDown")
     await window.waitForSelector(".category-card:focus")
 
     await controller.press("Enter")
@@ -36,6 +38,10 @@ test.describe("cycle-02 category stream opens the official player", () => {
     await controller.press("ArrowRight")
     await controller.waitForFocus("home-refresh")
     await controller.press("ArrowDown", 2)
+    await window.waitForSelector(
+      "[data-focus-id='home-more']:focus, [data-focus-id='home-end']:focus",
+    )
+    await controller.press("ArrowDown")
     await window.waitForSelector(".category-card:focus")
     await controller.press("Enter")
 
@@ -65,6 +71,10 @@ test.describe("cycle-02 category pagination and filter retention", () => {
     await controller.press("ArrowRight")
     await controller.waitForFocus("home-refresh")
     await controller.press("ArrowDown", 2)
+    await window.waitForSelector(
+      "[data-focus-id='home-more']:focus, [data-focus-id='home-end']:focus",
+    )
+    await controller.press("ArrowDown")
     await window.waitForSelector(".category-card:focus")
     await controller.press("Enter")
 
@@ -88,6 +98,10 @@ test.describe("cycle-02 category pagination and filter retention", () => {
     await controller.press("ArrowRight")
     await controller.waitForFocus("home-refresh")
     await controller.press("ArrowDown", 2)
+    await window.waitForSelector(
+      "[data-focus-id='home-more']:focus, [data-focus-id='home-end']:focus",
+    )
+    await controller.press("ArrowDown")
     await window.waitForSelector(".category-card:focus")
     await controller.press("ArrowRight")
     await window.waitForSelector(".category-card:focus")

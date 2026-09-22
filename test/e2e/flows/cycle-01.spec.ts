@@ -40,6 +40,17 @@ const waitForVOD = async (
   await controller.waitForFocus("player-back")
   await waitForPlayerReady(window)
   await window.waitForFunction(
+    () =>
+      document.querySelector<HTMLButtonElement>('[data-focus-id="player-seek"]')?.disabled ===
+      false,
+    null,
+    { timeout: 90_000 },
+  )
+  await controller.press("ArrowRight", 5)
+  await controller.waitForFocus("player-seek")
+  await controller.press("Enter")
+  await controller.waitForFocus("player-seek")
+  await window.waitForFunction(
     () => {
       const output = document.querySelector<HTMLOutputElement>(".player-transport__time")
       const text = output?.textContent?.trim() ?? ""
@@ -65,6 +76,8 @@ const waitForVOD = async (
     PUBLIC_VOD_POSITION,
     { timeout: 90_000 },
   )
+  await controller.press("ArrowUp")
+  await controller.waitForFocus("player-back")
 }
 
 const transportIsVisibleOutsideVideo = async (
@@ -222,10 +235,21 @@ test.describe("cycle-01 VOD start clamp", () => {
     await controller.waitForFocus("video-resume-resume")
     await controller.press("Enter")
     await controller.waitForFocus("player-back")
+    await window.waitForFunction(
+      () =>
+        document.querySelector<HTMLButtonElement>('[data-focus-id="player-seek"]')?.disabled ===
+        false,
+    )
+    await controller.press("ArrowRight", 5)
+    await controller.waitForFocus("player-seek")
+    await controller.press("Enter")
+    await controller.waitForFocus("player-seek")
     await window.waitForFunction(() => {
       const output = document.querySelector<HTMLOutputElement>(".player-transport__time")
       return /^\d+:\d{2}:\d{2} \/ \d+:\d{2}:\d{2}$/.test(output?.textContent?.trim() ?? "")
     })
+    await controller.press("ArrowUp")
+    await controller.waitForFocus("player-back")
 
     await expect
       .poll(() => window.locator('[data-focus-id="player-playback"]').getAttribute("aria-label"))

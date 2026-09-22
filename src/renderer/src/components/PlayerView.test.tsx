@@ -349,6 +349,12 @@ const buttonById = (container: HTMLElement, id: string): HTMLButtonElement => {
   return button
 }
 
+const openSeekTransport = async (container: HTMLElement): Promise<void> => {
+  const seek = buttonById(container, "player-seek")
+  if (seek.disabled) throw new Error("Seek transport is unavailable")
+  await act(async () => seek.click())
+}
+
 afterEach(() => {
   document.body.replaceChildren()
   vi.restoreAllMocks()
@@ -462,6 +468,7 @@ describe("local VOD resume", () => {
       harness.emit("pause")
     })
     expect(harness.bookmarks.get("42")?.position).toBe(100)
+    await openSeekTransport(container)
     await act(async () => buttonById(container, "player-seek-forward-30s").click())
     expect(harness.progress.save).toHaveBeenCalledTimes(1)
     timeline.currentTime = 130
@@ -594,6 +601,7 @@ describe("local VOD resume", () => {
     await act(async () => harness.emit("pause"))
     expect(harness.bookmarks.get("42")?.position).toBe(3901)
     timeline.currentTime = 10
+    await openSeekTransport(container)
     await act(async () => buttonById(container, "player-seek-back-30s").click())
     timeline.currentTime = 0
     await act(async () => harness.emit("seek"))
@@ -822,7 +830,7 @@ describe("Twitch player surface", () => {
     await act(async () => root.unmount())
   })
 
-  it("leaves focus inside the embed after trusted playback activation", async () => {
+  it("keeps focus on the shell control after trusted playback activation", async () => {
     // Given a ready, paused Twitch embed
     const { activateEmbeddedPlayer, listeners } = installPlayerHarness([false, true])
     const container = document.createElement("div")
@@ -837,9 +845,9 @@ describe("Twitch player surface", () => {
     // When the user activates playback once
     await act(async () => playbackButton?.click())
 
-    // Then focus stays with Twitch instead of arming the pause button for another Enter press
+    // Then the viewer keeps arrow control of the shell instead of losing it to the Twitch frame
     expect(activateEmbeddedPlayer).toHaveBeenCalledWith(false)
-    expect(document.activeElement).toBe(container.querySelector("iframe"))
+    expect(document.activeElement).not.toBe(container.querySelector("iframe"))
 
     await act(async () => root.unmount())
   })
@@ -1300,12 +1308,16 @@ describe("controller captions", () => {
   })
 
   it.each([source, videoSource])(
-    "walks the caption toolbar and chooser in both directions for $kind without playback or data side effects",
+    "walks the toolbar in both transport states and the caption chooser for $kind without playback or data side effects",
     async (playerSource) => {
-      const harness = installPlayerHarness([true], undefined, {
-        available: ["auto"],
-        current: "auto",
-      })
+      const harness = installPlayerHarness(
+        [true],
+        playerSource.kind === "video" ? { currentTime: 60, duration: 3600 } : undefined,
+        {
+          available: ["auto"],
+          current: "auto",
+        },
+      )
       const { container, root } = await mountNavigablePlayer(playerSource)
       await act(async () => harness.emit("ready"))
       const player = harness.instances[0]
@@ -1347,11 +1359,28 @@ describe("controller captions", () => {
         "player-quality",
         "player-captions",
         "player-vods",
-        ...(playerSource.kind === "live" ? ["player-chat"] : []),
+        ...(playerSource.kind === "video" ? ["player-seek"] : ["player-chat"]),
         "player-fullscreen",
       ]
-      for (const id of route.slice(1)) await move("ArrowRight", id)
-      for (const id of route.slice(0, -1).reverse()) await move("ArrowLeft", id)
+      const walkToolbar = async (): Promise<void> => {
+        for (const id of route.slice(1)) await move("ArrowRight", id)
+        for (const id of route.slice(0, -1).reverse()) await move("ArrowLeft", id)
+      }
+      expect(container.querySelector(".player-transport")).toBeNull()
+      await walkToolbar()
+      if (playerSource.kind === "video") {
+        const seek = buttonById(container, "player-seek")
+        expect(seek.getAttribute("aria-expanded")).toBe("false")
+        await openSeekTransport(container)
+        expect(seek.getAttribute("aria-controls")).toBe("player-seek-transport")
+        expect(seek.getAttribute("aria-expanded")).toBe("true")
+        expect(
+          seekButtons(container).map((button) => button.getAttribute("data-focus-id")),
+        ).toEqual(seekIds)
+        await walkToolbar()
+        await act(async () => seek.click())
+        expect(container.querySelector(".player-transport")).toBeNull()
+      }
       for (const id of route.slice(1, 4)) await move("ArrowRight", id)
       await move("Enter", "player-quality-option-auto")
       await move("ArrowUp", "player-quality")
@@ -2446,26 +2475,32 @@ describe("VOD controller seeking", () => {
     await act(async () => root.unmount())
   })
 
-  it("enables VOD jumps only after READY supplies a finite positive duration", async () => {
+  it("keeps VOD seeking hidden by default until READY supplies a finite positive duration", async () => {
     const harness = installPlayerHarness([true], { currentTime: 600, duration: 3600 })
     const { container, root } = await mountPlayer()
-    expect(seekButtons(container)).toHaveLength(4)
-    expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
-    expect(container.querySelector(".player-toolbar .player-transport")).toBeNull()
-    expect(container.querySelector(".player-frame .player-transport")).toBeNull()
+    const seek = buttonById(container, "player-seek")
+    expect(seek.disabled).toBe(true)
+    expect(seek.getAttribute("aria-expanded")).toBe("false")
+    expect(seek.hasAttribute("aria-controls")).toBe(false)
+    expect(seekButtons(container)).toHaveLength(0)
+    expect(container.querySelector(".player-transport")).toBeNull()
 
     await act(async () => {
       harness.emit("playing")
       harness.emit("seek")
       await vi.advanceTimersByTimeAsync(1000)
-      for (const button of seekButtons(container)) button.click()
     })
     expect(harness.getCurrentTime).not.toHaveBeenCalled()
     expect(harness.getDuration).not.toHaveBeenCalled()
     expect(harness.seek).not.toHaveBeenCalled()
-    expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
 
     await act(async () => harness.emit("ready"))
+    expect(seek.disabled).toBe(false)
+    expect(container.querySelector(".player-transport")).toBeNull()
+    await openSeekTransport(container)
+    expect(seek.getAttribute("aria-controls")).toBe("player-seek-transport")
+    expect(seek.getAttribute("aria-expanded")).toBe("true")
+    expect(seekButtons(container)).toHaveLength(4)
     expect(seekButtons(container).every((button) => !button.disabled)).toBe(true)
     expect(container.querySelector("output")?.textContent).toBe("0:10:00 / 1:00:00")
     await act(async () => root.unmount())
@@ -2478,18 +2513,20 @@ describe("VOD controller seeking", () => {
       const harness = installPlayerHarness([true], timeline)
       const { container, root } = await mountPlayer()
       await act(async () => harness.emit("ready"))
-      expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
-      await act(async () => {
-        for (const button of seekButtons(container)) button.click()
-      })
+      const seek = buttonById(container, "player-seek")
+      expect(seek.disabled).toBe(true)
+      expect(seekButtons(container)).toHaveLength(0)
       expect(harness.seek).not.toHaveBeenCalled()
 
       timeline.duration = 3600
       await act(async () => harness.emit("playing"))
+      expect(seek.disabled).toBe(false)
+      await openSeekTransport(container)
       expect(seekButtons(container).every((button) => !button.disabled)).toBe(true)
 
       timeline.duration = duration
       await act(async () => vi.advanceTimersByTimeAsync(1000))
+      expect(seek.disabled).toBe(true)
       expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
       await act(async () => root.unmount())
     },
@@ -2500,6 +2537,7 @@ describe("VOD controller seeking", () => {
     const harness = installPlayerHarness([true], timeline)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
 
     // The live API position, not the last rendered sample, determines each jump.
     timeline.currentTime = 600
@@ -2516,6 +2554,7 @@ describe("VOD controller seeking", () => {
     const harness = installPlayerHarness([true], timeline)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
 
     await act(async () => {
       buttonById(container, "player-seek-back-5m").click()
@@ -2539,6 +2578,7 @@ describe("VOD controller seeking", () => {
     })
     const { container, root } = await mountNavigablePlayer(videoSource)
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     harness.activateEmbeddedPlayer.mockClear()
     harness.play.mockClear()
     harness.pause.mockClear()
@@ -2574,6 +2614,7 @@ describe("VOD controller seeking", () => {
     const harness = installPlayerHarness([true], timeline)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     const button = buttonById(container, "player-seek-forward-30s")
 
     for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
@@ -2613,7 +2654,17 @@ describe("VOD controller seeking", () => {
       button.scrollIntoView = vi.fn()
     }
 
-    expect(document.activeElement).toBe(buttonById(container, "player-back"))
+    const back = buttonById(container, "player-back")
+    expect(document.activeElement).toBe(back)
+    await act(async () => dispatchControllerKey("ArrowDown"))
+    expect(document.activeElement).toBe(back)
+    expect(container.querySelector(".player-transport")).toBeNull()
+
+    await openSeekTransport(container)
+    expect(container.querySelector(".player-transport")).not.toBeNull()
+    for (const button of container.querySelectorAll("button")) {
+      button.scrollIntoView = vi.fn()
+    }
     await act(async () => dispatchControllerKey("ArrowDown"))
     for (const id of seekIds) {
       const button = buttonById(container, id)
@@ -2641,6 +2692,7 @@ describe("VOD controller seeking", () => {
     const harness = installPlayerHarness([true], timeline)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     expect(container.querySelector("output")?.textContent).toBe("1:05 / 59:59")
 
     timeline.currentTime = 125
@@ -2690,12 +2742,14 @@ describe("VOD controller seeking", () => {
     const stopSampling = vi.spyOn(globalThis, "clearInterval")
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     const oldListeners = new Map(harness.listeners)
     expect(startSampling).toHaveBeenCalledTimes(1)
     const interval = startSampling.mock.results[0]?.value
 
     await act(async () => root.render(playerView({ ...videoSource, videoId: "43" })))
-    expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
+    expect(buttonById(container, "player-seek").disabled).toBe(true)
+    expect(container.querySelector(".player-transport")).toBeNull()
     expect(stopSampling).toHaveBeenCalledWith(interval)
     expect(startSampling).toHaveBeenCalledTimes(1)
     const reads = harness.getCurrentTime.mock.calls.length
@@ -2706,11 +2760,12 @@ describe("VOD controller seeking", () => {
       await vi.advanceTimersByTimeAsync(5000)
     })
     expect(harness.getCurrentTime).toHaveBeenCalledTimes(reads)
-    expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
+    expect(buttonById(container, "player-seek").disabled).toBe(true)
 
     timeline.currentTime = 20
     timeline.duration = 120
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     expect(container.querySelector("output")?.textContent).toBe("0:20 / 2:00")
     timeline.currentTime = 21
     await act(async () => vi.advanceTimersByTimeAsync(1000))
@@ -2746,7 +2801,8 @@ describe("VOD controller seeking", () => {
       harness.emit("seek")
       await vi.advanceTimersByTimeAsync(1000)
     })
-    expect(seekButtons(container).every((button) => button.disabled)).toBe(true)
+    expect(buttonById(container, "player-seek").disabled).toBe(true)
+    expect(container.querySelector(".player-transport")).toBeNull()
     expect(harness.getCurrentTime).toHaveBeenCalledTimes(reads + 1)
     expect(vi.getTimerCount()).toBe(0)
     await act(async () => root.unmount())
@@ -2757,6 +2813,7 @@ describe("VOD controller seeking", () => {
     const harness = installPlayerHarness([false, true], timeline)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
     await act(async () => buttonById(container, "player-seek-forward-30s").click())
 
     timeline.currentTime = 630
@@ -2779,6 +2836,7 @@ describe("VOD controller seeking", () => {
     harness.activateEmbeddedPlayer.mockReturnValueOnce(activation)
     const { container, root } = await mountPlayer()
     await act(async () => harness.emit("ready"))
+    await openSeekTransport(container)
 
     await act(async () => buttonById(container, "player-seek-back-30s").click())
     await act(async () => {

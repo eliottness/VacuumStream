@@ -692,18 +692,46 @@ describe("All channels in the mounted App", () => {
     )
   })
 
+  it("places both mode controls beside Refresh and connects them in both modes", async () => {
+    await mount()
+    for (const refreshId of ["following-refresh", "following-directory-refresh"]) {
+      const refresh = button(refreshId)
+      const tools = refresh.closest(".shelf__tools")
+      expect(button("following-live").closest(".shelf__tools")).toBe(tools)
+      expect(button("following-all").closest(".shelf__tools")).toBe(tools)
+      refresh.focus()
+      await key("ArrowRight")
+      expect(document.activeElement).toBe(button("following-live"))
+      await key("ArrowRight")
+      expect(document.activeElement).toBe(button("following-all"))
+      await key("ArrowLeft")
+      expect(document.activeElement).toBe(button("following-live"))
+      await key("ArrowLeft")
+      expect(document.activeElement).toBe(refresh)
+      await key("ArrowRight")
+      await key("ArrowRight")
+      await key("ArrowDown")
+      expect(document.activeElement).toBe(refresh)
+      if (refreshId === "following-refresh") {
+        await key("ArrowRight")
+        await key("ArrowRight")
+        await key("Enter")
+      }
+    }
+    await activate("following-live")
+    expect(button("following-refresh").closest(".shelf__tools")).toBe(
+      button("following-all").closest(".shelf__tools"),
+    )
+  })
+
   it("makes both mode controls reachable by arrows and sends a guest to sign-in without catalog requests", async () => {
     const bridge = await mount(() => undefined, { kind: "guest" })
-    // Geometry is only needed for the unoverridden Down from the existing live shelf.
     const connect = button("following-connect")
     const liveMode = button("following-live")
     const allMode = button("following-all")
-    vi.spyOn(connect, "getBoundingClientRect").mockReturnValue(new DOMRect(200, 200, 150, 48))
-    vi.spyOn(liveMode, "getBoundingClientRect").mockReturnValue(new DOMRect(200, 300, 150, 48))
-    vi.spyOn(allMode, "getBoundingClientRect").mockReturnValue(new DOMRect(370, 300, 150, 48))
     await key("ArrowDown")
     expect(document.activeElement).toBe(connect)
-    await key("ArrowDown")
+    await key("ArrowUp")
     expect(document.activeElement).toBe(liveMode)
     await key("ArrowRight")
     expect(document.activeElement).toBe(allMode)

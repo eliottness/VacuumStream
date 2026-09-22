@@ -170,6 +170,18 @@ These rows were re-checked by the orchestrator against the running app (Electron
 | D-cycle-05-1 and the chooser rows | The quality chooser opened with real Twitch renditions on a live source (auto, 1080p60 source, 720p60, 480p, 360p, 160p, Close) and with a "Twitch has not supplied quality options for this source." notice plus a reachable Close on an offline source. | `31-quality-chooser.png`, `110-offline-quality-chooser.png` |
 
 
+## Fixed
+
+A row moves here when the behaviour it describes is corrected. Its test stops being an expected
+failure and becomes an ordinary test, so the fix is locked in rather than celebrated and forgotten.
+
+| id | fixed | proof |
+| --- | --- | --- |
+| D-cycle-07-1 | 2026-09-22 | Chat interaction translates ArrowDown/ArrowRight to next, ArrowUp/ArrowLeft to previous and Enter to activate through the native chat-input transport, so a keyboard or mapped controller can dismiss Twitch's consent dialog (`src/renderer/src/components/usePlayerChat.tsx`). |
+| D-manual-qa-2 | 2026-09-22 | Guest previews no longer claim liveness the app has not verified: a card shows the Live badge only when its data says the channel is live, and the static guest shelf shows "Channel preview" instead (`src/renderer/src/components/StreamShelf.tsx`). |
+| D-manual-qa-6 | 2026-09-22 | The playback toggle re-reads `player.isPaused()` on activation instead of trusting stale shell state, so a recording that never autoplayed starts from the controller (`src/renderer/src/components/PlayerView.tsx`). |
+| D-cycle-15-3 | 2026-09-22 | Activating Play no longer hands DOM focus to the Twitch iframe; the shell keeps controller focus and the recovery path stays arrow-navigable (`src/renderer/src/components/PlayerView.tsx`). |
+
 ## Withdrawn findings
 
 Two observations from the hands-on QA pass were filed as defects and then withdrawn after the

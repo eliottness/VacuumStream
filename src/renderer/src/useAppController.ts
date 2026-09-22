@@ -19,6 +19,7 @@ import {
 } from "./useFollowedChannels"
 
 type ShelfRoute = "following" | "home"
+const CATALOG_REFRESH_INTERVAL = 60_000
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred"
 
@@ -66,6 +67,12 @@ export const useAppController = () => {
   const catalogRequestEpoch = useRef(0)
   const currentScreen = useRef(screen)
   const currentIdentity = useRef<string | undefined>(undefined)
+  const topCategoriesRequest = useRef<number | undefined>(undefined)
+  const topCategoriesRequestEpoch = useRef(0)
+  const videoRequest = useRef<{ readonly id: number; readonly userId: string } | undefined>(
+    undefined,
+  )
+  const previousScreen = useRef(screen)
   const identity = auth.kind === "authenticated" ? auth.login : undefined
   const {
     catalog: followedChannels,
@@ -123,6 +130,9 @@ export const useAppController = () => {
         currentIdentity.current = nextIdentity
         authEpoch.current += 1
         catalogRequestEpoch.current += 1
+        topCategoriesRequestEpoch.current += 1
+        topCategoriesRequest.current = undefined
+        videoRequest.current = undefined
         resetLive()
         resetFollowed()
         resetCategory()
@@ -140,6 +150,25 @@ export const useAppController = () => {
     },
     [navigate, resetCategory, resetDirectory, resetFollowed, resetLive],
   )
+
+  const loadTopCategories = useCallback(async (): Promise<void> => {
+    if (identity === undefined || topCategoriesRequest.current !== undefined) return
+    const requestEpoch = authEpoch.current
+    const requestId = ++topCategoriesRequestEpoch.current
+    topCategoriesRequest.current = requestId
+    try {
+      const page = await window.vacuumStream.catalog.topCategories({ first: 20 })
+      if (requestEpoch === authEpoch.current && requestId === topCategoriesRequestEpoch.current) {
+        setCategories(page.items)
+      }
+    } catch (error) {
+      if (requestEpoch === authEpoch.current && requestId === topCategoriesRequestEpoch.current) {
+        setNotice(errorMessage(error))
+      }
+    } finally {
+      if (topCategoriesRequest.current === requestId) topCategoriesRequest.current = undefined
+    }
+  }, [identity])
 
   useEffect(() => {
     let active = true
@@ -162,6 +191,9 @@ export const useAppController = () => {
     return () => {
       active = false
       catalogRequestEpoch.current += 1
+      topCategoriesRequestEpoch.current += 1
+      topCategoriesRequest.current = undefined
+      videoRequest.current = undefined
     }
   }, [updateAuth])
 
@@ -185,21 +217,8 @@ export const useAppController = () => {
   }, [activeShelf, identity, invalidateFollowed, invalidateLive, loadFollowed, loadLive])
 
   useEffect(() => {
-    if (identity === undefined) return
-    const requestEpoch = authEpoch.current
-    let active = true
-    void window.vacuumStream.catalog
-      .topCategories({ first: 20 })
-      .then((page) => {
-        if (active && requestEpoch === authEpoch.current) setCategories(page.items)
-      })
-      .catch((error: unknown) => {
-        if (active && requestEpoch === authEpoch.current) setNotice(errorMessage(error))
-      })
-    return () => {
-      active = false
-    }
-  }, [identity])
+    void loadTopCategories()
+  }, [loadTopCategories])
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent): void => {
@@ -222,16 +241,19 @@ export const useAppController = () => {
     return () => document.removeEventListener("keydown", onShortcut)
   }, [navigate, navigateHome, screen])
 
-  const loadShelf = (route: ShelfRoute, operation: CatalogOperation | "retry"): Promise<void> => {
-    if (identity === undefined || activeShelf !== route) return Promise.resolve()
-    const catalog = route === "home" ? live : followed
-    const requested = operation === "retry" ? catalog.operation : operation
-    if (requested === "more" && catalog.cursor === undefined) return Promise.resolve()
-    return (route === "home" ? loadLive : loadFollowed)({
-      ...(requested === "more" ? { after: catalog.cursor } : {}),
-      first: 20,
-    })
-  }
+  const loadShelf = useCallback(
+    (route: ShelfRoute, operation: CatalogOperation | "retry"): Promise<void> => {
+      if (identity === undefined || activeShelf !== route) return Promise.resolve()
+      const catalog = route === "home" ? live : followed
+      const requested = operation === "retry" ? catalog.operation : operation
+      if (requested === "more" && catalog.cursor === undefined) return Promise.resolve()
+      return (route === "home" ? loadLive : loadFollowed)({
+        ...(requested === "more" ? { after: catalog.cursor } : {}),
+        first: 20,
+      })
+    },
+    [activeShelf, followed, identity, live, loadFollowed, loadLive],
+  )
 
   const showCategory = async (category: CategoryCard): Promise<void> => {
     if (auth.kind !== "authenticated") {
@@ -259,6 +281,14 @@ export const useAppController = () => {
       gameId: screen.id,
     })
   }
+
+  const loadCategoryFirstPage = useCallback(
+    (gameId: string): Promise<void> => {
+      if (categoryCatalog.status === "loading") return Promise.resolve()
+      return loadCategory({ first: 20, gameId })
+    },
+    [categoryCatalog.status, loadCategory],
+  )
 
   const openStream = (stream: StreamCard): void => {
     changeScreen({
@@ -315,6 +345,51 @@ export const useAppController = () => {
     }
   }
 
+  const loadVideos = useCallback(
+    async (
+      userId: string,
+      options: {
+        readonly clearResults: boolean
+        readonly replacePending: boolean
+        readonly showError: boolean
+        readonly showLoading: boolean
+      },
+    ): Promise<void> => {
+      if (!options.replacePending && videoRequest.current?.userId === userId) return
+      const requestEpoch = authEpoch.current
+      const requestId = catalogRequestEpoch.current + 1
+      catalogRequestEpoch.current = requestId
+      videoRequest.current = { id: requestId, userId }
+      setVideoError("")
+      if (options.clearResults) setVideos([])
+      if (options.showLoading) setBusy(true)
+      try {
+        const items = (await window.vacuumStream.catalog.videos({ first: 30, userId })).items
+        if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
+          setVideos(items)
+        }
+      } catch (error) {
+        if (
+          options.showError &&
+          requestEpoch === authEpoch.current &&
+          requestId === catalogRequestEpoch.current
+        ) {
+          setVideoError(errorMessage(error))
+        }
+      } finally {
+        if (videoRequest.current?.id === requestId) videoRequest.current = undefined
+        if (
+          options.showLoading &&
+          requestEpoch === authEpoch.current &&
+          requestId === catalogRequestEpoch.current
+        ) {
+          setBusy(false)
+        }
+      }
+    },
+    [],
+  )
+
   const showPastBroadcasts = async (userId: string): Promise<void> => {
     if (auth.kind !== "authenticated" || userId === "0") {
       setNotice("Sign in to load past broadcasts for this channel")
@@ -322,28 +397,72 @@ export const useAppController = () => {
       return
     }
     changeScreen({ kind: "videos", userId })
-    setVideoError("")
-    setVideos([])
     setNotice("")
-    setBusy(true)
-    const requestEpoch = authEpoch.current
-    const requestId = catalogRequestEpoch.current + 1
-    catalogRequestEpoch.current = requestId
-    try {
-      const items = (await window.vacuumStream.catalog.videos({ first: 30, userId })).items
-      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
-        setVideos(items)
-      }
-    } catch (error) {
-      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
-        setVideoError(errorMessage(error))
-      }
-    } finally {
-      if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
-        setBusy(false)
-      }
-    }
+    await loadVideos(userId, {
+      clearResults: true,
+      replacePending: true,
+      showError: true,
+      showLoading: true,
+    })
   }
+
+  const refreshCurrentCatalog = useCallback((): void => {
+    if (identity === undefined) return
+    if (screen.kind === "browse") {
+      if (screen.route === "home") {
+        void loadTopCategories()
+        if (live.status !== "loading") void loadShelf("home", "refresh")
+      } else if (screen.route === "following") {
+        if (screen.followingMode === "all") {
+          if (followedChannels.status !== "loading") void loadDirectory("refresh")
+        } else if (followed.status !== "loading") {
+          void loadShelf("following", "refresh")
+        }
+      }
+      return
+    }
+    if (screen.kind === "category") {
+      void loadCategoryFirstPage(screen.id)
+      return
+    }
+    if (screen.kind === "videos") {
+      void loadVideos(screen.userId, {
+        clearResults: false,
+        replacePending: false,
+        showError: false,
+        showLoading: false,
+      })
+    }
+  }, [
+    followed.status,
+    followedChannels.status,
+    identity,
+    live.status,
+    loadCategoryFirstPage,
+    loadDirectory,
+    loadShelf,
+    loadTopCategories,
+    loadVideos,
+    screen,
+  ])
+
+  useEffect(() => {
+    if (
+      identity === undefined ||
+      screen.kind === "player" ||
+      (screen.kind === "browse" && screen.route !== "home" && screen.route !== "following")
+    ) {
+      return
+    }
+    const timer = window.setInterval(refreshCurrentCatalog, CATALOG_REFRESH_INTERVAL)
+    return () => window.clearInterval(timer)
+  }, [identity, refreshCurrentCatalog, screen])
+
+  useEffect(() => {
+    const playerClosed = previousScreen.current.kind === "player" && screen.kind !== "player"
+    previousScreen.current = screen
+    if (playerClosed) refreshCurrentCatalog()
+  }, [refreshCurrentCatalog, screen])
 
   return {
     auth,

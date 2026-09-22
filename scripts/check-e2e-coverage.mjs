@@ -41,11 +41,16 @@ const listed = JSON.parse(
 )
 
 const declared = new Set()
-const walk = (suite) => {
-  for (const spec of suite.specs ?? []) declared.add(spec.title.split(" ")[0])
-  for (const child of suite.suites ?? []) walk(child)
+// Only the ledger-derived directories carry row ids; regressions/ holds tests with no ledger row.
+const ledgerSpec = (file) => file.startsWith("flows/") || file.startsWith("defects/")
+// A spec's own "file" points at the helper that called test(), so the root suite names the spec.
+const walk = (suite, specFile) => {
+  for (const spec of suite.specs ?? []) {
+    if (ledgerSpec(specFile)) declared.add(spec.title.split(" ")[0])
+  }
+  for (const child of suite.suites ?? []) walk(child, specFile)
 }
-for (const suite of listed.suites ?? []) walk(suite)
+for (const suite of listed.suites ?? []) walk(suite, suite.file ?? "")
 
 const excluded = new Map(
   JSON.parse(readFileSync(join(root, "test/e2e/ledger-exclusions.json"), "utf8")).rows.map(

@@ -281,7 +281,7 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
       expect(document.activeElement).toBe(button("stream-1"))
       await key("ArrowRight")
       expect(document.activeElement).toBe(duplicate)
-      await key("ArrowDown")
+      await key("ArrowRight")
       expect(document.activeElement).toBe(button(`${shelf}-more`))
       await act(async () => {
         dispatchControllerKey("Enter")
@@ -307,6 +307,8 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
         updated.profileImageUrl,
       )
       expect(container.querySelector(`[data-focus-id="${shelf}-more"]`)).toBeNull()
+      expect(document.activeElement).toBe(button(`${shelf}-end`))
+      await key("ArrowUp")
       expect(document.activeElement).toBe(button(`${shelf}-refresh`))
       await key("ArrowLeft")
       expect(document.activeElement).toBe(button(`nav-${shelf}`))
@@ -336,7 +338,7 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
     await key("Enter")
     expect(requestFor(bridge, shelf)).toHaveBeenNthCalledWith(2, { first: 20 })
     expect(container.querySelector('.shelf [role="alert"]')).toBeNull()
-    expect(document.activeElement).toBe(button(`${shelf}-refresh`))
+    expect(document.activeElement).toBe(button(`${shelf}-end`))
     await act(async () => retry.resolve(page([])))
     expect(container.querySelector(".shelf .empty-state")).not.toBeNull()
     expect(container.querySelector('.shelf[aria-busy="true"]')).toBeNull()
@@ -363,7 +365,7 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
       expect(container.querySelector('.shelf [role="alert"]')).not.toBeNull()
       expect(container.querySelector(".shelf .empty-state")).toBeNull()
       card.focus()
-      await key("ArrowDown")
+      await key("ArrowRight")
       expect(document.activeElement).toBe(button(`${shelf}-retry`))
       await key("Enter")
       expect(button("stream-kept")).toBe(card)
@@ -374,7 +376,7 @@ describe.each(["home", "following"] as const)("%s live catalog in the mounted Ap
         operation === "more" ? ["stream-kept", "stream-new"] : ["stream-new"],
       )
       expect(container.querySelector('.shelf [role="alert"]')).toBeNull()
-      expect(document.activeElement).toBe(button(`${shelf}-refresh`))
+      expect(document.activeElement).toBe(button(`${shelf}-end`))
     },
   )
 

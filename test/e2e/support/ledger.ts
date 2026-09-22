@@ -101,6 +101,17 @@ export const flowRows: readonly FlowRow[] = readRows(FLOW_LEDGER, /^\|\s*F-/).ma
   }
 })
 
+const fixedDefectIds: ReadonlySet<string> = new Set(
+  readFileSync(DEFECT_LEDGER, "utf8")
+    .split("## Fixed")[1]
+    ?.split("## Withdrawn")[0]
+    ?.split("\n")
+    .filter((line) => /^\|\s*D-[a-z]/.test(line))
+    .map((line) => (line.split("|")[1] ?? "").trim()) ?? [],
+)
+
+export const isDefectFixed = (id: string): boolean => fixedDefectIds.has(id)
+
 export const defectRows: readonly DefectRow[] = readRows(DEFECT_LEDGER, /^\|\s*D-[a-z]/)
   .filter((row) => row.length >= 8)
   .map((row) => {

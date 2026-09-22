@@ -79,6 +79,8 @@
 
 .shelf__heading {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
   align-items: baseline;
   justify-content: space-between;
   margin-block-end: var(--space-4);
@@ -90,6 +92,7 @@
 
 .shelf__tools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
 }
@@ -110,6 +113,23 @@
   scroll-snap-type: inline mandatory;
   scrollbar-color: var(--color-raised) transparent;
   scrollbar-width: none;
+}
+
+.shelf__reel.shelf__reel--wrapped {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+  overflow: visible;
+  scroll-snap-type: none;
+}
+
+.shelf__reel--wrapped > .shelf__action {
+  align-self: start;
+  margin-block-start: 0;
+}
+
+.shelf__reel--wrapped > .shelf__action[aria-disabled="true"] {
+  color: var(--color-text-muted);
 }
 
 .shelf__reel::-webkit-scrollbar,
