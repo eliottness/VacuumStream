@@ -1068,6 +1068,8 @@ existing test could not catch it because its fixture pinned the idle state.
 | Observation | Where | Source |
 | --- | --- | --- |
 | Walking Down through the Continue Watching showcase matrix jumps from the loading shelf's Home control straight to the read-error shelf's Home control, skipping `showcase-read-error-retry`, which sits above it | `Showcase.tsx`, `ContinueWatchingShelf.tsx` | Cycle 20 QA re-record |
+| On a fresh profile, opening chat renders Twitch's own cookie-consent dialog inside the chat iframe, covering chat entirely. Combined with the recorded fact that native gamepad input cannot reach that frame, a controller-only viewer appears to have no way to dismiss it — chat would stay unusable until a mouse is attached. The dialog is observed; the unreachability is inferred from the two facts and not yet measured | chat iframe, `PlayerView.tsx` | Cycle 20 QA re-record |
+| With all three side panels open at 1920x1080 the player iframe floors at 1408x703 (chat only 1408x949, chat + quality 1408x838) — recorded as a baseline, not a defect | `PlayerView.tsx` | Cycle 20 QA re-record |
 
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
