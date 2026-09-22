@@ -56,7 +56,7 @@ are out of scope and are rejected without review.
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
-| 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | In progress |
+| 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -585,7 +585,21 @@ Acceptance criteria:
 Not in scope: transcription or translation, a persisted caption preference, a custom subtitle
 overlay, and the private-DOM autoplay debt, which this cycle explicitly does not close.
 
+Landed in `38bfecc`. On the HTPC, signed out, four arrow presses reach Captions and the chooser
+opens outside the video reading "No caption setting requested; Twitch's default is unchanged."
+Activating Show flips it to "Requested: Show captions." with focus retained and playback
+untouched. The stream used for that check carried no captions, so visible captions appearing and
+disappearing were **not** observed — recorded as unverified rather than treating the changed
+label as proof, which the criterion explicitly forbids. That is the whole reason the control
+reports a request rather than a state.
+
 ## Observed but not yet scheduled
+
+The private-DOM autoplay injection below has now been weighed and deferred by four consecutive
+scouts, each on the same sound ground: a safe replacement must prove trusted activation and
+Twitch's content gate, not merely call `player.play()`. It is the longest-standing item here and
+should get a cycle of its own rather than another deferral.
+
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
 an unrelated change. Each is a candidate for a future cycle.
