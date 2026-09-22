@@ -36,7 +36,8 @@
     "package:appimage": "bun run build && electron-builder --linux AppImage --x64 --publish never",
     "package:flatpak": "bash scripts/build-flatpak.sh",
     "package:release": "bash scripts/build-release.sh",
-    "test:e2e": "playwright test",
+    "test:e2e": "xvfb-run -a -s \"-screen 0 1920x1080x24 -nolisten tcp\" playwright test",
+    "test:e2e:headed": "playwright test",
     "test:e2e:coverage": "node scripts/check-e2e-coverage.mjs"
   },
   "dependencies": {

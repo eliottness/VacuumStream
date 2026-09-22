@@ -11,13 +11,16 @@ decides whether that test is expected to pass or expected to fail.
 
 ```sh
 bun run build          # the suite launches out/main/index.js through package.json "main"
-bun run test:e2e       # all rows that can run on this machine
+bun run test:e2e       # all rows that can run on this machine (isolated Xvfb display)
+bun run test:e2e:headed    # same suite on your own DISPLAY, windows visible (steals focus)
 bun run test:e2e:coverage  # every ledger row has a test, and every test has a ledger row
 node scripts/check-e2e-outcomes.mjs test-results/e2e/report.json  # every executed row matched its ledger colour
 ```
 
-A desktop session is required (`DISPLAY` must point at an X server; WSLg's `:0` works). On a
-headless machine, wrap the command: `xvfb-run -a bun run test:e2e`.
+`test:e2e` runs the app on a private 1920x1080 Xvfb display through `xvfb-run -a`, so the windows
+never appear on (or steal focus from) your desktop, and the suite works the same on a headless
+machine. Use `test:e2e:headed` when you want to watch the run on your own `DISPLAY` (WSLg's `:0`
+works); that variant needs a desktop session and will take keyboard focus.
 
 Environment gates:
 
