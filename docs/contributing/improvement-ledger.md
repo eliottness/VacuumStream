@@ -55,7 +55,7 @@ are out of scope and are rejected without review.
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
 | 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
-| 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | In progress |
+| 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -540,6 +540,15 @@ Acceptance criteria:
 
 Not in scope: Twitch history synchronization, thumbnails, a full history browser, availability
 lookups, and autoplay at boot.
+
+Landed in `40d7e38` (listing, metadata, version-2 envelope) and `c62a092` (the shelf itself).
+The two-queue hazard is handled structurally rather than by timing: `playback-progress.ts` holds
+a per-video promise chain and the listing awaits all pending renderer mutations with
+`Promise.allSettled` before invoking IPC, while deliberately not serializing mutations behind
+reads — an obsolete listing must never block Forget progress. On the signed-out Showcase the
+shelf shows "A quiet evening building a world together" at 1:05:00 / 3:00:00 beside a legacy
+"Recording 123456789", each with Forget progress, under the caption "Saved on this installation"
+so the locality caveat is visible rather than buried in documentation.
 
 ## Observed but not yet scheduled
 
