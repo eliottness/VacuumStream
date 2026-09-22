@@ -243,3 +243,227 @@ describe("search favourites controls", () => {
     expect(document.activeElement).toBe(button("channel-123"))
   })
 })
+
+describe("native gamepad Search editing", () => {
+  let root: Root
+  let container: HTMLDivElement
+  let nextFrame: FrameRequestCallback | undefined
+  let pressedButtons: readonly number[] = []
+  const onOpen = vi.fn<(entry: ChannelCard) => void>()
+  const onSearch = vi.fn<(query: string) => void>()
+  const keys: string[] = []
+  const recordKey = (event: KeyboardEvent) => keys.push(event.key)
+  const Surface = ({ busy }: { readonly busy: boolean }) => {
+    useControllerNavigation()
+    return (
+      <>
+        <button data-focus-id="nav-search" type="button">
+          Search navigation
+        </button>
+        <SearchView
+          authenticated
+          busy={busy}
+          favourites={{ ...emptyFavourites, error: "Read failed", status: "error" }}
+          onOpen={onOpen}
+          onRetryFavourites={() => undefined}
+          onSave={() => undefined}
+          onSearch={onSearch}
+          results={[channel]}
+        />
+      </>
+    )
+  }
+  beforeEach(() => {
+    keys.length = 0
+    pressedButtons = []
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    vi.stubGlobal("navigator", {
+      getGamepads: () => [
+        {
+          axes: [0, 0],
+          buttons: Array.from({ length: 16 }, (_, index) => ({
+            pressed: pressedButtons.includes(index),
+          })),
+          connected: true,
+        },
+      ],
+    })
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      nextFrame = callback
+      return 1
+    })
+    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    container = document.createElement("div")
+    document.body.append(container)
+    document.addEventListener("keydown", recordKey)
+    root = createRoot(container)
+  })
+  afterEach(async () => {
+    await act(async () => root.unmount())
+    document.removeEventListener("keydown", recordKey)
+    onOpen.mockClear()
+    onSearch.mockClear()
+    vi.unstubAllGlobals()
+  })
+  const render = async (busy = false) => {
+    await act(async () => root.render(<Surface busy={busy} />))
+  }
+  const target = (id: string): HTMLElement => {
+    const element = container.querySelector<HTMLElement>(`[data-focus-id="${id}"]`)
+    if (element === null) throw new Error(`Missing ${id}`)
+    return element
+  }
+  const input = (): HTMLInputElement => {
+    const element = container.querySelector<HTMLInputElement>("#channel-search")
+    if (element === null) throw new Error("Missing Search input")
+    return element
+  }
+  const typeQuery = async (query: string) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+    if (setter === undefined) throw new Error("Missing native input setter")
+    await act(async () => {
+      setter.call(input(), query)
+      input().dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+  const frame = async (now: number, button?: number) => {
+    pressedButtons = button === undefined ? [] : [button]
+    const callback = nextFrame
+    if (callback === undefined) throw new Error("No scheduled gamepad frame")
+    nextFrame = undefined
+    await act(async () => callback(now))
+  }
+  const editingTargets = [
+    "search-input",
+    "search-submit",
+    "search-key-q",
+    "search-key-space",
+    "search-key-backspace",
+    "search-key-clear",
+    "search-key-submit",
+  ]
+
+  it.each(editingTargets)(
+    "deletes one trailing code point per west press at %s without moving focus or navigating",
+    async (id) => {
+      await render()
+      await typeQuery("a\u{1f600}")
+      const focused = target(id)
+      focused.focus()
+      await frame(1, 2)
+      expect(input().value).toBe("a")
+      expect(document.activeElement).toBe(focused)
+      for (const now of [501, 601, 1601]) await frame(now, 2)
+      expect(input().value).toBe("a")
+      await frame(1602)
+      await frame(1603, 2)
+      expect(input().value).toBe("")
+      await frame(1604)
+      await frame(1605, 2)
+      expect(input().value).toBe("")
+      expect(document.activeElement).toBe(focused)
+      expect(keys).toEqual([])
+      expect(onSearch).not.toHaveBeenCalled()
+      expect(onOpen).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(editingTargets)(
+    "submits a trimmed query once per north press at %s without opening a result or moving focus",
+    async (id) => {
+      await render()
+      await typeQuery("  twitch  ")
+      const focused = target(id)
+      focused.focus()
+      await frame(1, 3)
+      expect(onSearch).toHaveBeenCalledExactlyOnceWith("twitch")
+      for (const now of [501, 601, 1601]) await frame(now, 3)
+      expect(onSearch).toHaveBeenCalledTimes(1)
+      await frame(1602)
+      await frame(1603, 3)
+      expect(onSearch.mock.calls).toEqual([["twitch"], ["twitch"]])
+      expect(input().value).toBe("  twitch  ")
+      expect(document.activeElement).toBe(focused)
+      expect(keys).toEqual([])
+      expect(onOpen).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    { busy: false, query: "" },
+    { busy: false, query: "   " },
+    { busy: true, query: "twitch" },
+  ])("consumes empty or busy north presses as no-ops: $busy, '$query'", async ({ busy, query }) => {
+    await render(busy)
+    await typeQuery(query)
+    for (const [index, id] of ["search-input", "search-key-q", "search-key-clear"].entries()) {
+      const focused = target(id)
+      focused.focus()
+      await frame(index * 1000)
+      await frame(index * 1000 + 1, 3)
+      await frame(index * 1000 + 501, 3)
+      await frame(index * 1000 + 601, 3)
+      expect(document.activeElement).toBe(focused)
+    }
+    expect(input().value).toBe(query)
+    expect(keys).toEqual([])
+    expect(onSearch).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it.each(["nav-search", "channel-123", "channel-123-save", "search-favourites-retry"])(
+    "leaves both face buttons on the slash route outside editing at %s",
+    async (id) => {
+      await render()
+      await typeQuery("twitch")
+      const focused = target(id)
+      focused.focus()
+      await frame(1, 2)
+      await frame(2, 3)
+      expect(keys).toEqual(["/", "/"])
+      expect(input().value).toBe("twitch")
+      expect(document.activeElement).toBe(focused)
+      expect(onSearch).not.toHaveBeenCalled()
+      expect(onOpen).not.toHaveBeenCalled()
+    },
+  )
+
+  it("shares code-point deletion and guarded submission with both visible Search buttons", async () => {
+    await render()
+    await typeQuery(" twitch\u{1f600}")
+    await act(async () => target("search-key-backspace").click())
+    expect(input().value).toBe(" twitch")
+    await act(async () => target("search-submit").click())
+    await act(async () => target("search-key-submit").click())
+    expect(onSearch.mock.calls).toEqual([["twitch"], ["twitch"]])
+    await render(true)
+    await act(async () => target("search-submit").click())
+    await act(async () => target("search-key-submit").click())
+    await render(false)
+    await typeQuery(" ")
+    await act(async () => target("search-submit").click())
+    await act(async () => target("search-key-submit").click())
+    expect(onSearch).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps physical and Steam Input keyboard events on their existing text and form routes", async () => {
+    await render()
+    await typeQuery("typed/")
+    for (const key of ["/", "Backspace", "Enter"]) {
+      await act(async () => {
+        input().dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key }))
+      })
+    }
+    expect(input().value).toBe("typed/")
+    expect(keys).toEqual(["/", "Backspace", "Enter"])
+    expect(onSearch).not.toHaveBeenCalled()
+    // The browser's normal text change and form submit still reach React's existing handlers.
+    await typeQuery(" typed ")
+    const form = input().form
+    if (form === null) throw new Error("Missing Search form")
+    await act(async () => form.requestSubmit())
+    expect(onSearch).toHaveBeenCalledExactlyOnceWith("typed")
+    expect(document.activeElement).toBe(input())
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+})

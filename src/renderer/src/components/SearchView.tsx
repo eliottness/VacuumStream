@@ -1,6 +1,7 @@
 import { MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react"
-import { type ComponentProps, useEffect, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useRef, useState } from "react"
 import type { ChannelCard } from "../../../shared/contracts"
+import { SEARCH_GAMEPAD_EVENT, type SearchGamepadAction } from "../focus-navigation"
 import type { FavouritesState } from "../useFavourites"
 
 type SearchViewProps = {
@@ -21,8 +22,6 @@ const KEY_ROWS = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
 ] as const
 
-type SubmitHandler = NonNullable<ComponentProps<"form">["onSubmit"]>
-
 export const SearchView = ({
   authenticated,
   busy,
@@ -35,6 +34,8 @@ export const SearchView = ({
 }: SearchViewProps) => {
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const keyboardRef = useRef<HTMLFieldSetElement>(null)
   const failureRef = useRef<HTMLParagraphElement>(null)
   const firstResultId = results[0] === undefined ? undefined : `channel-${results[0].id}`
   const resultsEntryId = favourites.status === "error" ? "search-favourites-retry" : firstResultId
@@ -44,10 +45,28 @@ export const SearchView = ({
       failureRef.current?.scrollIntoView({ behavior: "instant", block: "nearest" })
     }
   }, [favourites.mutationError])
-  const submit: SubmitHandler = (event) => {
-    event.preventDefault()
-    onSearch(query.trim())
+  const deleteLastCharacter = (): void => {
+    setQuery((current) => Array.from(current).slice(0, -1).join(""))
   }
+  const submit = (): void => {
+    const trimmedQuery = query.trim()
+    if (busy || trimmedQuery === "") return
+    onSearch(trimmedQuery)
+  }
+  const onGamepadSearch = useEffectEvent((event: Event): void => {
+    event.preventDefault()
+    const { detail } = event as CustomEvent<SearchGamepadAction>
+    if (detail === "delete") deleteLastCharacter()
+    else submit()
+  })
+  useEffect(() => {
+    const regions = [formRef.current, keyboardRef.current]
+    for (const region of regions) region?.addEventListener(SEARCH_GAMEPAD_EVENT, onGamepadSearch)
+    return () => {
+      for (const region of regions)
+        region?.removeEventListener(SEARCH_GAMEPAD_EVENT, onGamepadSearch)
+    }
+  }, [])
   return (
     <main className="search-view" id="main-content" tabIndex={-1}>
       <header className="page-heading">
@@ -59,12 +78,20 @@ export const SearchView = ({
             : "Signed-out searches can still open an exact Twitch channel name."}
         </p>
       </header>
-      <form className="search-form" onSubmit={submit}>
+      <form
+        className="search-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          submit()
+        }}
+        ref={formRef}
+      >
         <label htmlFor="channel-search">Channel or category</label>
         <div className="field-row">
           <input
-            data-focus-id="search-input"
+            aria-describedby="search-gamepad-hint"
             data-focus-down="search-key-q"
+            data-focus-id="search-input"
             data-focus-left="nav-search"
             data-focus-right="search-submit"
             data-focus-up="nav-search"
@@ -87,8 +114,12 @@ export const SearchView = ({
             Search
           </button>
         </div>
+        <p id="search-gamepad-hint">
+          Native gamepad: west face (X on Xbox) deletes the last character; north face (Y on Xbox)
+          searches. Keyboard and Steam Input keyboard mappings are unchanged.
+        </p>
       </form>
-      <fieldset aria-label="On-screen keyboard" className="virtual-keyboard">
+      <fieldset aria-label="On-screen keyboard" className="virtual-keyboard" ref={keyboardRef}>
         {KEY_ROWS.flatMap((row, rowIndex) =>
           row.map((key) => (
             <button
@@ -119,7 +150,7 @@ export const SearchView = ({
           className="virtual-keyboard__backspace"
           data-focus-id="search-key-backspace"
           data-focusable="true"
-          onClick={() => setQuery((current) => Array.from(current).slice(0, -1).join(""))}
+          onClick={deleteLastCharacter}
           type="button"
         >
           Backspace
@@ -139,7 +170,7 @@ export const SearchView = ({
           data-focus-id="search-key-submit"
           data-focusable="true"
           disabled={busy}
-          onClick={() => onSearch(query.trim())}
+          onClick={submit}
           type="button"
         >
           Search
@@ -159,7 +190,12 @@ export const SearchView = ({
             data-focus-up="search-submit"
             data-focusable="true"
             onClick={() => {
-              document.querySelector<HTMLElement>('[data-focus-id="search-submit"]')?.focus()
+              const fallback = busy
+                ? inputRef.current
+                : formRef.current?.querySelector<HTMLButtonElement>(
+                    '[data-focus-id="search-submit"]',
+                  )
+              fallback?.focus()
               onRetryFavourites()
             }}
             type="button"
