@@ -60,12 +60,23 @@ channel login, such as `twitch`. Guest mode does not provide general catalog sea
 
 For personalized discovery:
 
-1. Open **Connect Twitch** or **Settings**.
-2. Leave the built-in Client ID unchanged. There is no developer registration step.
-3. Choose **Sign in on another device**.
-4. Scan the QR code or open the Twitch activation address displayed by the app, then enter its
-   code.
-5. Approve access on Twitch and return to VacuumStream.
+1. Open **Connect Twitch** or **Settings**. The Twitch account card comes first.
+2. From the selected Settings navigation item, press Right (Down on the compact bar) to reach
+   **Sign in on another device**, then activate it.
+3. Scan the QR code or choose **Open Twitch activation**, then enter the displayed code at Twitch.
+4. Approve access on Twitch and return to VacuumStream. The account action becomes **Sign out**.
+
+The account action keeps controller focus as sign-in starts, completes, expires, or fails, and
+when you sign out. While a request is pending it stays reachable but ignores repeated activation.
+If a request fails, its error is announced and the action remains available to retry. An expired
+code returns you to **Sign in on another device** for a new code. You can leave Settings while
+sign-in completes; it does not pull you back or interrupt Client ID editing.
+
+A public Client ID is built in; ordinary sign-in needs no developer registration or Save step.
+The **Twitch application** card remains below the account card for people using their own app.
+Down from the account action reaches the Client ID editor, then Save; Up returns along the same
+path, and Left from the account action returns to navigation. Leave the built-in ID unchanged
+unless you intend to replace it. Saving a different Client ID resets the connected account.
 
 Following starts in **Live now**. If none of your follows are live, an empty list is normal.
 Choose **All channels** below the live shelf to include offline broadcasters, with avatars and

@@ -8,7 +8,7 @@ import { FollowedChannelsView } from "./components/FollowedChannelsView"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
 import { SearchView } from "./components/SearchView"
-import { SettingsPanel } from "./components/SettingsPanel"
+import { SettingsPanel, settingsAccountFocusId } from "./components/SettingsPanel"
 import { StreamShelf } from "./components/StreamShelf"
 import { VideoShelf } from "./components/VideoShelf"
 import { PREVIEW_STREAMS } from "./demo-data"
@@ -100,12 +100,14 @@ export const App = () => {
         active={route ?? "home"}
         entryFocusId={
           home?.entryFocusId ??
-          (allChannels
-            ? "following-all"
-            : controller.auth.kind === "authenticated" &&
-                (route === "home" || route === "following")
-              ? `${route}-refresh`
-              : undefined)
+          (route === "settings"
+            ? settingsAccountFocusId(controller.auth)
+            : allChannels
+              ? "following-all"
+              : controller.auth.kind === "authenticated" &&
+                  (route === "home" || route === "following")
+                ? `${route}-refresh`
+                : undefined)
         }
         onNavigate={controller.navigate}
       />

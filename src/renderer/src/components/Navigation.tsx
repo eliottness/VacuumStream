@@ -24,7 +24,7 @@ const routeEntryTarget: Readonly<Record<RouteName, string>> = {
   following: "following-connect",
   home: "home-sign-in",
   search: "search-input",
-  settings: "settings-client-id",
+  settings: "settings-sign-in",
 }
 
 export const Navigation = ({ active, entryFocusId, onNavigate }: NavigationProps) => (
@@ -56,9 +56,13 @@ export const Navigation = ({ active, entryFocusId, onNavigate }: NavigationProps
     <button
       aria-current={active === "settings" ? "page" : undefined}
       className="navigation__item navigation__settings"
-      data-focus-down={active === "settings" ? routeEntryTarget.settings : undefined}
+      data-focus-down={
+        active === "settings" ? (entryFocusId ?? routeEntryTarget.settings) : undefined
+      }
       data-focus-id="nav-settings"
-      data-focus-right={active === "settings" ? routeEntryTarget.settings : undefined}
+      data-focus-right={
+        active === "settings" ? (entryFocusId ?? routeEntryTarget.settings) : undefined
+      }
       data-focusable="true"
       onClick={() => onNavigate("settings")}
       type="button"

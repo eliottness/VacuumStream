@@ -1,6 +1,6 @@
 import { CheckCircleIcon, CopyIcon, SignInIcon, SignOutIcon } from "@phosphor-icons/react"
 import { QRCodeSVG } from "qrcode.react"
-import { type ComponentProps, useEffect, useState } from "react"
+import { type ComponentProps, useEffect, useRef, useState } from "react"
 import type { AuthSnapshot, SettingsSnapshot } from "../../../shared/contracts"
 
 type SettingsPanelProps = {
@@ -11,6 +11,13 @@ type SettingsPanelProps = {
 }
 
 type SubmitHandler = NonNullable<ComponentProps<"form">["onSubmit"]>
+
+export const settingsAccountFocusId = (auth: AuthSnapshot): string =>
+  auth.kind === "authenticated"
+    ? "settings-logout"
+    : auth.kind === "authorizing"
+      ? "settings-open-activation"
+      : "settings-sign-in"
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error && error.message.includes("id.twitch.tv")
@@ -28,15 +35,26 @@ export const SettingsPanel = ({
   const [clientId, setClientId] = useState(settings.clientId)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const pending = useRef(false)
+  const accountFocusId = settingsAccountFocusId(auth)
+  const needsClientId = (auth.kind === "guest" || auth.kind === "error") && settings.clientId === ""
+  const AccountIcon =
+    auth.kind === "authenticated"
+      ? SignOutIcon
+      : auth.kind === "authorizing"
+        ? CopyIcon
+        : SignInIcon
 
   useEffect(() => setClientId(settings.clientId), [settings.clientId])
 
   const save: SubmitHandler = async (event) => {
     event.preventDefault()
+    if (pending.current) return
     if (!/^[a-z0-9]{20,64}$/.test(clientId.trim())) {
       setError("Client IDs use 20–64 lowercase letters and numbers")
       return
     }
+    pending.current = true
     setBusy(true)
     setError("")
     try {
@@ -45,40 +63,36 @@ export const SettingsPanel = ({
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
+      pending.current = false
       setBusy(false)
     }
   }
 
-  const begin = async (): Promise<void> => {
+  const activateAccount = async (): Promise<void> => {
+    // aria-disabled keeps controller focus; the ref also blocks clicks before React commits.
+    if (pending.current || needsClientId) return
+    pending.current = true
     setBusy(true)
     setError("")
     try {
-      const challenge = await window.vacuumStream.auth.begin()
-      onAuthChange({ challenge, kind: "authorizing" })
+      if (auth.kind === "authenticated") {
+        await window.vacuumStream.auth.logout()
+        onAuthChange({ kind: "guest" })
+      } else if (auth.kind === "authorizing") {
+        await window.vacuumStream.auth.openActivation(auth.challenge.flowId)
+      } else {
+        const challenge = await window.vacuumStream.auth.begin()
+        onAuthChange({ challenge, kind: "authorizing" })
+      }
     } catch (caught) {
-      setError(errorMessage(caught))
+      setError(
+        auth.kind === "authorizing"
+          ? "Could not open a browser. Enter the code manually at the address shown below"
+          : errorMessage(caught),
+      )
     } finally {
+      pending.current = false
       setBusy(false)
-    }
-  }
-
-  const logout = async (): Promise<void> => {
-    setError("")
-    onAuthChange({ kind: "guest" })
-    try {
-      await window.vacuumStream.auth.logout()
-    } catch (caught) {
-      setError(errorMessage(caught))
-    }
-  }
-
-  const openActivation = async (): Promise<void> => {
-    if (auth.kind !== "authorizing") return
-    setError("")
-    try {
-      await window.vacuumStream.auth.openActivation(auth.challenge.flowId)
-    } catch {
-      setError("Could not open a browser. Enter the code manually at the address shown below")
     }
   }
 
@@ -90,43 +104,7 @@ export const SettingsPanel = ({
         <p>Sign in to Twitch to unlock personalized discovery.</p>
       </header>
 
-      <section className="settings-card" aria-labelledby="developer-app-heading">
-        <div>
-          <h2 id="developer-app-heading">Twitch application</h2>
-          <p>
-            A public Client ID is built in. Only replace it when using your own Twitch application.
-            VacuumStream never asks for or stores a Client Secret.
-          </p>
-        </div>
-        <form onSubmit={save}>
-          <label htmlFor="client-id">Public Client ID</label>
-          <div className="field-row">
-            <input
-              autoComplete="off"
-              data-focus-id="settings-client-id"
-              data-focus-down="settings-save"
-              data-focusable="true"
-              id="client-id"
-              onChange={(event) => setClientId(event.currentTarget.value)}
-              placeholder="abcdefghijklmnopqrstuvwxyz1234"
-              spellCheck="false"
-              value={clientId}
-            />
-            <button
-              data-focus-id="settings-save"
-              data-focus-up="settings-client-id"
-              data-focusable="true"
-              disabled={busy}
-              type="submit"
-            >
-              <CheckCircleIcon aria-hidden="true" />
-              Save
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="settings-card" aria-labelledby="account-heading">
+      <section aria-labelledby="account-heading" className="settings-card">
         <div>
           <h2 id="account-heading">Twitch account</h2>
           <p>
@@ -134,36 +112,9 @@ export const SettingsPanel = ({
             Twitch's official player.
           </p>
         </div>
-        {auth.kind === "authenticated" ? (
-          <div className="account-status">
-            <span>Signed in as {auth.displayName}</span>
-            <button
-              data-focus-id="settings-logout"
-              data-focusable="true"
-              onClick={logout}
-              type="button"
-            >
-              <SignOutIcon aria-hidden="true" />
-              Sign out
-            </button>
-          </div>
-        ) : null}
-        {auth.kind === "guest" || auth.kind === "error" ? (
-          <button
-            className="primary-button"
-            data-focus-id="settings-sign-in"
-            data-focus-up="settings-save"
-            data-focusable="true"
-            disabled={busy || settings.clientId === ""}
-            onClick={begin}
-            type="button"
-          >
-            <SignInIcon aria-hidden="true" />
-            Sign in on another device
-          </button>
-        ) : null}
-        {auth.kind === "authorizing" ? (
-          <div className="device-code">
+        <div className={auth.kind === "authorizing" ? "device-code" : "account-status"}>
+          {auth.kind === "authenticated" ? <span>Signed in as {auth.displayName}</span> : null}
+          {auth.kind === "authorizing" ? (
             <div className="device-code__challenge">
               <div>
                 <span>Enter this code at Twitch</span>
@@ -184,21 +135,76 @@ export const SettingsPanel = ({
                 />
               </div>
             </div>
-            <button
-              data-focus-id="settings-open-activation"
-              data-focus-up="settings-save"
+          ) : null}
+          <button
+            aria-busy={busy}
+            aria-disabled={busy || needsClientId}
+            className="primary-button"
+            data-focus-down="settings-client-id"
+            data-focus-id={accountFocusId}
+            data-focus-left="nav-settings"
+            data-focus-up="nav-settings"
+            data-focusable="true"
+            onClick={activateAccount}
+            type="button"
+          >
+            <AccountIcon aria-hidden="true" />
+            {auth.kind === "authenticated"
+              ? "Sign out"
+              : auth.kind === "authorizing"
+                ? "Open Twitch activation"
+                : "Sign in on another device"}
+          </button>
+        </div>
+      </section>
+
+      <section aria-labelledby="developer-app-heading" className="settings-card">
+        <div>
+          <h2 id="developer-app-heading">Twitch application</h2>
+          <p>
+            A public Client ID is built in. Only replace it when using your own Twitch application.
+            VacuumStream never asks for or stores a Client Secret.
+          </p>
+        </div>
+        <form onSubmit={save}>
+          <label htmlFor="client-id">Public Client ID</label>
+          <div className="field-row">
+            <input
+              autoComplete="off"
+              data-focus-down="settings-save"
+              data-focus-id="settings-client-id"
+              data-focus-up={accountFocusId}
               data-focusable="true"
-              onClick={() => void openActivation()}
-              type="button"
+              id="client-id"
+              onChange={(event) => setClientId(event.currentTarget.value)}
+              placeholder="abcdefghijklmnopqrstuvwxyz1234"
+              spellCheck="false"
+              value={clientId}
+            />
+            <button
+              data-focus-id="settings-save"
+              data-focus-left="nav-settings"
+              data-focus-up="settings-client-id"
+              data-focusable="true"
+              disabled={busy}
+              type="submit"
             >
-              <CopyIcon aria-hidden="true" />
-              Open Twitch activation
+              <CheckCircleIcon aria-hidden="true" />
+              Save
             </button>
           </div>
-        ) : null}
+        </form>
       </section>
-      {error !== "" ? <p className="error-message">{error}</p> : null}
-      {auth.kind === "error" ? <p className="error-message">{auth.message}</p> : null}
+      {error !== "" ? (
+        <p className="error-message" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {auth.kind === "error" ? (
+        <p className="error-message" role="alert">
+          {auth.message}
+        </p>
+      ) : null}
     </main>
   )
 }
