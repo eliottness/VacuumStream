@@ -49,7 +49,7 @@ are out of scope and are rejected without review.
 | 2 | [Make category cards open matching live streams](#cycle-2--make-category-cards-open-matching-live-streams) | fix | Landed |
 | 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
-| 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | In progress |
+| 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -245,6 +245,13 @@ Acceptance criteria:
 
 Not in scope: a persisted quality preference, audio-only mode, codec selection, and any reuse or
 extension of the private-DOM autoplay injection.
+
+Landed in `fa034a8`, with the logic in a `usePlayerQuality` hook beside the player rather than
+inside it. Hardware testing read the renderer over the remote debugging port instead of trusting
+the on-screen label: `data-player-quality`, which carries `getQuality()`'s return, moved from
+`auto` to `480p30` and back to `auto` as the viewer selected and reverted, while
+`data-requested-quality` tracked the choice separately. The live payload confirmed the
+group/name shape: `chunked` renders as "1080p60 (source)", `480p30` as "480p".
 
 ## Observed but not yet scheduled
 
