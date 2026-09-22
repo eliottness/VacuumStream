@@ -1,5 +1,5 @@
 import { PlayIcon } from "@phosphor-icons/react"
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import type { VideoCard } from "../../../shared/contracts"
 
 type VideoShelfProps = {
@@ -21,6 +21,9 @@ export const VideoShelf = ({
 }: VideoShelfProps) => {
   const backRef = useRef<HTMLButtonElement>(null)
   const retryRef = useRef<HTMLButtonElement | null>(null)
+  const [failedThumbnailUrls, setFailedThumbnailUrls] = useState<
+    Record<string, string | undefined>
+  >({})
   const keepRetryFocus = useCallback((button: HTMLButtonElement | null): void => {
     if (button === null && document.activeElement === retryRef.current) backRef.current?.focus()
     retryRef.current = button
@@ -80,8 +83,21 @@ export const VideoShelf = ({
               type="button"
             >
               <span>
-                {video.thumbnailUrl ? (
-                  <img alt="" height="360" src={video.thumbnailUrl} width="640" />
+                {video.thumbnailUrl && failedThumbnailUrls[video.id] !== video.thumbnailUrl ? (
+                  <img
+                    alt=""
+                    height="360"
+                    key={video.thumbnailUrl}
+                    onError={() => {
+                      if (video.thumbnailUrl === undefined) return
+                      setFailedThumbnailUrls((failed) => ({
+                        ...failed,
+                        [video.id]: video.thumbnailUrl,
+                      }))
+                    }}
+                    src={video.thumbnailUrl}
+                    width="640"
+                  />
                 ) : (
                   <span
                     aria-hidden="true"

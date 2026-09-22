@@ -383,6 +383,12 @@ describe("All channels in the mounted App", () => {
     expect(twitchPlayer.loadTwitchPlayerApi).not.toHaveBeenCalled()
     await act(async () => archives.resolve({ cursor: undefined, items: [video] }))
     expect(constructedPlayer).not.toHaveBeenCalled()
+    const image = button("video-recording").querySelector<HTMLImageElement>("img")
+    if (image === null) throw new Error("Missing recording thumbnail")
+    await act(async () => image.dispatchEvent(new Event("error")))
+    expect(
+      button("video-recording").querySelector(".video-card__artwork-placeholder"),
+    ).not.toBeNull()
     await key("ArrowDown")
     expect(document.activeElement).toBe(button("video-recording"))
     await key("Enter")

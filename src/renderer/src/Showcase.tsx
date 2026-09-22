@@ -32,6 +32,18 @@ const PREVIEW_VIDEOS = [
     userName: "Preview channel",
     viewCount: 12,
   },
+  {
+    createdAt: "2026-09-19T12:00:00Z",
+    duration: "45m",
+    id: "preview-invalid-artwork",
+    publishedAt: "2026-09-19T12:00:00Z",
+    thumbnailUrl: "data:image/png;base64,AA==",
+    title: "A recording with invalid artwork",
+    userId: "preview",
+    userLogin: "preview",
+    userName: "Preview channel",
+    viewCount: 8,
+  },
 ] satisfies readonly VideoCard[]
 
 const PREVIEW_BOOKMARKS: readonly PlaybackBookmark[] = [

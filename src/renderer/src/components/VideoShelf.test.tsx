@@ -138,6 +138,52 @@ describe("VideoShelf", () => {
     expect(document.activeElement).toBe(back)
   })
 
+  it("falls back to the artwork placeholder when a thumbnail fails to load", async () => {
+    await act(async () => root?.render(<Harness videos={[video]} />))
+    const image = container.querySelector<HTMLImageElement>(
+      'img[src="https://example.com/recording.jpg"]',
+    )
+    if (image === null) throw new Error("Missing recording thumbnail")
+    await act(async () => image.dispatchEvent(new Event("error")))
+    expect(
+      container.querySelector(".image-fallback.video-card__artwork-placeholder"),
+    ).not.toBeNull()
+  })
+
+  it("keeps a sibling recording image visible when another thumbnail fails", async () => {
+    const sibling = { ...video, id: "sibling", thumbnailUrl: "https://example.com/sibling.jpg" }
+    await act(async () => root?.render(<Harness videos={[video, sibling]} />))
+    const failedImage = button("video-recording").querySelector<HTMLImageElement>("img")
+    const siblingImage = button("video-sibling").querySelector<HTMLImageElement>("img")
+    if (failedImage === null || siblingImage === null)
+      throw new Error("Missing recording thumbnail")
+    await act(async () => failedImage.dispatchEvent(new Event("error")))
+    expect(
+      button("video-recording").querySelector(".video-card__artwork-placeholder"),
+    ).not.toBeNull()
+    expect(button("video-sibling").querySelector("img")).toBe(siblingImage)
+  })
+
+  it("retries a changed thumbnail without remounting its focusable card", async () => {
+    await act(async () => root?.render(<Harness videos={[video]} />))
+    const recording = button("video-recording")
+    const failedImage = recording.querySelector<HTMLImageElement>("img")
+    if (failedImage === null) throw new Error("Missing recording thumbnail")
+    await act(async () => failedImage.dispatchEvent(new Event("error")))
+
+    const changedVideo = { ...video, thumbnailUrl: "https://example.com/updated-recording.jpg" }
+    await act(async () => root?.render(<Harness videos={[changedVideo]} />))
+    const updatedImage = button("video-recording").querySelector<HTMLImageElement>("img")
+    expect(button("video-recording")).toBe(recording)
+    expect(recording.isConnected).toBe(true)
+    expect(recording.getAttribute("data-focusable")).toBe("true")
+    recording.focus()
+    expect(document.activeElement).toBe(recording)
+    expect(updatedImage).not.toBeNull()
+    expect(updatedImage).not.toBe(failedImage)
+    expect(updatedImage?.getAttribute("src")).toBe(changedVideo.thumbnailUrl)
+  })
+
   it("keeps a validated recording without artwork selectable", async () => {
     await act(async () => root?.render(<Harness videos={[missingArtworkVideo]} />))
     const back = button("videos-back")
