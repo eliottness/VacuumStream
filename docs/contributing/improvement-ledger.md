@@ -51,6 +51,7 @@ are out of scope and are rejected without review.
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
+| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -301,6 +302,42 @@ reviewed on its own. `useAppController.ts` shrank by roughly 127 lines as the di
 into `useFollowedChannels.ts`, which also answers the module-size note recorded below. Verified
 with `bun run verify` at 238 tests. The signed-in hardware pass is outstanding: see the note in
 the table below about the HTPC session.
+
+### Cycle 7 — Add optional live chat beside playback
+
+Watching Twitch on a sofa without chat is watching half the stream, and the player screen has no
+chat surface at all. Twitch documents a chat embed that takes a channel name and a `parent`, both
+of which the app already holds, and the renderer's CSP already allows the origin — so this needs
+no new permission, endpoint or dependency. Native EventSub chat would drag in a new scope,
+subscription management and reconnection handling; the embed delivers reading chat now and leaves
+that larger build for later if it is ever justified.
+
+Target: a Show chat control beside the other player actions. Chat opens next to the video rather
+than over it, playback continues untouched, and Hide restores the full-width player. A Reload
+action replaces only the chat pane when it goes unresponsive, without restarting playback. Chat
+starts hidden and is mounted only while shown, so viewers who never open it pay nothing.
+
+The pane is Twitch's own UI in a cross-origin frame, which sets two honest limits. Parent styles
+cannot reach inside it, so couch readability is achieved by scaling the whole frame rather than
+injecting CSS or cropping Twitch's interface. And an iframe `load` event is not proof that
+messages are flowing, so the shell never claims a connection it cannot observe.
+
+Acceptance criteria:
+
+1. The iframe URL carries the selected login and `parent=localhost`, with no token parameters and
+   no new authentication or catalog calls; a VOD source shows no chat control.
+2. Show, Hide and Reload are arrow-reachable in loading and offline states, focus stays on shell
+   controls, and Escape still returns Home.
+3. Showing, hiding and reloading chat keep the same player instance and player-root node and
+   trigger no play, pause, mute, seek, quality or activation call.
+4. Hidden chat renders no iframe, a channel change cannot retain the previous pane, leaving
+   playback removes it, and a late iframe event cannot reopen a discarded pane.
+5. On the target hardware, in guest mode, a live channel opened by exact name shows readable chat
+   beside an unobstructed video, reloads, and hides — arrows only, video never below 400x300.
+6. `bun run verify` passes in one run with existing suites intact.
+
+Not in scope: composing messages, scrolling chat history with the controller, third-party emotes,
+VOD chat replay, and any change to the autoplay mechanism.
 
 ## Observed but not yet scheduled
 
