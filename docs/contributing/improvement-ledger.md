@@ -59,6 +59,7 @@ are out of scope and are rejected without review.
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
+| 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -674,6 +675,39 @@ Worth recording as a near miss: Biome flagged the retry attempt counter as an un
 dependency and offered an autofix. Taking it would have stopped Retry re-running the effect while
 every presence-only test still passed. The counter is genuinely read inside the effect's
 generation guard, so the dependency stayed.
+
+### Cycle 15 — Restore controls when channels return online
+
+A viewer who leaves an offline channel open waiting for the broadcast to come back never gets it.
+Twitch reports ONLINE, but nothing subscribes to it: OFFLINE clears the effect-local ready flag
+and only READY ever sets it, so the shell stays disabled, the offline alert stays up, and quality
+reads never resume. Reproduced against the real component in jsdom with READY → OFFLINE → ONLINE
+→ PLAYING; the player instance is still there and perfectly usable, the shell just refuses.
+
+The root cause is that one flag is doing two jobs. "This player initialized" and "this channel is
+live right now" are different facts, and conflating them is why recovery is impossible: once
+OFFLINE erases initialization, nothing short of a second READY can restore it.
+
+Target: when Twitch says ONLINE, the warning clears and the controls come back around the same
+embed, without reopening the channel. Recovery reads state rather than commanding it — if Twitch
+resumed, the shell reflects that; if it is paused, the viewer presses Play. ONLINE means the
+channel is available, not that video is moving, and must not be presented as playing.
+
+Acceptance criteria:
+
+1. READY → OFFLINE → ONLINE re-enables the controls and refreshes qualities with one player and
+   an unchanged iframe.
+2. ONLINE before READY enables nothing; repeated events and repeated outage cycles add no player
+   or request.
+3. Recovery issues no play, pause, mute, quality, caption or activation call of its own.
+4. Stale callbacks after replacement or unmount change nothing, and ONLINE never moves focus into
+   a frame.
+5. The transition behaves on the target hardware around the same embed, recorded as an injected
+   transition rather than a real broadcaster restart.
+6. `bun run verify` passes in one run.
+
+Not in scope: polling, forced reloads, guaranteed automatic playback, and any change to the
+activation injection.
 
 ## Autoplay injection: investigated, deferred with conditions
 
