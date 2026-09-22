@@ -7,6 +7,9 @@ import {
   ChannelCardSchema,
   ChatInputSessionSchema,
   DeviceChallengeSchema,
+  FavouritesAddInputSchema,
+  FavouritesListSchema,
+  FavouritesRemoveInputSchema,
   FollowedChannelCardSchema,
   PageSchema,
   PlaybackBookmarkSchema,
@@ -74,6 +77,20 @@ const api = {
         ipcRenderer.removeListener(CHANNELS.chatInputEscape, onEscape)
       }
     },
+  },
+  favourites: {
+    add: (entry) =>
+      ipcRenderer
+        .invoke(CHANNELS.favouritesAdd, FavouritesAddInputSchema.parse(entry))
+        .then((value) => FavouritesListSchema.parse(value)),
+    list: () =>
+      ipcRenderer
+        .invoke(CHANNELS.favouritesList)
+        .then((value) => FavouritesListSchema.parse(value)),
+    remove: (login) =>
+      ipcRenderer
+        .invoke(CHANNELS.favouritesRemove, FavouritesRemoveInputSchema.parse(login))
+        .then((value) => FavouritesListSchema.parse(value)),
   },
   playbackProgress: {
     get: (videoId) =>

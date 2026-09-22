@@ -3,7 +3,8 @@ import type { BrowserWindow, IpcMainInvokeEvent } from "electron"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
-import type { VacuumStreamApi } from "../shared/contracts"
+import { FAVOURITES_LIMIT_ERROR, type VacuumStreamApi } from "../shared/contracts"
+import { FavouritesLimitError, type FavouritesStore } from "./favourites-store"
 import { InvalidIpcSenderError, registerIpc } from "./ipc"
 import type { PlaybackProgressStore } from "./playback-progress-store"
 import { SettingsStore } from "./settings-store"
@@ -34,6 +35,11 @@ const event = { sender: webContents, senderFrame: mainFrame } as IpcMainInvokeEv
 const followedChannels = vi.fn<TwitchService["followedChannels"]>()
 const live = vi.fn<TwitchService["live"]>()
 const chatInput = { begin: vi.fn(), cancel: vi.fn(), end: vi.fn() }
+const favourites = {
+  add: vi.fn<FavouritesStore["add"]>(),
+  list: vi.fn<FavouritesStore["list"]>(),
+  remove: vi.fn<FavouritesStore["remove"]>(),
+}
 const playbackProgress = {
   get: vi.fn<PlaybackProgressStore["get"]>(),
   list: vi.fn<PlaybackProgressStore["list"]>(),
@@ -58,6 +64,9 @@ beforeEach(() => {
   handlers.clear()
   chatInput.begin.mockReset()
   chatInput.end.mockReset()
+  favourites.add.mockReset().mockResolvedValue([])
+  favourites.list.mockReset().mockResolvedValue([])
+  favourites.remove.mockReset().mockResolvedValue([])
   followedChannels.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   live.mockReset().mockResolvedValue({ cursor: undefined, items: [] })
   playbackProgress.get.mockReset().mockResolvedValue(undefined)
@@ -69,6 +78,7 @@ beforeEach(() => {
   vi.spyOn(TwitchService.prototype, "live").mockImplementation(live)
   registerIpc({
     chatInput,
+    favourites,
     mainWindow: { webContents } as BrowserWindow,
     playbackProgress,
     rendererOrigin: "https://localhost:1234",
@@ -165,6 +175,7 @@ describe("chat input capability", () => {
       "auth",
       "catalog",
       "chatInput",
+      "favourites",
       "playbackProgress",
       "settings",
       "system",
@@ -197,6 +208,202 @@ describe("chat input capability", () => {
       CHANNELS.chatInputEscape,
       notification,
     )
+  })
+})
+
+describe("favourites capability", () => {
+  const entry = { login: "streamer", userId: "123" }
+  const cases = [
+    { channel: CHANNELS.favouritesAdd, input: [entry], method: "add" },
+    { channel: CHANNELS.favouritesList, input: [], method: "list" },
+    { channel: CHANNELS.favouritesRemove, input: [entry.login], method: "remove" },
+  ] as const
+  const invoke = async (channel: string, sender: IpcMainInvokeEvent, ...input: unknown[]) => {
+    const handler = handlers.get(channel)
+    if (handler === undefined) throw new Error("Missing favourites handler")
+    return handler(sender, ...input)
+  }
+  const exposedApi = async () => {
+    preload.exposeInMainWorld.mockClear()
+    vi.resetModules()
+    await import("../preload/index")
+    const api = preload.exposeInMainWorld.mock.calls[0]?.[1]
+    if (api === undefined) throw new Error("Preload did not expose its API")
+    return api
+  }
+  const expectUntouchedStore = () => {
+    expect(favourites.add).not.toHaveBeenCalled()
+    expect(favourites.list).not.toHaveBeenCalled()
+    expect(favourites.remove).not.toHaveBeenCalled()
+  }
+
+  it.each(cases)(
+    "forwards valid input and the committed store list on $channel",
+    async ({ channel, input, method }) => {
+      const listing = [{ login: "alpha" }, entry]
+      favourites[method].mockResolvedValueOnce(listing)
+      await expect(invoke(channel, event, ...input)).resolves.toBe(listing)
+      expect(favourites[method]).toHaveBeenCalledExactlyOnceWith(...input)
+    },
+  )
+
+  it("canonicalizes valid mixed-case add and remove input before reaching the store", async () => {
+    await invoke(CHANNELS.favouritesAdd, event, { login: "STREAMER" })
+    await invoke(CHANNELS.favouritesRemove, event, "STREAMER")
+    expect(favourites.add).toHaveBeenCalledExactlyOnceWith({ login: "streamer" })
+    expect(favourites.remove).toHaveBeenCalledExactlyOnceWith("streamer")
+  })
+
+  it.each(cases.filter(({ method }) => method !== "list"))(
+    "rejects malformed input and extra arguments before touching the store on $channel",
+    async ({ channel, input, method }) => {
+      const invalid =
+        method === "add"
+          ? [
+              "streamer",
+              {},
+              { login: "" },
+              { login: "x".repeat(26) },
+              { login: "with-dash" },
+              { login: "two words" },
+              { login: 123 },
+              { ...entry, userId: "direct-streamer" },
+              { ...entry, userId: "" },
+              { ...entry, userId: "x".repeat(65) },
+              { ...entry, userId: 123 },
+              { ...entry, userId: null },
+              { ...entry, title: "private" },
+            ]
+          : ["", "x".repeat(26), "with-dash", "two words", { login: entry.login }]
+      for (const value of [undefined, null, false, 123, [], ...invalid]) {
+        await expect(invoke(channel, event, value)).rejects.toBeInstanceOf(z.ZodError)
+      }
+      await expect(invoke(channel, event)).rejects.toBeInstanceOf(z.ZodError)
+      await expect(invoke(channel, event, ...input, "path")).rejects.toBeInstanceOf(z.ZodError)
+      expectUntouchedStore()
+    },
+  )
+
+  it("rejects every argument including explicit undefined on favourites:list", async () => {
+    for (const value of [undefined, null, false, 0, "", "streamer", [], {}, entry]) {
+      await expect(invoke(CHANNELS.favouritesList, event, value)).rejects.toBeInstanceOf(z.ZodError)
+    }
+    await expect(
+      invoke(CHANNELS.favouritesList, event, undefined, undefined),
+    ).rejects.toBeInstanceOf(z.ZodError)
+    expectUntouchedStore()
+  })
+
+  it.each(cases)("rejects a missing sender frame on $channel", async ({ channel, input }) => {
+    await expect(invoke(channel, { ...event, senderFrame: null }, ...input)).rejects.toBeInstanceOf(
+      InvalidIpcSenderError,
+    )
+    expectUntouchedStore()
+  })
+
+  it.each(cases)(
+    "rejects an unauthorized same-origin child frame on $channel",
+    async ({ channel, input }) => {
+      const senderFrame = { url: mainFrame.url } as IpcMainInvokeEvent["senderFrame"]
+      await expect(invoke(channel, { ...event, senderFrame }, ...input)).rejects.toBeInstanceOf(
+        InvalidIpcSenderError,
+      )
+      expectUntouchedStore()
+    },
+  )
+
+  it.each(cases)("rejects a foreign window or origin on $channel", async ({ channel, input }) => {
+    const sender = { ...webContents, id: 2 } as IpcMainInvokeEvent["sender"]
+    await expect(invoke(channel, { ...event, sender }, ...input)).rejects.toBeInstanceOf(
+      InvalidIpcSenderError,
+    )
+    const originalUrl = mainFrame.url
+    try {
+      for (const url of ["https://www.twitch.tv/", "not a URL"]) {
+        mainFrame.url = url
+        await expect(invoke(channel, event, ...input)).rejects.toBeInstanceOf(InvalidIpcSenderError)
+      }
+    } finally {
+      mainFrame.url = originalUrl
+    }
+    expectUntouchedStore()
+  })
+
+  it.each(cases)("surfaces store failures on $channel", async ({ channel, input, method }) => {
+    const failure = new Error("Favourites file is unreadable")
+    favourites[method].mockRejectedValueOnce(failure)
+    await expect(invoke(channel, event, ...input)).rejects.toBe(failure)
+  })
+
+  it("exposes only add/list/remove and validates requests through preload and IPC", async () => {
+    preload.invoke.mockImplementation((channel, ...input) => invoke(channel, event, ...input))
+    const api = await exposedApi()
+    expect(Object.keys(api.favourites).sort()).toEqual(["add", "list", "remove"])
+    favourites.add.mockResolvedValueOnce([entry])
+    favourites.list.mockResolvedValueOnce([entry])
+    await expect(api.favourites.add({ ...entry, login: "STREAMER" })).resolves.toEqual([entry])
+    await expect(api.favourites.list()).resolves.toEqual([entry])
+    await expect(api.favourites.remove("STREAMER")).resolves.toEqual([])
+    expect(favourites.add).toHaveBeenCalledExactlyOnceWith(entry)
+    expect(favourites.list).toHaveBeenCalledExactlyOnceWith()
+    expect(favourites.remove).toHaveBeenCalledExactlyOnceWith(entry.login)
+    expect(preload.invoke).toHaveBeenCalledWith(CHANNELS.favouritesList)
+    expect(() => api.favourites.add({ login: "invalid-login" })).toThrow(z.ZodError)
+    expect(() => api.favourites.add({ ...entry, userId: "direct-streamer" })).toThrow(z.ZodError)
+    expect(() => api.favourites.remove("x".repeat(26))).toThrow(z.ZodError)
+    expect(preload.invoke).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(["add", "list", "remove"] as const)(
+    "rejects malformed and oversized %s results at the preload boundary",
+    async (method) => {
+      const api = await exposedApi()
+      const request = () =>
+        method === "add"
+          ? api.favourites.add(entry)
+          : method === "remove"
+            ? api.favourites.remove(entry.login)
+            : api.favourites.list()
+      for (const result of [
+        undefined,
+        null,
+        {},
+        { items: [entry] },
+        [null],
+        [{}],
+        [{ login: "invalid-login" }],
+        [{ login: "x".repeat(26) }],
+        [{ ...entry, userId: "direct-streamer" }],
+        [{ ...entry, userId: "x".repeat(65) }],
+        [{ ...entry, userId: 123 }],
+        [{ ...entry, title: "private" }],
+        [entry, { login: "STREAMER" }],
+        Array.from({ length: 51 }, (_, index) => ({ login: `channel${index}` })),
+      ]) {
+        preload.invoke.mockResolvedValueOnce(result)
+        await expect(request()).rejects.toBeInstanceOf(z.ZodError)
+      }
+      for (const result of [
+        [],
+        [entry],
+        Array.from({ length: 50 }, (_, index) => ({ login: `channel${index}` })),
+      ]) {
+        preload.invoke.mockResolvedValueOnce(result)
+        await expect(request()).resolves.toEqual(result)
+      }
+    },
+  )
+
+  it("preserves the catchable limit marker when Electron transports only the error message", async () => {
+    const limit = new FavouritesLimitError()
+    favourites.add.mockRejectedValueOnce(limit)
+    await expect(invoke(CHANNELS.favouritesAdd, event, entry)).rejects.toBe(limit)
+    const transported = new Error(`Error invoking remote method 'favourites:add': ${limit.message}`)
+    preload.invoke.mockRejectedValueOnce(transported)
+    const api = await exposedApi()
+    await expect(api.favourites.add(entry)).rejects.toMatchObject({
+      message: expect.stringContaining(FAVOURITES_LIMIT_ERROR),
+    })
   })
 })
 

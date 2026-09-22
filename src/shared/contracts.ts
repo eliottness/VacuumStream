@@ -13,6 +13,35 @@ export const CursorInputSchema = z.object({
   first: z.number().int().min(1).max(100).default(20),
 })
 
+export const FAVOURITES_LIMIT = 50
+export const FAVOURITES_LIMIT_ERROR = "FAVOURITES_LIMIT_REACHED"
+
+export const FavouriteLoginSchema = z
+  .string()
+  .min(1)
+  .max(25)
+  .regex(/^[a-zA-Z0-9_]{1,25}$/)
+  .toLowerCase()
+export const FavouriteSchema = z.strictObject({
+  login: FavouriteLoginSchema,
+  userId: z
+    .string()
+    .min(1)
+    .max(64)
+    .refine((userId) => !userId.startsWith("direct-"), {
+      message: "A favourite userId must not be a synthetic channel id",
+    })
+    .optional(),
+})
+export const FavouritesAddInputSchema = FavouriteSchema
+export const FavouritesListSchema = z
+  .array(FavouriteSchema)
+  .max(FAVOURITES_LIMIT)
+  .refine((entries) => new Set(entries.map((entry) => entry.login)).size === entries.length, {
+    message: "Duplicate favourite login",
+  })
+export const FavouritesRemoveInputSchema = FavouriteLoginSchema
+
 export const LiveInputSchema = CursorInputSchema.extend({
   gameId: z.string().min(1).max(64).optional(),
 })
@@ -155,6 +184,7 @@ export type ChannelCard = z.infer<typeof ChannelCardSchema>
 export type ClientId = z.infer<typeof ClientIdSchema>
 export type CursorInput = z.input<typeof CursorInputSchema>
 export type DeviceChallenge = z.infer<typeof DeviceChallengeSchema>
+export type Favourite = z.infer<typeof FavouriteSchema>
 export type FollowedChannelCard = z.infer<typeof FollowedChannelCardSchema>
 export type LiveInput = z.input<typeof LiveInputSchema>
 export type Page<Item> = {
@@ -187,6 +217,11 @@ export interface VacuumStreamApi {
     readonly begin: (session: string) => Promise<void>
     readonly end: (session: string) => Promise<void>
     readonly onEscape: (listener: (session: string) => void) => () => void
+  }
+  readonly favourites: {
+    readonly add: (entry: Favourite) => Promise<readonly Favourite[]>
+    readonly list: () => Promise<readonly Favourite[]>
+    readonly remove: (login: string) => Promise<readonly Favourite[]>
   }
   readonly playbackProgress: {
     readonly get: (videoId: string) => Promise<PlaybackBookmark | undefined>

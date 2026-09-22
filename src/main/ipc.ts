@@ -4,6 +4,8 @@ import { CHANNELS } from "../shared/channels"
 import {
   ChatInputSessionSchema,
   CursorInputSchema,
+  FavouritesAddInputSchema,
+  FavouritesRemoveInputSchema,
   LiveInputSchema,
   PlaybackProgressGetInputSchema,
   PlaybackProgressRemoveInputSchema,
@@ -12,12 +14,14 @@ import {
   VideosInputSchema,
 } from "../shared/contracts"
 import type { ChatInput } from "./chat-input"
+import type { FavouritesStore } from "./favourites-store"
 import type { PlaybackProgressStore } from "./playback-progress-store"
 import type { TwitchService } from "./twitch-service"
 import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
 type IpcOptions = {
   readonly chatInput: Pick<ChatInput, "begin" | "end">
+  readonly favourites: Pick<FavouritesStore, "add" | "list" | "remove">
   readonly mainWindow: BrowserWindow
   readonly playbackProgress: Pick<PlaybackProgressStore, "get" | "list" | "remove" | "save">
   readonly rendererOrigin: string
@@ -103,6 +107,21 @@ export const registerIpc = (options: IpcOptions): void => {
   ipcMain.handle(CHANNELS.catalogVideos, async (event, input: unknown) => {
     authorize(event)
     return options.twitch.videos(VideosInputSchema.parse(input))
+  })
+  ipcMain.handle(CHANNELS.favouritesAdd, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [entry] = z.tuple([FavouritesAddInputSchema]).parse(input)
+    return options.favourites.add(entry)
+  })
+  ipcMain.handle(CHANNELS.favouritesList, async (event, ...input: unknown[]) => {
+    authorize(event)
+    z.tuple([]).parse(input)
+    return options.favourites.list()
+  })
+  ipcMain.handle(CHANNELS.favouritesRemove, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [login] = z.tuple([FavouritesRemoveInputSchema]).parse(input)
+    return options.favourites.remove(login)
   })
   ipcMain.handle(CHANNELS.playbackProgressGet, async (event, ...input: unknown[]) => {
     authorize(event)

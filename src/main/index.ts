@@ -2,6 +2,7 @@ import { X509Certificate } from "node:crypto"
 import { join } from "node:path"
 import { app, BrowserWindow, dialog, safeStorage, session } from "electron"
 import { createChatInput } from "./chat-input"
+import { FavouritesStore } from "./favourites-store"
 import { type StaticHttpsServer, startStaticHttpsServer } from "./https-server"
 import { registerIpc } from "./ipc"
 import { PlaybackProgressStore } from "./playback-progress-store"
@@ -82,6 +83,7 @@ const createWindow = async (): Promise<void> => {
   })
   registerIpc({
     chatInput,
+    favourites: new FavouritesStore(app.getPath("userData")),
     mainWindow,
     playbackProgress: new PlaybackProgressStore(app.getPath("userData")),
     rendererOrigin,
