@@ -53,7 +53,7 @@ are out of scope and are rejected without review.
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
 | 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed; its failing criterion closed by cycle 8 |
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
-| 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | In progress |
+| 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -444,6 +444,12 @@ Acceptance criteria:
 Not in scope: retries or cache-busting for URLs that merely fail to load, archive pagination,
 resume history, and cycle 3's sizing decision.
 
+Landed in `c25f71c`. The new page-level test was confirmed failing first, with the same ZodError
+the probe produced. Inspecting the result on the signed-out Showcase route surfaced a neighbour:
+the artwork-less card renders cleanly, but the normal card beside it shows a broken-image glyph
+because the fixture URL does not resolve — `VideoShelf` has no `onError` fallback for a thumbnail
+that fails to load, unlike `StreamShelf`. Different defect, recorded below rather than folded in.
+
 ## Observed but not yet scheduled
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
@@ -452,7 +458,8 @@ an unrelated change. Each is a candidate for a future cycle.
 | Observation | Where | How it was found |
 | --- | --- | --- |
 | A channel with no archives renders an empty Past broadcasts screen: heading and Back only, no empty-state message | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3 |
-| The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL, so preload would throw — being fixed in cycle 9 | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; synthetic, not a captured live failure |
+| ~~The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL~~ — closed in cycle 9 | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; fixed cycle 9 |
+| A recording whose thumbnail URL fails to LOAD shows a broken-image glyph: `VideoShelf` has no `onError` fallback, unlike `StreamShelf` which hides the image | `src/renderer/src/components/VideoShelf.tsx` | Cycle 9 Showcase inspection; observed |
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
 | Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
