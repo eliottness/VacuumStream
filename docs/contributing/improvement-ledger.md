@@ -65,6 +65,7 @@ are out of scope and are rejected without review.
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
 | 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | Landed |
+| 21 | [Enable native gamepad chat consent](#cycle-21--enable-native-gamepad-chat-consent) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -1024,6 +1025,51 @@ One suspicion investigated and dismissed: pressing a Top category as a guest jum
 which looked like a focus desync. It is deliberate - the notice "Sign in to browse live streams by
 category" renders on arrival, confirmed on the device - and Enter delivery is otherwise sound,
 since the same surface opened a stream card into the player.
+
+### Cycle 21 — Enable native gamepad chat consent
+
+Cycle 20's QA logged the chat cookie-consent wall and inferred a mouse was required. That
+inference was too broad and the scout corrected it: cycle 8 already made consent reachable with a
+physical keyboard's Tab/Enter and with Steam Input keyboard mappings. The real gap is narrower and
+specific to NATIVE gamepad input.
+
+Measured against the real polling bridge and chat hook with synthetic gamepad snapshots: all four
+D-pad directions and A leave chat focused, the child document receives ZERO key events, and A
+produces one untrusted click on the OUTER iframe element rather than Twitch's focused button. The
+cause is plain in `focus-navigation.ts:125-144`, where Enter is implemented as
+`document.activeElement.click()` — and with chat focused, that element is the iframe.
+
+Fix: inside explicit Enter chat mode, D-pad moves through Twitch's own controls and A activates
+the focused one, through a bounded `chatInput.press(session, action)` capability whose action is
+exactly `next | previous | activate`, mapped to balanced Tab / Shift+Tab / Enter key pairs.
+
+**This accepts an architectural cost on purpose.** Delivery needs an app-owned
+`webContents.debugger` attachment, because cycle 8 measured that `sendInputEvent` does not reach
+the iframe. That is why previous cycles deferred this. The boundary is therefore the deliverable as
+much as the feature: enum-validated action, UUID session, argument count, sender window, main
+frame, renderer origin, and a check that the focused frame really is this window's current
+official chat embed. No arbitrary key, selector, URL, script, target id or debugger command is
+exposed, and attachment is lazy so the keyboard route never depends on it.
+
+Accept, Customize and Reject remain Twitch's choices, selected only by the viewer. Entering chat
+must never choose one, and there is no cookie pre-seeding, consent persistence or automatic
+acceptance — manufacturing consent would be worse than the bug.
+
+Acceptance criteria:
+
+1. Traversal and exactly one activation per A press, with the held entry press never replayed;
+   shown failing against current code first.
+2. The privileged boundary rejects invalid actions, extra arguments, unauthorized senders, stale
+   sessions, unfocused windows and non-chat frames before dispatch.
+3. Teardown cannot deliver a late activation, and keyboard-only entry still works when debugger
+   attachment is unavailable.
+4. The real wall is operated signed out on hardware, inspected through the chat iframe's own CDP
+   target, with Reject chosen deliberately — recorded as unverified if Twitch shows no banner.
+5. Playback and layout stay isolated, with video at least 400x300 at both sizes.
+6. `bun run verify` passes in one run.
+
+Not in scope: a native chat composer, scrolling, an EventSub chat client, iframe login, hard-coded
+button labels or cookie names, and any promise that consent will not reappear.
 
 ## Device QA evidence: a capture error and its corrections
 
