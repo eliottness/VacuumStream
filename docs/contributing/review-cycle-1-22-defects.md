@@ -61,16 +61,16 @@ are blocked on an environment limit, an account, or hardware, and each says whic
 | cycle-02 | 0 (0 major, 0 minor) | 3 | 1 (1 pass, 0 partial, 0 fail) | CLEAN |
 | cycle-03 | 0 (0 major, 0 minor) | 1 | 0 (0 pass, 0 partial, 0 fail) | CLEAN |
 | cycle-04 | 0 (0 major, 0 minor) | 5 | 1 (1 pass, 0 partial, 0 fail) | CLEAN |
-| cycle-05 | 1 (0 major, 1 minor) | 5 | 4 (4 pass, 0 partial, 0 fail) | FINDINGS - minor only |
+| cycle-05 | 1 (0 major, 1 minor) | 5 | 4 (3 pass, 1 partial, 0 fail) | FINDINGS - minor only |
 | cycle-06 | 0 (0 major, 0 minor) | 3 | 1 (1 pass, 0 partial, 0 fail) | CLEAN |
-| cycle-07 | 1 (1 major, 0 minor) | 6 | 4 (3 pass, 0 partial, 1 fail) | FINDINGS - one flow fails |
+| cycle-07 | 1 (1 major, 0 minor) | 6 | 4 (3 pass, 0 partial, 1 fail) | FINDINGS - a flow fails |
 | cycle-08 | 1 (1 major, 0 minor) | 5 | 2 (0 pass, 2 partial, 0 fail) | FINDINGS - major |
 | cycle-09 | 2 (0 major, 2 minor) | 2 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-10 | 2 (0 major, 2 minor) | 5 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-11 | 0 (0 major, 0 minor) | 8 | 8 (7 pass, 1 partial, 0 fail) | CLEAN |
 | cycle-12 | 1 (0 major, 1 minor) | 6 | 5 (5 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-13 | 2 (0 major, 2 minor) | 2 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - minor only |
-| cycle-14 | 1 (0 major, 1 minor) | 6 | 3 (0 pass, 3 partial, 0 fail) | FINDINGS - minor only |
+| cycle-14 | 1 (0 major, 1 minor) | 6 | 3 (1 pass, 2 partial, 0 fail) | FINDINGS - minor only |
 | cycle-15 | 3 (2 major, 1 minor) | 6 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
 | cycle-16 | 2 (0 major, 2 minor) | 4 | 4 (4 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-17 | 2 (0 major, 2 minor) | 4 | 3 (3 pass, 0 partial, 0 fail) | FINDINGS - minor only |
@@ -79,10 +79,10 @@ are blocked on an environment limit, an account, or hardware, and each says whic
 | cycle-20 | 3 (0 major, 3 minor) | 3 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-21 | 1 (0 major, 1 minor) | 4 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | cycle-22 | 3 (1 major, 2 minor) | 6 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
-| xc-security | 2 (1 major, 1 minor) | 2 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
+| xc-security | 2 (1 major, 1 minor) | 2 | 1 (1 pass, 0 partial, 0 fail) | FINDINGS - major |
 | xc-performance | 6 (0 major, 6 minor) | 3 | 2 (2 pass, 0 partial, 0 fail) | FINDINGS - minor only |
 | xc-docs | 1 (1 major, 0 minor) | 8 | 2 (2 pass, 0 partial, 0 fail) | FINDINGS - major |
-| manual-qa | 3 (1 major, 2 minor) | 0 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
+| manual-qa | 4 (2 major, 2 minor) | 0 | 0 (0 pass, 0 partial, 0 fail) | FINDINGS - major |
 
 ## Defects
 
