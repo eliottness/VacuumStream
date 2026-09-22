@@ -53,6 +53,7 @@ are out of scope and are rejected without review.
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
 | 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed; its failing criterion closed by cycle 8 |
 | 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
+| 9 | [Keep archives usable without thumbnails](#cycle-9--keep-archives-usable-without-thumbnails) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -409,6 +410,40 @@ keeps two listeners: one prevents Escape reaching Twitch and notifies the render
 drains the rest of that held press so a single press cannot also trigger Home. The in-app hint
 states that native gamepad input into chat is not supported yet, rather than implying it is.
 
+### Cycle 9 — Keep archives usable without thumbnails
+
+The videos parser keeps an empty `thumbnail_url` as an empty string, and the shared card contract
+requires a URL. Preload validates the whole page, so a single artwork-less recording throws away
+every other recording on it and the viewer sees an archive error instead of their broadcasts. A
+read-only probe reproduced exactly that: two records in, one empty thumbnail, `Invalid URL` at
+`items[1].thumbnailUrl`, and the valid sibling never survived validation.
+
+This was recorded as a deferred item for several cycles because it was synthetic. Cycle 6 changed
+the calculus by making archives a primary route — the way you catch up on an offline favourite —
+so a page-wide failure now costs a whole viewing path rather than one card.
+
+Target: a recording with no artwork keeps its title, broadcaster, duration, focus target and
+activation, showing a neutral placeholder, and opens in the official player like any other. The
+tolerance is deliberately narrow: only an exactly empty string becomes absent artwork, and only
+the video card's contract changes. Malformed non-empty URLs are still rejected, and nothing is
+ever given a fabricated URL.
+
+Acceptance criteria:
+
+1. A mixed page of templated, resolved and empty thumbnails keeps every id, field, order position
+   and the cursor through the real page schema; only the empty one becomes absent.
+2. Non-empty malformed URLs and bad wire types are still rejected, and live 640x360 and category
+   384x512 artwork are untouched.
+3. A card without artwork is reachable and activatable with a controller, and never renders an
+   image with an empty source.
+4. Activating the thumbnail-less card reaches the official player with that recording's exact ID,
+   with no archive alert and no premature player construction.
+5. Showcase at 1280x720 and 1920x1080 shows equal artwork geometry and no broken-image glyph.
+6. `bun run verify` passes in one run.
+
+Not in scope: retries or cache-busting for URLs that merely fail to load, archive pagination,
+resume history, and cycle 3's sizing decision.
+
 ## Observed but not yet scheduled
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
@@ -417,7 +452,7 @@ an unrelated change. Each is a candidate for a future cycle.
 | Observation | Where | How it was found |
 | --- | --- | --- |
 | A channel with no archives renders an empty Past broadcasts screen: heading and Back only, no empty-state message | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3 |
-| The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL, so preload would throw | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; synthetic, not a captured live failure |
+| The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL, so preload would throw — being fixed in cycle 9 | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; synthetic, not a captured live failure |
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
 | Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
