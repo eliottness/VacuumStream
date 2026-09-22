@@ -50,6 +50,7 @@ are out of scope and are rejected without review.
 | 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
+| 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -253,6 +254,47 @@ the on-screen label: `data-player-quality`, which carries `getQuality()`'s retur
 `data-requested-quality` tracked the choice separately. The live payload confirmed the
 group/name shape: `chunked` renders as "1080p60 (source)", `480p30` as "480p".
 
+### Cycle 6 — Browse followed channels even when offline
+
+Following only ever shows who is live. A viewer's favourite broadcaster disappears from the app
+the moment they stop streaming, so catching up on their recordings means remembering the exact
+channel name, typing it into search, opening a player, and only then reaching Past broadcasts.
+`GET /helix/channels/followed` returns the whole follow list under the scope the app already
+requests, so the directory needs no new authorization.
+
+Target: Following gains an All channels mode listing every followed broadcaster with an avatar
+and a Live or Offline snapshot. Each entry offers Open channel and Past broadcasts, so a viewer
+reaches an offline broadcaster's recordings directly. Refresh and Load more work as they do
+elsewhere, and every state is escapable with arrows alone.
+
+Status is a snapshot, not a subscription, so Open channel stays available even on an offline
+entry — a broadcaster may have gone live since the request. Enrichment is batched: one follows
+request, one `GET /streams` with repeated `user_id`, one `GET /users` for avatars per page, never
+a request per channel. A failed status lookup surfaces a recoverable error rather than quietly
+declaring everyone offline.
+
+Acceptance criteria:
+
+1. `channels/followed` is called with the authenticated user's ID, `first=20` and the exact
+   returned cursor; malformed input and unauthorized senders are rejected; cards pass the same
+   page schema preload uses.
+2. Mixed live and offline follows all stay listed, statuses match the batched streams response,
+   and a populated page costs exactly one follows, one streams and one users request.
+3. Refresh replaces, pagination deduplicates by broadcaster ID, retry repeats the failed
+   operation, guests request nothing, and no stale result installs after a mode change,
+   navigation, logout or account change.
+4. Activating Past broadcasts on an offline broadcaster requests that exact user ID and builds no
+   player until a recording is chosen; empty and failed archives are both explained and escapable.
+5. On the target hardware the whole journey runs on arrows alone, with visible focus at
+   pagination exhaustion and in empty states.
+6. `bun run verify` passes in one run with existing suites intact.
+
+Not in scope: follow management, sorting, background polling, notifications, clips, resume
+history, archive pagination, and any player change.
+
+This cycle also closes the recorded empty-archive defect, since an empty Past broadcasts screen
+becomes the natural terminal state of browsing an offline channel.
+
 ## Observed but not yet scheduled
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
@@ -264,5 +306,5 @@ an unrelated change. Each is a candidate for a future cycle.
 | The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL, so preload would throw | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; synthetic, not a captured live failure |
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
 | Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
-| Search and past-broadcast handlers guard obsolete successes but not obsolete failures, unlike the category handlers | `src/renderer/src/useAppController.ts` | Gate review |
+| ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
 | `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
