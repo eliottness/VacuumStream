@@ -66,7 +66,7 @@ are out of scope and are rejected without review.
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
 | 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | Landed |
 | 21 | [Enable native gamepad chat consent](#cycle-21--enable-native-gamepad-chat-consent) | fix | Landed |
-| 22 | [Fix overlapping presses and stale auth completions](#cycle-22--fix-overlapping-presses-and-stale-auth-completions) | fix | In progress |
+| 22 | [Fix overlapping presses and stale auth completions](#cycle-22--fix-overlapping-presses-and-stale-auth-completions) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -1129,6 +1129,27 @@ Acceptance criteria:
 
 Not in scope: reconnect-while-held policy, which the review recorded as a limitation rather than a
 criterion, and any change to cycle 21's chat transport.
+
+Landed in `5d343b1`. Eight cases failed first, including
+`expected [ 'delete' ] to deeply equal [ 'delete', 'submit' ]` and
+`expected 'CODE0001' to be 'CODE0002'`. The body-focus failure reproduced on Following as well as
+Home, so the fix covers one screen more than the review found.
+
+Confirmed on hardware through the app's real polling bridge: typed `gaulesx`, held west - query
+became `gaules` - then pressed north WITHOUT releasing west. The search submitted and the result
+appeared. That press was previously lost for good.
+
+`dispatchedFaces` now records only edges that actually dispatched and clears each on physical
+release, and an undispatched pressed face outranks a held one. The latch still precedes dispatch,
+preserving cycle 18's guarantee that opening Search cannot reinterpret the press that opened it.
+
+**Both rejected evidence claims are also closed.** Cycle 20's second-launch playback observation
+was re-recorded on a genuinely live channel: `currentTime` ran 22.48 -> 27.46 -> (second launch)
+-> 32.15 -> 37.20 with `muted: false`, `volume: 0.5` and `readyState: 4` identical either side,
+the losing process exiting 0 in under a second and the PID and player frame unchanged. Cycle 19's
+journey was redone using ONLY pad buttons through the real polling bridge, and the challenge is now
+captured at 1279x687 as well as 1920x1080, code masked and QR blurred with an automated
+no-raw-code check.
 
 ## Device QA evidence: a capture error and its corrections
 
