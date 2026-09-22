@@ -1176,6 +1176,32 @@ step: the Continue Watching shelf with the focus ring on an actual card rather t
 focus sample, the favourites state matrix including its error variants, the three artwork states
 with a focused card and nothing cropped, and the resume prompt at 1080p.
 
+**Two more of my claims were rejected by the cycles 18-20 review, and it was right both times.**
+
+- Cycle 20's criterion required advancing video AND unchanged mute/volume *across the second
+  launch*. My record says plainly that the source was offline and not playing, yet I headed it PASS
+  and opened it with "app playing". An unchanged PID and player-frame target establish ownership and
+  embed survival, not uninterrupted playback. The cycle 19 recovery measurements are a different
+  operation on a different build and cannot fill that gap. Outstanding: the second-launch playback
+  observation, which needs a genuinely live guest-reachable channel.
+- Cycle 19's hardware criterion specified the app's polling bridge with a labelled synthetic pad
+  and the code/QR journey at BOTH sizes. I used keyboard delivery, said so, and captured the
+  challenge only at 1080p. The images do support account-first layout, focus styling and a masked
+  1080p challenge; they do not cover the native-polling journey or the smaller challenge layout a
+  viewer actually reads a code from. Outstanding: both of those, without approving the challenge or
+  publishing an active code.
+
+Recorded limitations from the same review, deliberately not fixed in cycle 22:
+
+- A pad that disconnects mid-hold is treated as a new press, so reconnecting while still holding
+  the west face can lose another character. Reconnect policy was never an acceptance criterion, so
+  this is a limitation rather than a defect. The implementation also tracks the first connected pad
+  rather than a per-device identity.
+- `SearchView.test.tsx:449-465` is narrower than its title: it dispatches untrusted DOM key events
+  and then calls `requestSubmit()` directly, so it verifies handler isolation and form wiring, not
+  the browser's trusted Backspace/Enter defaults and not a real Steam Input mapping. Useful when
+  described that way; it must not stand in for those input paths.
+
 Both remaining items are now closed. The combined captions + chat + quality panel size was
 measured with all three open at once, and the ONLINE traversal was recorded against a genuinely
 offline channel: with the alert showing, `player-playback` and `player-muted` were disabled;
