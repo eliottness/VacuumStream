@@ -10,8 +10,6 @@ import {
 } from "@playwright/test"
 import { REPOSITORY_ROOT } from "./ledger"
 
-const { DISPLAY } = process.env
-
 export type SeededFavourite = { readonly login: string; readonly userId?: string }
 
 export type SeededBookmark = {
@@ -105,6 +103,7 @@ export const test = base.extend<E2EFixtures>({
   },
 
   app: async ({ profileDirectory, windowSize }, use) => {
+    const { DISPLAY } = process.env
     const application = await electron.launch({
       args: [".", `--user-data-dir=${profileDirectory}`],
       cwd: REPOSITORY_ROOT,

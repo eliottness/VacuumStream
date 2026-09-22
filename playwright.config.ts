@@ -7,6 +7,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   forbidOnly: CI !== undefined,
   fullyParallel: false,
+  globalSetup: "./test/e2e/support/isolated-display.ts",
   outputDir: outputDirectory,
   reporter: [["list"], ["json", { outputFile: `${outputDirectory}/report.json` }]],
   retries: 0,

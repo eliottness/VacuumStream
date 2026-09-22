@@ -55,7 +55,7 @@
   },
   "overrides": [
     {
-      "includes": ["*.config.ts"],
+      "includes": ["*.config.ts", "test/e2e/support/isolated-display.ts"],
       "linter": {
         "rules": {
           "style": {
