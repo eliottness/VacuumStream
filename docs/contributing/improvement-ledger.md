@@ -348,9 +348,11 @@ else held: the video measured 768x640 beside a 512x640 pane at 1280x720, well ab
 400x300 minimum, and hiding restored the full-width player. The next cycle should decide how a
 controller-only viewer consents — or whether an embed can serve this purpose at all.
 
-A smaller inconsistency also surfaced: with chat open, ArrowRight from Hide chat skips Reload and
-lands on Fullscreen, because the toggle's right link still points past the newly inserted button.
-Reload is still reachable with ArrowDown, so nothing is stranded.
+One thing first recorded here as an inconsistency turned out not to be one. With chat open,
+ArrowRight from Hide chat reaches Fullscreen while Reload sits on the down axis. That matches the
+quality chooser, where the toggle keeps its horizontal neighbours and the panel's actions live
+below it, and the existing tests assert that arrangement deliberately. Changing it broke eight of
+them; the arrangement is the convention, not a defect.
 
 Landed in `970d67c`, with the logic in a `usePlayerChat` hook so the player component barely grew.
 The pane resets during render when the source changes, so a returning channel cannot revive its
@@ -373,6 +375,6 @@ an unrelated change. Each is a candidate for a future cycle.
 | ~~A channel with no archives renders an empty Past broadcasts screen~~ — closed in cycle 6 with a status element and reachable Back | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3; fixed cycle 6 |
 | Cursor exhaustion on a live shelf and an induced shelf request failure cannot be staged against real Twitch data, so both remain test-only rather than hardware-verified | `src/renderer/src/components/StreamShelf.tsx` | Cycle 4 hardware QA; recorded as a verification limit, not a defect |
 | Chat's consent gate is unreachable without pointer input, so the pane shows a dialog instead of messages for a controller-only viewer | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; observed, blocks the feature's purpose |
-| With chat open, ArrowRight from Hide chat skips Reload and reaches Fullscreen; Reload is only on the down axis | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA |
+| ~~With chat open, ArrowRight from Hide chat skips Reload~~ — withdrawn: secondary panel actions live on the down axis by convention, matching the quality chooser, and the tests assert it | `src/renderer/src/components/usePlayerChat.tsx` | Cycle 7 hardware QA; re-assessed and withdrawn |
 | The HTPC test account is signed out after an in-app Client ID change during QA; Device Code Flow needs the user, so authenticated hardware checks are paused | n/a | Cycle 6 hardware QA |
 | `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
