@@ -2,13 +2,15 @@
 
 import { EventEmitter } from "node:events"
 import type { BrowserWindow } from "electron"
-import { act } from "react"
+import { act, StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createChatInput } from "../../../main/chat-input"
+import type { PlaybackBookmark, VacuumStreamApi } from "../../../shared/contracts"
 import { App } from "../App"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
+import type { TwitchPlayerOptions } from "../twitch-player"
 import { type PlayerSource, PlayerView } from "./PlayerView"
 
 const source = {
@@ -32,9 +34,9 @@ const seekIds = [
   "player-seek-forward-5m",
 ] as const
 
-const playerView = (playerSource: PlayerSource = source) => (
+const playerView = (playerSource: PlayerSource = source, onBack = () => undefined) => (
   <PlayerView
-    onBack={() => undefined}
+    onBack={onBack}
     onPastBroadcasts={() => undefined}
     onToggleFullscreen={() => undefined}
     source={playerSource}
@@ -48,7 +50,19 @@ const installPlayerHarness = (
 ) => {
   vi.useFakeTimers()
   const listeners = new Map<string, () => void>()
-  const constructed = vi.fn()
+  const constructed = vi.fn<(elementId: string, options: TwitchPlayerOptions) => void>()
+  const bookmarks = new Map<string, PlaybackBookmark>()
+  const progress = {
+    get: vi.fn<VacuumStreamApi["playbackProgress"]["get"]>(async (videoId) =>
+      bookmarks.get(videoId),
+    ),
+    remove: vi.fn<VacuumStreamApi["playbackProgress"]["remove"]>(async (videoId) => {
+      bookmarks.delete(videoId)
+    }),
+    save: vi.fn<VacuumStreamApi["playbackProgress"]["save"]>(async (bookmark) => {
+      bookmarks.set(bookmark.videoId, bookmark)
+    }),
+  }
   const instances: TestPlayer[] = []
   const getCurrentTime = vi.fn(() => timeline.currentTime)
   const getDuration = vi.fn(() => timeline.duration)
@@ -64,6 +78,7 @@ const installPlayerHarness = (
     muted = nextMuted
   })
   class TestPlayer {
+    static readonly ENDED = "ended"
     static readonly OFFLINE = "offline"
     static readonly PAUSE = "pause"
     static readonly PLAY = "play"
@@ -72,8 +87,8 @@ const installPlayerHarness = (
     static readonly READY = "ready"
     static readonly SEEK = "seek"
 
-    constructor(elementId: string) {
-      constructed(elementId)
+    constructor(elementId: string, options: TwitchPlayerOptions) {
+      constructed(elementId, options)
       instances.push(this)
       document.getElementById(elementId)?.append(document.createElement("iframe"))
     }
@@ -136,6 +151,7 @@ const installPlayerHarness = (
     value: {
       auth: { snapshot: async () => ({ kind: "guest" }) },
       chatInput: { begin: beginChatInput, end: endChatInput, onEscape: onChatEscape },
+      playbackProgress: progress,
       settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },
     },
@@ -144,10 +160,12 @@ const installPlayerHarness = (
     configurable: true,
     value: true,
   })
-  const emit = (event: "ready" | "playing" | "seek" | "offline"): void => listeners.get(event)?.()
+  const emit = (event: "ready" | "playing" | "seek" | "offline" | "pause" | "ended"): void =>
+    listeners.get(event)?.()
   return {
     activateEmbeddedPlayer,
     beginChatInput,
+    bookmarks,
     chatContents,
     chatInput,
     chatKey,
@@ -164,6 +182,7 @@ const installPlayerHarness = (
     onChatEscape,
     pause,
     play,
+    progress,
     restoreShellFullscreen,
     seek,
     setMuted,
@@ -195,11 +214,14 @@ const pressKey = async (container: HTMLElement, key: string): Promise<void> => {
   await act(async () => dispatchControllerKey(key))
 }
 
-const mountNavigablePlayer = async (playerSource: PlayerSource = source) => {
+const mountNavigablePlayer = async (
+  playerSource: PlayerSource = source,
+  onBack = () => undefined,
+) => {
   installNavigationSurface()
   const NavigablePlayer = () => {
     useControllerNavigation()
-    return playerView(playerSource)
+    return playerView(playerSource, onBack)
   }
   const container = document.createElement("div")
   document.body.append(container)
@@ -233,6 +255,412 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
   vi.unstubAllGlobals()
+})
+
+const savedBookmark: PlaybackBookmark = {
+  duration: 10_800,
+  position: 3900,
+  updatedAt: 1_700_000_000_000,
+  videoId: videoSource.videoId,
+}
+
+const controlledPromise = <T,>() => {
+  let resolve: ((value: T) => void) | undefined
+  let reject: ((cause: Error) => void) | undefined
+  const promise = new Promise<T>((accept, fail) => {
+    resolve = accept
+    reject = fail
+  })
+  return {
+    promise,
+    reject: (cause: Error) => {
+      if (reject === undefined) throw new Error("Missing rejection callback")
+      reject(cause)
+    },
+    resolve: (value: T) => {
+      if (resolve === undefined) throw new Error("Missing resolution callback")
+      resolve(value)
+    },
+  }
+}
+
+describe("local VOD resume", () => {
+  it("checkpoints 3900 seconds and reopens behind controller choices before one timed constructor", async () => {
+    const harness = installPlayerHarness([true], { currentTime: 3900, duration: 10_800 })
+    const saved = controlledPromise<void>()
+    harness.progress.save.mockImplementationOnce(async (bookmark) => {
+      harness.bookmarks.set(bookmark.videoId, bookmark)
+      saved.resolve(undefined)
+    })
+    const first = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(14_000))
+    expect(harness.progress.save).not.toHaveBeenCalled()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+      await saved.promise
+    })
+    expect(harness.progress.save).toHaveBeenCalledExactlyOnceWith({
+      ...savedBookmark,
+      updatedAt: Date.now(),
+    })
+    await act(async () => first.root.unmount())
+    harness.constructed.mockClear()
+
+    const { container, root } = await mountNavigablePlayer(videoSource)
+    expect(harness.constructed).not.toHaveBeenCalled()
+    expect(container.querySelector("iframe")).toBeNull()
+    const resume = buttonById(container, "video-resume-resume")
+    expect(resume.textContent?.match(/\d+:\d{2}:\d{2}/)?.[0]).toBe("1:05:00")
+    expect(document.activeElement).toBe(resume)
+    await pressKey(container, "ArrowRight")
+    expect(document.activeElement).toBe(buttonById(container, "video-resume-start"))
+    await pressKey(container, "ArrowLeft")
+    await pressKey(container, "Enter")
+    expect(harness.constructed).toHaveBeenCalledExactlyOnceWith(
+      "twitch-player-root",
+      expect.objectContaining({ time: "1h5m0s", video: "42" }),
+    )
+    expect(harness.seek).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(buttonById(container, "player-back"))
+    await act(async () => root.unmount())
+  })
+
+  it("limits changed-position checkpoints to fifteen seconds and does not rewrite stationary samples", async () => {
+    const timeline = { currentTime: 60, duration: 3600 }
+    const harness = installPlayerHarness([true], timeline)
+    const { root } = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(harness.progress.save).toHaveBeenCalledTimes(1)
+    await act(async () => vi.advanceTimersByTimeAsync(30_000))
+    expect(harness.progress.save).toHaveBeenCalledTimes(1)
+    timeline.currentTime = 61
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(harness.progress.save).toHaveBeenCalledTimes(2)
+    timeline.currentTime = 62
+    await act(async () => vi.advanceTimersByTimeAsync(14_000))
+    expect(harness.progress.save).toHaveBeenCalledTimes(2)
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(harness.progress.save).toHaveBeenCalledTimes(3)
+    await act(async () => root.unmount())
+  })
+
+  it("checkpoints observed pause, confirmed seek and normal departure without saving seek requests", async () => {
+    const timeline = { currentTime: 100, duration: 3600 }
+    const harness = installPlayerHarness([true], timeline)
+    const { container, root } = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+    })
+    expect(harness.bookmarks.get("42")?.position).toBe(100)
+    await act(async () => buttonById(container, "player-seek-forward-30s").click())
+    expect(harness.progress.save).toHaveBeenCalledTimes(1)
+    timeline.currentTime = 130
+    await act(async () => harness.emit("seek"))
+    expect(harness.bookmarks.get("42")?.position).toBe(130)
+    timeline.currentTime = 131
+    await act(async () => harness.emit("playing"))
+    await act(async () => root.unmount())
+    expect(harness.progress.save.mock.calls.map(([bookmark]) => bookmark.position)).toEqual([
+      100, 130, 131,
+    ])
+    expect(
+      harness.progress.save.mock.calls.every(([bookmark]) => bookmark.updatedAt === Date.now()),
+    ).toBe(true)
+  })
+
+  it("starts over once under StrictMode and repeated activation, removing the bookmark without time", async () => {
+    const harness = installPlayerHarness([])
+    harness.bookmarks.set("42", savedBookmark)
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<StrictMode>{playerView(videoSource)}</StrictMode>))
+    expect(harness.constructed).not.toHaveBeenCalled()
+    const start = buttonById(container, "video-resume-start")
+    await act(async () => {
+      start.click()
+      start.click()
+    })
+    expect(harness.progress.remove).toHaveBeenCalledExactlyOnceWith("42")
+    expect(harness.bookmarks.has("42")).toBe(false)
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    expect(harness.constructed.mock.calls[0]?.[1]).toMatchObject({ video: "42" })
+    expect(harness.constructed.mock.calls[0]?.[1]).not.toHaveProperty("time")
+    await act(async () => root.unmount())
+  })
+
+  it("takes Back from the resume prompt without constructing a player or changing progress", async () => {
+    const harness = installPlayerHarness([])
+    harness.bookmarks.set("42", savedBookmark)
+    const onBack = vi.fn()
+    const { container, root } = await mountNavigablePlayer(videoSource, onBack)
+    await pressKey(container, "ArrowDown")
+    await pressKey(container, "ArrowDown")
+    expect(document.activeElement).toBe(buttonById(container, "video-resume-back"))
+    await pressKey(container, "Enter")
+    expect(onBack).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+    expect(harness.constructed).not.toHaveBeenCalled()
+    expect(harness.progress.save).not.toHaveBeenCalled()
+    expect(harness.progress.remove).not.toHaveBeenCalled()
+  })
+
+  it("uses the existing startup path for a recording with no bookmark", async () => {
+    const harness = installPlayerHarness([true])
+    const { container, root } = await mountPlayer()
+    expect(harness.progress.get).toHaveBeenCalledExactlyOnceWith("42")
+    expect(container.querySelector(".video-resume")).toBeNull()
+    expect(harness.constructed).toHaveBeenCalledExactlyOnceWith("twitch-player-root", {
+      autoplay: true,
+      height: "100%",
+      muted: true,
+      parent: ["localhost"],
+      video: "42",
+      width: "100%",
+    })
+    await act(async () => harness.emit("ready"))
+    expect(harness.activateEmbeddedPlayer).toHaveBeenCalledExactlyOnceWith(true)
+    await act(async () => root.unmount())
+  })
+
+  it("ignores a deferred lookup after source replacement and rechecks returning source objects", async () => {
+    const harness = installPlayerHarness([])
+    const lookup = controlledPromise<PlaybackBookmark | undefined>()
+    harness.progress.get.mockReturnValueOnce(lookup.promise)
+    const { container, root } = await mountPlayer()
+    expect(harness.constructed).not.toHaveBeenCalled()
+    await act(async () => root.render(playerView({ ...videoSource, videoId: "43" })))
+    expect(harness.constructed.mock.calls.map(([, options]) => options.video)).toEqual(["43"])
+    await act(async () => lookup.resolve(savedBookmark))
+    expect(container.querySelector(".video-resume")).toBeNull()
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    harness.bookmarks.set("42", savedBookmark)
+    await act(async () => root.render(playerView(videoSource)))
+    expect(container.querySelector(".video-resume")).not.toBeNull()
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+  })
+
+  it("never overwrites a resumed bookmark with READY zero or unconfirmed startup samples", async () => {
+    const timeline = { currentTime: 0, duration: 10_800 }
+    const harness = installPlayerHarness([true], timeline)
+    harness.bookmarks.set("42", savedBookmark)
+    const { container, root } = await mountPlayer()
+    const resume = buttonById(container, "video-resume-resume")
+    await act(async () => {
+      resume.click()
+      resume.click()
+    })
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("seek")
+      harness.emit("pause")
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    timeline.currentTime = 5
+    await act(async () => {
+      harness.emit("playing")
+      harness.emit("pause")
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    await act(async () => root.unmount())
+    expect(harness.progress.save).not.toHaveBeenCalled()
+    expect(harness.bookmarks.get("42")).toEqual(savedBookmark)
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+  })
+
+  it("accepts a resumed position only after confirmation and permits a confirmed viewer seek to zero", async () => {
+    const timeline = { currentTime: 3900, duration: 10_800 }
+    const harness = installPlayerHarness([true], timeline)
+    harness.bookmarks.set("42", savedBookmark)
+    const { container, root } = await mountPlayer()
+    await act(async () => buttonById(container, "video-resume-resume").click())
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+    })
+    timeline.currentTime = 3901
+    await act(async () => harness.emit("pause"))
+    expect(harness.bookmarks.get("42")?.position).toBe(3901)
+    timeline.currentTime = 10
+    await act(async () => buttonById(container, "player-seek-back-30s").click())
+    timeline.currentTime = 0
+    await act(async () => harness.emit("seek"))
+    expect(harness.bookmarks.get("42")?.position).toBe(0)
+    await act(async () => root.unmount())
+  })
+
+  it("removes on ENDED and ignores later samples and cleanup without a near-end heuristic", async () => {
+    const timeline = { currentTime: 10_799, duration: 10_800 }
+    const harness = installPlayerHarness([true], timeline)
+    const { root } = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+    })
+    expect(harness.bookmarks.get("42")?.position).toBe(10_799)
+    expect(harness.progress.remove).not.toHaveBeenCalled()
+    timeline.duration = 11_000
+    timeline.currentTime = 10_850
+    await act(async () => harness.emit("seek"))
+    expect(harness.bookmarks.get("42")?.duration).toBe(11_000)
+    await act(async () => harness.emit("ended"))
+    const writes = harness.progress.save.mock.calls.length
+    await act(async () => {
+      harness.emit("playing")
+      harness.emit("pause")
+      harness.emit("seek")
+      harness.emit("ended")
+      root.unmount()
+    })
+    expect(harness.progress.remove).toHaveBeenCalledExactlyOnceWith("42")
+    expect(harness.bookmarks.has("42")).toBe(false)
+    expect(harness.progress.save).toHaveBeenCalledTimes(writes)
+  })
+
+  it("orders completion after an in-flight save, cancels queued saves and gates a reopening lookup", async () => {
+    const timeline = { currentTime: 100, duration: 3600 }
+    const harness = installPlayerHarness([true], timeline)
+    const write = controlledPromise<void>()
+    harness.progress.save.mockImplementationOnce(async (bookmark) => {
+      await write.promise
+      harness.bookmarks.set(bookmark.videoId, bookmark)
+    })
+    const first = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+    })
+    expect(harness.progress.save).toHaveBeenCalledTimes(1)
+    timeline.currentTime = 200
+    await act(async () => {
+      harness.emit("seek")
+      harness.emit("ended")
+    })
+    await act(async () => first.root.unmount())
+    const next = await mountPlayer()
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    expect(harness.progress.remove).not.toHaveBeenCalled()
+    await act(async () => write.resolve(undefined))
+    expect(harness.progress.save).toHaveBeenCalledTimes(1)
+    expect(harness.progress.remove).toHaveBeenCalledExactlyOnceWith("42")
+    expect(harness.bookmarks.has("42")).toBe(false)
+    expect(harness.constructed).toHaveBeenCalledTimes(2)
+    expect(next.container.querySelector(".video-resume")).toBeNull()
+    await act(async () => next.root.unmount())
+  })
+
+  it("binds late persistence failures and old player callbacks to their original video", async () => {
+    const harness = installPlayerHarness([true, true], { currentTime: 100, duration: 3600 })
+    const write = controlledPromise<void>()
+    harness.progress.save.mockReturnValueOnce(write.promise)
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const { container, root } = await mountPlayer()
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+    })
+    const oldListeners = new Map(harness.listeners)
+    await act(async () => root.render(playerView({ ...videoSource, videoId: "43" })))
+    await act(async () => {
+      for (const callback of oldListeners.values()) callback()
+      write.reject(new Error("Disk unavailable"))
+    })
+    expect(logged).toHaveBeenCalledTimes(1)
+    expect(container.querySelector(".player-progress-status")).toBeNull()
+    expect(harness.progress.save.mock.calls.map(([bookmark]) => bookmark.videoId)).toEqual(["42"])
+    expect(harness.progress.remove).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it("performs no progress operations or time configuration for live playback", async () => {
+    const harness = installPlayerHarness([true], { currentTime: 3900, duration: 10_800 })
+    const { container, root } = await mountPlayer(source)
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+      harness.emit("seek")
+      harness.emit("ended")
+    })
+    expect(container.querySelector(".video-resume")).toBeNull()
+    expect(harness.constructed.mock.calls[0]?.[1]).not.toHaveProperty("time")
+    await act(async () => root.unmount())
+    expect(harness.progress.get).not.toHaveBeenCalled()
+    expect(harness.progress.save).not.toHaveBeenCalled()
+    expect(harness.progress.remove).not.toHaveBeenCalled()
+  })
+
+  it("keeps rejected lookups escapable and offers playback without resume through controller navigation", async () => {
+    const harness = installPlayerHarness([])
+    harness.progress.get.mockRejectedValueOnce(new Error("Cannot read file"))
+    const onBack = vi.fn()
+    const { container, root } = await mountNavigablePlayer(videoSource, onBack)
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    expect(harness.constructed).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(buttonById(container, "video-resume-start"))
+    await pressKey(container, "ArrowRight")
+    expect(document.activeElement).toBe(buttonById(container, "video-resume-back"))
+    await pressKey(container, "Enter")
+    expect(onBack).toHaveBeenCalledTimes(1)
+    expect(harness.constructed).not.toHaveBeenCalled()
+    await pressKey(container, "ArrowLeft")
+    await pressKey(container, "Enter")
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    expect(harness.constructed.mock.calls[0]?.[1]).not.toHaveProperty("time")
+    await act(async () => root.unmount())
+  })
+
+  it("reports failed writes outside the embed without interrupting playback and retries unsaved positions", async () => {
+    const harness = installPlayerHarness([true], { currentTime: 3900, duration: 10_800 })
+    harness.progress.save.mockRejectedValueOnce(new Error("Disk full"))
+    const { container, root } = await mountPlayer()
+    const frame = container.querySelector("iframe")
+    await act(async () => {
+      harness.emit("ready")
+      harness.emit("playing")
+      harness.emit("pause")
+    })
+    const status = container.querySelector('.player-progress-status[role="status"]')
+    expect(status?.textContent?.length).toBeGreaterThan(0)
+    expect(container.querySelector(".player-stage")?.contains(status)).toBe(false)
+    expect(harness.bookmarks.has("42")).toBe(false)
+    expect(container.querySelector("iframe")).toBe(frame)
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    expect(harness.pause).not.toHaveBeenCalled()
+    await act(async () => harness.emit("pause"))
+    expect(harness.progress.save).toHaveBeenCalledTimes(2)
+    expect(harness.bookmarks.get("42")?.position).toBe(3900)
+    expect(container.querySelector(".player-progress-status")).toBeNull()
+    await act(async () => root.unmount())
+  })
+
+  it("reports a failed Start over removal while allowing untimed playback", async () => {
+    const harness = installPlayerHarness([])
+    harness.bookmarks.set("42", savedBookmark)
+    harness.progress.remove.mockRejectedValueOnce(new Error("Read-only disk"))
+    const { container, root } = await mountPlayer()
+    await act(async () => buttonById(container, "video-resume-start").click())
+    expect(container.querySelector('.player-progress-status[role="status"]')).not.toBeNull()
+    expect(harness.constructed).toHaveBeenCalledTimes(1)
+    expect(harness.constructed.mock.calls[0]?.[1]).not.toHaveProperty("time")
+    expect(harness.bookmarks.get("42")).toEqual(savedBookmark)
+    await act(async () => root.unmount())
+  })
 })
 
 describe("Twitch player surface", () => {

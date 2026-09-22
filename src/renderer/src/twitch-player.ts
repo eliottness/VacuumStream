@@ -6,6 +6,7 @@ export type TwitchPlayerOptions = {
   readonly height: "100%"
   readonly muted: boolean
   readonly parent: readonly ["localhost"]
+  readonly time?: string
   readonly video?: string
   readonly width: "100%"
 }
@@ -74,9 +75,15 @@ declare global {
   }
 }
 
+// Documented event name (Twitch.Player.ENDED).
+export const TWITCH_PLAYER_ENDED = "ended"
+
 let playerApiPromise: Promise<TwitchPlayerApi> | undefined
 
-export const createTwitchPlayerOptions = (source: PlayerSource): TwitchPlayerOptions => {
+export const createTwitchPlayerOptions = (
+  source: PlayerSource,
+  startingPosition?: number,
+): TwitchPlayerOptions => {
   const base = {
     autoplay: true,
     height: "100%",
@@ -84,9 +91,15 @@ export const createTwitchPlayerOptions = (source: PlayerSource): TwitchPlayerOpt
     parent: ["localhost"],
     width: "100%",
   } as const
-  return source.kind === "live"
-    ? { ...base, channel: source.channel }
-    : { ...base, video: source.videoId }
+  if (source.kind === "live") return { ...base, channel: source.channel }
+  const seconds = Math.floor(startingPosition ?? 0)
+  return {
+    ...base,
+    ...(seconds > 0
+      ? { time: `${Math.floor(seconds / 3600)}h${Math.floor(seconds / 60) % 60}m${seconds % 60}s` }
+      : {}),
+    video: source.videoId,
+  }
 }
 
 export const loadTwitchPlayerApi = (): Promise<TwitchPlayerApi> => {

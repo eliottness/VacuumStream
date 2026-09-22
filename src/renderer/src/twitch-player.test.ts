@@ -71,6 +71,23 @@ describe("interactive Twitch player options", () => {
     })
   })
 
+  it.each([
+    [3900, "1h5m0s"],
+    [65.9, "0h1m5s"],
+    [7322, "2h2m2s"],
+  ])("formats the VOD starting position %s as %s", (position, time) => {
+    const source = { kind: "video", title: "VOD", userId: "1", videoId: "42" } as const
+    expect(createTwitchPlayerOptions(source, position)).toMatchObject({ time, video: "42" })
+  })
+
+  it("omits time for live sources and recordings starting from the beginning", () => {
+    const live = { channel: "twitch", kind: "live", title: "Live", userId: "1" } as const
+    const video = { kind: "video", title: "VOD", userId: "1", videoId: "42" } as const
+    expect(createTwitchPlayerOptions(live, 3900)).not.toHaveProperty("time")
+    expect(createTwitchPlayerOptions(video)).not.toHaveProperty("time")
+    expect(createTwitchPlayerOptions(video, 0)).not.toHaveProperty("time")
+  })
+
   it("configures a VOD without sending a competing channel", () => {
     // Given a past-broadcast source
     const source = { kind: "video", title: "VOD", userId: "1", videoId: "42" } as const

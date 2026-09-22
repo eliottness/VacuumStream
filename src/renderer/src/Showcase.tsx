@@ -1,8 +1,10 @@
 import type { VideoCard } from "../../shared/contracts"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { StreamShelf } from "./components/StreamShelf"
+import { VideoResumePrompt } from "./components/VideoResumePrompt"
 import { VideoShelf } from "./components/VideoShelf"
 import { PREVIEW_CATEGORIES, PREVIEW_STREAMS } from "./demo-data"
+import { useControllerNavigation } from "./focus-navigation"
 
 const PREVIEW_VIDEOS = [
   {
@@ -31,63 +33,90 @@ const PREVIEW_VIDEOS = [
   },
 ] satisfies readonly VideoCard[]
 
-export const Showcase = () => (
-  <main className="showcase">
-    <header className="page-heading">
-      <span>Development surface</span>
-      <h1>Primitive showcase</h1>
-      <p>Focus, loading, empty, disabled, and content states for visual QA.</p>
-    </header>
-    <section className="showcase__buttons" aria-labelledby="buttons-heading">
-      <h2 id="buttons-heading">Actions</h2>
-      <button className="primary-button" data-focusable="true" type="button">
-        Primary action
-      </button>
-      <button data-focusable="true" type="button">
-        Secondary action
-      </button>
-      <button data-focusable="true" disabled type="button">
-        Disabled action
-      </button>
-      <button className="showcase-focus-sample" data-focusable="true" type="button">
-        Focus sample
-      </button>
-    </section>
-    <StreamShelf
-      emptyMessage="No live channels are available."
-      onSelect={() => undefined}
-      streams={PREVIEW_STREAMS}
-      title="Live card states"
-    />
-    <VideoShelf
-      error=""
-      loading={false}
-      onBack={() => undefined}
-      onRetry={() => undefined}
-      onSelect={() => undefined}
-      videos={PREVIEW_VIDEOS}
-    />
-    <StreamShelf
-      emptyMessage=""
-      onSelect={() => undefined}
-      state="loading"
-      streams={[]}
-      title="Loading state"
-    />
-    <StreamShelf
-      emptyMessage=""
-      onRetry={() => undefined}
-      onSelect={() => undefined}
-      state="error"
-      streams={[]}
-      title="Error state"
-    />
-    <StreamShelf
-      emptyMessage="Follow channels on Twitch to see them here."
-      onSelect={() => undefined}
-      streams={[]}
-      title="Empty state"
-    />
-    <CategoryShelf categories={PREVIEW_CATEGORIES} onSelect={() => undefined} />
-  </main>
-)
+export const Showcase = () => {
+  useControllerNavigation()
+  return (
+    <main className="showcase">
+      <header className="page-heading">
+        <span>Development surface</span>
+        <h1>Primitive showcase</h1>
+        <p>Focus, loading, empty, disabled, and content states for visual QA.</p>
+      </header>
+      <section className="showcase__buttons" aria-labelledby="buttons-heading">
+        <h2 id="buttons-heading">Actions</h2>
+        <button className="primary-button" data-focusable="true" type="button">
+          Primary action
+        </button>
+        <button data-focusable="true" type="button">
+          Secondary action
+        </button>
+        <button data-focusable="true" disabled type="button">
+          Disabled action
+        </button>
+        <button className="showcase-focus-sample" data-focusable="true" type="button">
+          Focus sample
+        </button>
+      </section>
+      <StreamShelf
+        emptyMessage="No live channels are available."
+        onSelect={() => undefined}
+        streams={PREVIEW_STREAMS}
+        title="Live card states"
+      />
+      <VideoShelf
+        error=""
+        loading={false}
+        onBack={() => undefined}
+        onRetry={() => undefined}
+        onSelect={() => undefined}
+        videos={PREVIEW_VIDEOS}
+      />
+      <StreamShelf
+        emptyMessage=""
+        onSelect={() => undefined}
+        state="loading"
+        streams={[]}
+        title="Loading state"
+      />
+      <StreamShelf
+        emptyMessage=""
+        onRetry={() => undefined}
+        onSelect={() => undefined}
+        state="error"
+        streams={[]}
+        title="Error state"
+      />
+      <StreamShelf
+        emptyMessage="Follow channels on Twitch to see them here."
+        onSelect={() => undefined}
+        streams={[]}
+        title="Empty state"
+      />
+      <VideoResumePrompt
+        focusOnMount={false}
+        focusPrefix="showcase-resume"
+        onBack={() => undefined}
+        onResume={() => undefined}
+        onStartOver={() => undefined}
+        position={3900}
+        title="Resume a part-watched recording"
+      />
+      <VideoResumePrompt
+        error="Could not read local playback progress. You can still play without resuming."
+        focusOnMount={false}
+        focusPrefix="showcase-resume-error"
+        onBack={() => undefined}
+        onStartOver={() => undefined}
+        title="Playback progress unavailable"
+      />
+      <VideoResumePrompt
+        focusOnMount={false}
+        focusPrefix="showcase-resume-loading"
+        loading
+        onBack={() => undefined}
+        title="Checking a recording"
+      />
+      <CategoryShelf categories={PREVIEW_CATEGORIES} onSelect={() => undefined} />
+    </main>
+  )
+}

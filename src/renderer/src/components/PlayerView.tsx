@@ -11,10 +11,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   createTwitchPlayerOptions,
   loadTwitchPlayerApi,
+  TWITCH_PLAYER_ENDED,
   type TwitchPlayerInstance,
 } from "../twitch-player"
 import { usePlayerChat } from "./usePlayerChat"
 import { usePlayerQuality } from "./usePlayerQuality"
+import { useVideoResume, type VideoProgress, type VideoSampleReason } from "./useVideoResume"
 
 export type PlayerSource =
   | {
@@ -69,6 +71,11 @@ export const PlayerView = ({
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
+  const progressRef = useRef<VideoProgress | undefined>(undefined)
+  const { beginProgress, canPlay, progressStatus, resumePrompt, startingPosition } = useVideoResume(
+    source,
+    onBack,
+  )
   const { chatButton, chatEnterButton, chatHint, chatPane, chatReloadButton, fullscreenLeft } =
     usePlayerChat(source, backButtonRef)
   const { qualityButton, qualityChooser, refreshQualities, resetQualities } = usePlayerQuality(
@@ -84,7 +91,9 @@ export const PlayerView = ({
     }
   }, [])
 
-  useEffect(() => backButtonRef.current?.focus(), [])
+  useEffect(() => {
+    if (canPlay) backButtonRef.current?.focus()
+  }, [canPlay])
   useEffect(() => {
     let active = true
     let ready = false
@@ -93,18 +102,23 @@ export const PlayerView = ({
     setPosition(undefined)
     setDuration(undefined)
     resetQualities()
+    if (!canPlay) return
+    const progress =
+      source.kind === "video" ? beginProgress(source, startingPosition, () => active) : undefined
+    progressRef.current = progress
     const autoStartGeneration = autoStartGenerationRef.current + 1
     autoStartGenerationRef.current = autoStartGeneration
     let autoStartDeadline = 0
     let autoStartStarted = false
     let player: TwitchPlayerInstance | undefined
-    const refreshTimeline = (): void => {
+    const refreshTimeline = (reason: VideoSampleReason = "sample"): void => {
       // User intent cancels autoplay, not sampling; the mounted player owns this lifecycle.
       if (!active || !ready || source.kind !== "video" || player === undefined) return
       const currentTime = player.getCurrentTime()
       const totalTime = player.getDuration()
       setPosition(Number.isFinite(currentTime) ? currentTime : undefined)
       setDuration(Number.isFinite(totalTime) && totalTime > 0 ? totalTime : undefined)
+      progress?.observe(currentTime, totalTime, reason)
     }
     const attemptAutoStart = (): void => {
       void window.vacuumStream.system.activateEmbeddedPlayer(true).then((playbackStarted) => {
@@ -131,7 +145,10 @@ export const PlayerView = ({
     void loadTwitchPlayerApi()
       .then((api) => {
         if (!active) return
-        player = new api.Player("twitch-player-root", createTwitchPlayerOptions(source))
+        player = new api.Player(
+          "twitch-player-root",
+          createTwitchPlayerOptions(source, startingPosition),
+        )
         playerRef.current = player
         player.addEventListener(api.Player.READY, () => {
           if (!active || player === undefined) return
@@ -139,7 +156,7 @@ export const PlayerView = ({
           setFrameState("ready")
           refreshQualities(player)
           if (source.kind === "video") {
-            refreshTimeline()
+            refreshTimeline("ready")
             if (timelineTimer === undefined) {
               timelineTimer = setInterval(refreshTimeline, 1000)
             }
@@ -155,16 +172,21 @@ export const PlayerView = ({
         player.addEventListener(api.Player.PLAYING, () => {
           if (!active || !ready || player === undefined) return
           refreshQualities(player)
-          refreshTimeline()
+          refreshTimeline("playing")
         })
         if (source.kind === "video") {
-          player.addEventListener(api.Player.SEEK, refreshTimeline)
+          player.addEventListener(api.Player.SEEK, () => refreshTimeline("seek"))
+          player.addEventListener(TWITCH_PLAYER_ENDED, () => {
+            if (active) progress?.end()
+          })
         }
         player.addEventListener(api.Player.PLAY, () => {
           if (active) setPaused(false)
         })
         player.addEventListener(api.Player.PAUSE, () => {
-          if (active) setPaused(true)
+          if (!active) return
+          setPaused(true)
+          refreshTimeline("pause")
         })
         player.addEventListener(api.Player.PLAYBACK_BLOCKED, () => {
           if (active) setPaused(true)
@@ -182,14 +204,24 @@ export const PlayerView = ({
         if (active) setFrameState("error")
       })
     return () => {
+      progress?.leave()
       active = false
+      progressRef.current = undefined
       clearInterval(timelineTimer)
       cancelAutoStart()
       player?.pause()
       playerRef.current = undefined
       document.querySelector("#twitch-player-root")?.replaceChildren()
     }
-  }, [source, cancelAutoStart, refreshQualities, resetQualities])
+  }, [
+    source,
+    canPlay,
+    startingPosition,
+    beginProgress,
+    cancelAutoStart,
+    refreshQualities,
+    resetQualities,
+  ])
 
   const togglePlayback = (): void => {
     cancelAutoStart()
@@ -224,10 +256,16 @@ export const PlayerView = ({
     const currentTime = player.getCurrentTime()
     const totalTime = player.getDuration()
     if (!Number.isFinite(currentTime) || !Number.isFinite(totalTime) || totalTime <= 0) return
-    player.seek(Math.min(totalTime, Math.max(0, currentTime + seconds)))
+    const destination = Math.min(totalTime, Math.max(0, currentTime + seconds))
+    progressRef.current?.requestSeek(destination)
+    player.seek(destination)
   }
 
   const showHours = duration !== undefined && duration >= 3600
+
+  if (resumePrompt !== null) {
+    return <main className="player-view player-view--resume">{resumePrompt}</main>
+  }
 
   return (
     <main className={source.kind === "video" ? "player-view player-view--video" : "player-view"}>
@@ -322,6 +360,7 @@ export const PlayerView = ({
           <output aria-label="Playback position" aria-live="off" className="player-transport__time">
             {formatTime(position, showHours)} / {formatTime(duration, showHours)}
           </output>
+          {progressStatus}
         </section>
       ) : null}
       {qualityChooser}

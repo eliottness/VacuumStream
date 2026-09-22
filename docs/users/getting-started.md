@@ -140,6 +140,19 @@ Press Down from Back to reach the jumps, Left/Right to choose, and Enter to seek
 to Back. Seeking keeps focus on the jump without changing play/pause or mute. Jumps become
 available when Twitch reports a ready recording and its duration. Live streams have no jumps.
 
+Reopening a part-watched recording offers **Resume from H:MM:SS**, **Start over**, and
+**Back** before loading the player. Use Left/Right or Up/Down and Enter to choose. Start over
+clears the old position; Back leaves without starting playback. If local progress cannot be
+read, you can still choose **Play without resume** or Back.
+
+Positions are **local to this installation and shared across Twitch account changes**. They
+are not synced to Twitch or other devices. Observed progress is checkpointed every 15 seconds
+when it changes, and on pause, confirmed seeking, and normal departure. An abrupt app or
+system shutdown can lose progress since the last checkpoint. Completion reported by Twitch
+clears the bookmark; merely approaching the current end of a growing archive does not.
+Storage failures appear outside the video while playback continues; a failed write is not
+saved progress. Live streams do not use bookmarks.
+
 Native gamepads map D-pad/left stick to arrows, A to Enter, and B to Escape. If the controller
 is not detected, use the same mapping in Steam Input.
 
