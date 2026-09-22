@@ -36,6 +36,18 @@ Electron main process
 - fullscreen window control;
 - production HTTPS serving and certificate pinning.
 
+One application process owns each Electron `userData` directory (profile). Main acquires
+Electron's single-instance lock synchronously before scheduling readiness or constructing a
+window, HTTPS server, persistence owners, or IPC handlers. A losing process quits without
+bootstrapping; Electron owns the lock lifetime. Store queues and token-refresh serialization
+protect only their owning instances, so this process-level ownership prevents competing writers
+and refreshes against the same profile.
+
+A second launch only restores the existing window if minimized, then shows and focuses it.
+Requests received before the window exists are remembered for the single startup window.
+Reactivation neither reloads or navigates the renderer nor changes fullscreen mode or rebuilds
+resources. Second-instance command-line arguments are untrusted and ignored.
+
 Packaged builds ignore `ELECTRON_RENDERER_URL`. Electron fuses disable Run-as-Node,
 `NODE_OPTIONS`, CLI inspection, and extra file-protocol privileges while requiring the
 embedded ASAR and its integrity metadata.

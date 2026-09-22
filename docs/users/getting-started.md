@@ -55,6 +55,11 @@ prefer Flatpak if your distribution blocks unprivileged user namespaces.
 
 ## First run
 
+VacuumStream runs one application instance per profile (its user-data directory). Launching it
+again brings the existing window forward, restoring it if minimized, without restarting playback,
+changing the current screen, or changing fullscreen mode. Repeated launches during startup still
+open only one window. The extra process exits without opening the profile's stores.
+
 Start in guest mode: choose a Quick watch channel, or open Search and enter an exact Twitch
 channel login, such as `twitch`. Guest mode does not provide general catalog search.
 

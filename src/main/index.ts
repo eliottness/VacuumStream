@@ -11,6 +11,19 @@ import { TokenVault } from "./token-vault"
 import { TwitchService } from "./twitch-service"
 
 let staticServer: StaticHttpsServer | undefined
+let primaryWindow: BrowserWindow | undefined
+let activationRequested = false
+
+const activateWindow = (): void => {
+  if (primaryWindow === undefined) {
+    activationRequested = true
+    return
+  }
+  activationRequested = false
+  if (primaryWindow.isMinimized()) primaryWindow.restore()
+  primaryWindow.show()
+  primaryWindow.focus()
+}
 
 const isTwitchPlayerOrigin = (value: string): boolean =>
   URL.canParse(value) && new URL(value).origin === "https://player.twitch.tv"
@@ -29,6 +42,11 @@ const createWindow = async (): Promise<void> => {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       sandbox: true,
     },
+  })
+
+  primaryWindow = mainWindow
+  mainWindow.on("closed", () => {
+    primaryWindow = undefined
   })
 
   const { ELECTRON_RENDERER_URL: developmentRendererUrl } = process.env
@@ -117,22 +135,30 @@ const createWindow = async (): Promise<void> => {
   })
 
   await mainWindow.loadURL(rendererUrl ?? rendererOrigin)
+  if (activationRequested) activateWindow()
 }
 
-app
-  .whenReady()
-  .then(createWindow)
-  .catch(async (error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown startup failure"
-    dialog.showErrorBox("VacuumStream could not start", message)
-    await staticServer?.close()
-    app.exit(1)
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  // A second launch may only reactivate this window, never supply navigation arguments.
+  app.on("second-instance", activateWindow)
+
+  app
+    .whenReady()
+    .then(createWindow)
+    .catch(async (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown startup failure"
+      dialog.showErrorBox("VacuumStream could not start", message)
+      await staticServer?.close()
+      app.exit(1)
+    })
+
+  app.on("window-all-closed", () => {
+    app.quit()
   })
 
-app.on("window-all-closed", () => {
-  app.quit()
-})
-
-app.on("will-quit", () => {
-  void staticServer?.close()
-})
+  app.on("will-quit", () => {
+    void staticServer?.close()
+  })
+}
