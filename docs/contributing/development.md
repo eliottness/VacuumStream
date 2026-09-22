@@ -55,6 +55,18 @@ bun run pack
 OAuth tests do not prove real Twitch authorization or physical controller compatibility. Record
 what you actually exercised and what requires an account, network, or target hardware.
 
+## Capturing device screenshots
+
+When checking a layout on a real HTPC over SSH, do not combine a CDP
+`Emulation.setDeviceMetricsOverride` with an X11 window grab such as `xwd`. The override resizes
+the layout viewport, so the page really does reflow and DOM assertions taken at that size are
+valid, but the grab still photographs the physical window - producing an image at the window's
+size while the filename claims the emulated one.
+
+Capture with CDP `Page.captureScreenshot` (with `captureBeyondViewport` when the surface is taller
+than the viewport) so the image matches what was emulated. Outside Steam Game Mode the window is
+pinned to 1280x720, so any larger size is necessarily emulated; say so in the record.
+
 ## Build artifacts
 
 ```bash

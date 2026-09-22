@@ -174,6 +174,26 @@ DOM attributes. Standalone fixtures, including Showcase, declare their own bound
 - **Chat interaction**: only Enter chat arms the main-process Escape capability, sets `tabIndex={0}`, and focuses the frame, without forwarding the activating key. The viewer is interacting with Twitch's own interface, including its cookie/advertising consent dialog. A persistent hint outside both embeds explains Tab/Shift+Tab to move, Enter to activate, and Escape to return to Hide chat. Physical keyboard and Steam Input keyboard mappings work; native gamepad input into the frame is not yet supported. Escape exits this mode before it can reach Twitch; repeats and the matching release are consumed, while a later distinct Escape still returns Home. Hide, Reload, source replacement (including a returning source), BrowserWindow blur, leaving playback and unmount invalidate the session, remove its listeners, reset the frame to `tabIndex={-1}`, and recover shell focus. A mode-ending Escape retains only a release guard until that press ends. Late acknowledgements or notifications cannot revive a session.
 - **Layout**: a player-stage grid holds the unobscured video frame and optional sibling chat pane. Video remains at least 400 by 300 px and expands to available space; when side-by-side cannot fit, the panes stack and the player view scrolls. Local toolbar, transport, quality and caption choosers, chat controls and the interaction hint remain outside both embeds. Each visible inline panel has its own content-sized grid row; simultaneous panels scroll rather than clipping controls or shrinking the video below its minimum. Chat is enlarged with a transform on its outer frame and compensating width/height, following the root scale for couch readability without injecting cross-origin CSS or cropping Twitch's UI.
 
+### Search
+
+- **Native gamepad editing**: while focus is within Search's form or on-screen keyboard, the
+  west face button (physical button 2) deletes one trailing Unicode code point, and the north
+  face button (physical button 3) submits the trimmed query. Both use the same deletion and
+  guarded submit functions as the visible buttons. Empty-query and busy submissions are
+  consumed no-ops, not global navigation. Neither shortcut moves focus or opens a result.
+- **Press identity**: latch the physical face buttons through edge detection until release,
+  even if focus, route or input priority changes. Resolve context only for a new press;
+  holding the button that opened Search cannot then edit or submit it. These actions never
+  repeat. D-pad/left-stick repeats retain the 500 ms delay and 100 ms interval.
+- **Boundary**: dispatch a cancelable, bubbling renderer-local semantic event from the focused
+  element. Only the form and keyboard consume it. An unconsumed event falls back to the
+  existing `/` key dispatch, including on navigation, results and favourite actions. No IPC,
+  cross-frame forwarding or keyboard remapping is involved. The entry hint explicitly names
+  native gamepad shortcuts; physical keyboards and Steam Input keyboard mappings are unchanged.
+- **Retry focus**: before favourites Retry removes itself, move focus to the persistent Search
+  input if a search is pending, otherwise to the enabled form Search button. A disabled submit
+  button is never a recovery target; request completion must not steal focus.
+
 ### Primitive Showcase
 
 The development-only `?showcase=1` surface renders action default/focus/disabled states, populated/loading/error/empty shelves, media fallback handling, the real Continue Watching shelf in populated/legacy-entry/loading/read-error/removal-error fixtures, the real resume prompt in bookmarked/loading/read-error states, and category cards at 375, 768, 1280, 1920, and 3840 px before product screens are accepted.

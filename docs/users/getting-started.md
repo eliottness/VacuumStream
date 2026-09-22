@@ -205,8 +205,17 @@ clears the bookmark; merely approaching the current end of a growing archive doe
 Storage failures appear outside the video while playback continues; a failed write is not
 saved progress. Live streams do not use bookmarks.
 
-Native gamepads map D-pad/left stick to arrows, A to Enter, and B to Escape. If the controller
-is not detected, use the same mapping in Steam Input.
+Native gamepads map D-pad/left stick to arrows, A to Enter, and B to Escape. While focus is
+in Search's form or on-screen keyboard, the **west face button** (button 2, X on Xbox) deletes
+the last character, and the **north face button** (button 3, Y on Xbox) submits the search.
+Neither shortcut moves focus or opens a result. Each press acts once: release before pressing
+again. An empty query or a search already in progress makes Submit a no-op. Outside that
+editing area, both buttons keep their `/` shortcut behaviour for opening Search.
+
+These editing shortcuts are **native gamepad only**. Physical keyboards and Steam Input
+keyboard mappings keep their normal text-entry, Backspace, Enter and `/` routes. If the
+controller is not detected, use the arrow/Enter/Escape mapping in Steam Input; the visible
+on-screen Backspace and Search buttons remain available.
 
 ## Steam Deck and Bazzite Gaming Mode
 

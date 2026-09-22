@@ -890,6 +890,49 @@ deletion additionally needs either a documented gate-acknowledgement mechanism o
 route for the viewer to operate the gate on every input path — and replacing automatic dismissal
 with explicit consent is an interaction change to be stated, not shipped silently as "autoplay".
 
+## Device QA evidence: a capture error and its corrections
+
+An independent gate review of cycles 10-17 found that a number of device-QA records claimed more
+than their screenshots showed. The findings are recorded here rather than quietly fixed, because
+the cycle log is the durable account of this work and an overstated record is worse than a gap.
+
+**Root cause.** Every capture labelled `1920x1080` is in fact 1279x719. The QA script resized the
+layout viewport with CDP `Emulation.setDeviceMetricsOverride` but photographed the window with
+`xwd`, which only ever sees the real 1280x720 window. The larger layout genuinely reflowed - the
+DOM and focus assertions taken at that size are valid - but it was never fully photographed, so
+the 1080p half of those criteria rests on no artifact.
+
+**Fix for future cycles:** capture with CDP `Page.captureScreenshot` (with
+`captureBeyondViewport`) so the image matches the emulated viewport, or drive a genuinely
+1080p surface. Do not pair an `Emulation` override with an X11 window grab again.
+
+**Two further errors of reasoning, withdrawn:**
+
+- Audible, moving playback was inferred from the shell's Pause and Mute *labels*. A still image
+  plus control labels cannot establish motion or audio.
+- Cycle 16's recovery capture shows Twitch's **offline** screen, not a recovered playing stream.
+  The failed SDK download and the reachable Retry control are demonstrated; recovery through
+  actually moving playback is not. SDK caching explains why a second interception did nothing, but
+  that does not substitute for the missing outcome.
+
+**Cycle 17's own gap:** the hardware traversal turned around at the last favourite and never
+entered Quick watch, so the live/local shelf boundary - the exact boundary that cycle
+centralized - remains unproven on hardware, even though its automated coverage passes. The
+favourite was also seeded through the preload bridge rather than saved via Search.
+
+Nine criteria across cycles 12-17 are therefore recorded as passing on evidence that does not
+cover them fully: resume prompt layout, Continue Watching shelf layout and shelf focus, the
+combined caption/chat/quality panel size, artwork focus across layouts, the autoplay smoke
+observation, startup recovery playback, restored-control traversal, the favourites Showcase
+matrix, and the cycle 17 shelf boundary. Each needs re-recording with a real 1080p capture path;
+none of them indicates broken production behaviour, which remains covered by passing automated
+tests.
+
+**One real defect came out of the same review** and is being fixed in cycle 18: in Search, the
+favourites Retry control focused the submit button before removing itself, but submit is disabled
+while a search request is in flight, so focus fell to `document.body` and never recovered. The
+existing test could not catch it because its fixture pinned the idle state.
+
 ## Observed but not yet scheduled
 
 
