@@ -65,7 +65,7 @@ are out of scope and are rejected without review.
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
 | 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | Landed |
-| 21 | [Enable native gamepad chat consent](#cycle-21--enable-native-gamepad-chat-consent) | fix | In progress |
+| 21 | [Enable native gamepad chat consent](#cycle-21--enable-native-gamepad-chat-consent) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -1070,6 +1070,27 @@ Acceptance criteria:
 
 Not in scope: a native chat composer, scrolling, an EventSub chat client, iframe login, hard-coded
 button labels or cookie names, and any promise that consent will not reappear.
+
+Landed in `5c8edc7`. Against the unchanged code the new test failed exactly as described: `next`
+and `activate` were never called and `click` fired once on the outer iframe.
+
+The hardware run is the part worth recording. Fresh profile, signed out, channel `twitch`: the
+chat embed really did carry Twitch's consent dialog with Accepter / Personnaliser / Rejeter.
+Inspecting `document.activeElement` INSIDE the chat frame through its own CDP target, six D-pad
+Down presses walked `cookies` -> `Avis sur les cookies` -> `Politique de Confidentialite` ->
+`Accepter` -> `Personnaliser` -> `Rejeter`, and one A press on Rejeter dismissed the wall and
+revealed the chat surface with its composer. Reject was chosen deliberately.
+
+The pad was synthetic - a QA-only `getGamepads` override through the app's real polling bridge -
+so physical-controller compatibility is still unclaimed. Player iframe stayed at 767x549 in the
+real window and 1408x949 emulated at 1080p, with one player and one chat iframe and no overlay.
+
+On the privileged transport, reviewed by hand: main locates the chat frame in its own frame tree
+and revalidates window focus, frame identity, parentage, top-frame identity, tree membership, URL
+stability and the exact embed pattern immediately before every dispatch. The renderer can say only
+a UUID plus one of three enum values. An existing debugger attachment is refused rather than
+stolen, and the keyDown/keyUp pair is submitted together so an exit mid-press cannot leave a
+dangling keyDown for newly restored shell focus.
 
 ## Device QA evidence: a capture error and its corrections
 
