@@ -61,7 +61,7 @@ are out of scope and are rejected without review.
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
-| 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | In progress |
+| 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -808,6 +808,18 @@ Acceptance criteria:
 
 Not in scope: extracting all of Home, splitting `PlayerView`, consolidating the three local
 stores, and changing the category shelf's geometric navigation.
+
+Landed in `e5e323e`, as a 58-line pure function with a 72-combination table test. The refactor
+earned its place by the test that failed first: asserting the composed graph in a static render
+produced "expected null to be favourite-zulu-remove" against the old wiring, because the links
+only existed after effects ran.
+
+On the device, with a bookmark and a favourite seeded through the real bridges, the DOM already
+carried the whole graph before any traversal, and arrows walked both shelves down and back up
+with no dead end. The clearest proof of the defect class: removing the last favourite rescued
+focus to a connected control AND re-derived the live shelf's upward link from the removed entry
+to the Continue Watching action — the stale sibling link that the old effect-based wiring had to
+remember to restore by hand.
 
 ## Autoplay injection: investigated, deferred with conditions
 
