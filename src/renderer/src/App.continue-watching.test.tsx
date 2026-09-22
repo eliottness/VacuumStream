@@ -167,6 +167,8 @@ const mount = async (
     readonly addEventListener = (event: string, listener: () => void) => {
       listeners.set(event, listener)
     }
+    readonly disableCaptions = vi.fn()
+    readonly enableCaptions = vi.fn()
     readonly getCurrentTime = () => timeline.position
     readonly getDuration = () => timeline.duration
     readonly getMuted = () => false
@@ -251,7 +253,11 @@ describe("Continue Watching in Home", () => {
     expect(button("player-vods").disabled).toBe(true)
     button("player-quality").focus()
     await key("ArrowRight")
+    expect(document.activeElement).toBe(button("player-captions"))
+    await key("ArrowRight")
     expect(document.activeElement).toBe(button("player-fullscreen"))
+    await key("ArrowLeft")
+    expect(document.activeElement).toBe(button("player-captions"))
     await key("ArrowLeft")
     expect(document.activeElement).toBe(button("player-quality"))
     await act(async () => button("player-vods").click())

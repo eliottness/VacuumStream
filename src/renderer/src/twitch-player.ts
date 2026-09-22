@@ -13,6 +13,8 @@ export type TwitchPlayerOptions = {
 
 export interface TwitchPlayerInstance {
   readonly addEventListener: (event: string, listener: () => void) => void
+  readonly disableCaptions: () => void
+  readonly enableCaptions: () => void
   readonly getCurrentTime: () => number
   readonly getDuration: () => number
   readonly getMuted: () => boolean

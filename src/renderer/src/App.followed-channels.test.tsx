@@ -147,6 +147,8 @@ class Player implements twitchPlayer.TwitchPlayerInstance {
     constructedPlayer(options)
   }
   addEventListener = vi.fn()
+  disableCaptions = vi.fn()
+  enableCaptions = vi.fn()
   getCurrentTime = () => 0
   getDuration = () => 0
   getMuted = () => true

@@ -115,6 +115,17 @@ Twitch supplies; Enter requests a change without changing play/pause or mute. Op
 appear only after playback starts. **Close** returns focus to Quality; Escape still returns
 Home. A requested quality is not confirmation of a change; Auto can use different resolutions.
 
+Choose **Captions**, between Quality and Past broadcasts, for live streams or recordings.
+Left/Right selects **Show**, **Hide**, or **Close**; Enter activates the choice. Show and Hide
+request a setting from Twitch, not a report that captions are available or rendering. Captions
+come from the broadcaster's own stream; Twitch renders and styles them. VacuumStream does
+not detect caption availability or generate captions. Until you choose Show or Hide, Twitch's
+own default is untouched. These commands are disabled until the player is ready, but Captions
+and Close remain reachable while loading or offline. Close returns focus to Captions; Escape
+returns Home. Requests are not carried over to another source, and a failed request can be retried.
+For older recordings with an unknown broadcaster, Right from Captions goes to Fullscreen,
+bypassing the disabled Past broadcasts shortcut; Left follows the same route back.
+
 For live channels, choose **Show chat** between Past broadcasts and Fullscreen to read live
 chat beside the video. Chat starts hidden each time you open or change a source. **Hide chat**
 removes the pane; **Reload chat** reloads only chat, without restarting playback. Left/Right

@@ -64,7 +64,17 @@ const installPlayerHarness = (
       bookmarks.set(bookmark.videoId, bookmark)
     }),
   }
+  const catalog = {
+    followed: vi.fn<VacuumStreamApi["catalog"]["followed"]>(),
+    followedChannels: vi.fn<VacuumStreamApi["catalog"]["followedChannels"]>(),
+    live: vi.fn<VacuumStreamApi["catalog"]["live"]>(),
+    search: vi.fn<VacuumStreamApi["catalog"]["search"]>(),
+    topCategories: vi.fn<VacuumStreamApi["catalog"]["topCategories"]>(),
+    videos: vi.fn<VacuumStreamApi["catalog"]["videos"]>(),
+  }
   const instances: TestPlayer[] = []
+  const disableCaptions = vi.fn()
+  const enableCaptions = vi.fn()
   const getCurrentTime = vi.fn(() => timeline.currentTime)
   const getDuration = vi.fn(() => timeline.duration)
   const getQualities = vi.fn(() => quality.available)
@@ -97,6 +107,8 @@ const installPlayerHarness = (
     readonly addEventListener = (event: string, listener: () => void): void => {
       listeners.set(event, listener)
     }
+    readonly disableCaptions = disableCaptions
+    readonly enableCaptions = enableCaptions
     readonly getCurrentTime = getCurrentTime
     readonly getDuration = getDuration
     readonly getMuted = (): boolean => muted
@@ -151,6 +163,7 @@ const installPlayerHarness = (
     configurable: true,
     value: {
       auth: { snapshot: async () => ({ kind: "guest" }) },
+      catalog,
       chatInput: { begin: beginChatInput, end: endChatInput, onEscape: onChatEscape },
       playbackProgress: progress,
       settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
@@ -167,12 +180,15 @@ const installPlayerHarness = (
     activateEmbeddedPlayer,
     beginChatInput,
     bookmarks,
+    catalog,
     chatContents,
     chatInput,
     chatKey,
     chatNotifications,
     constructed,
+    disableCaptions,
     emit,
+    enableCaptions,
     endChatInput,
     getCurrentTime,
     getDuration,
@@ -1061,6 +1077,381 @@ describe("controller playback quality", () => {
   })
 })
 
+describe("controller captions", () => {
+  it.each([source, videoSource])(
+    "leaves Twitch defaults untouched until a ready viewer requests captions for $kind",
+    async (playerSource) => {
+      const harness = installPlayerHarness([true])
+      const { container, root } = await mountPlayer(playerSource)
+      const control = buttonById(container, "player-captions")
+      const expectNoRequests = (): void => {
+        expect(harness.enableCaptions).not.toHaveBeenCalled()
+        expect(harness.disableCaptions).not.toHaveBeenCalled()
+        expect(control.hasAttribute("data-requested-captions")).toBe(false)
+      }
+      expectNoRequests()
+      await act(async () => harness.emit("playing"))
+      await act(async () => control.click())
+      for (const setting of ["show", "hide"]) {
+        const command = buttonById(container, `player-captions-${setting}`)
+        expect(command.disabled).toBe(true)
+        expect(command.getAttribute("aria-pressed")).toBe("false")
+        await act(async () => command.click())
+      }
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      await act(async () => buttonById(container, "player-captions-close").click())
+      expectNoRequests()
+      await act(async () => harness.emit("ready"))
+      expectNoRequests()
+      await act(async () => control.click())
+      await act(async () => buttonById(container, "player-captions-close").click())
+      expectNoRequests()
+      await act(async () => control.click())
+      await act(async () => buttonById(container, "player-captions-show").click())
+      expect(harness.enableCaptions).toHaveBeenCalledExactlyOnceWith()
+      expect(harness.disableCaptions).not.toHaveBeenCalled()
+      expect(control.getAttribute("data-requested-captions")).toBe("show")
+      expect(buttonById(container, "player-captions-show").getAttribute("aria-pressed")).toBe(
+        "true",
+      )
+      await act(async () => buttonById(container, "player-captions-hide").click())
+      expect(harness.disableCaptions).toHaveBeenCalledExactlyOnceWith()
+      expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+      expect(control.getAttribute("data-requested-captions")).toBe("hide")
+      expect(buttonById(container, "player-captions-hide").getAttribute("aria-pressed")).toBe(
+        "true",
+      )
+      expect(buttonById(container, "player-captions-show").getAttribute("aria-pressed")).toBe(
+        "false",
+      )
+      await act(async () => buttonById(container, "player-captions-close").click())
+      await act(async () => harness.emit("offline"))
+      await act(async () => control.click())
+      for (const setting of ["show", "hide"]) {
+        const command = buttonById(container, `player-captions-${setting}`)
+        expect(command.disabled).toBe(true)
+        await act(async () => command.click())
+      }
+      await act(async () => harness.emit("playing"))
+      await act(async () => buttonById(container, "player-captions-close").click())
+      expect(document.activeElement).toBe(control)
+      expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+      expect(harness.disableCaptions).toHaveBeenCalledTimes(1)
+      // Offline is not caption absence, and READY does not reapply the last request.
+      expect(control.getAttribute("data-requested-captions")).toBe("hide")
+      await act(async () => harness.emit("ready"))
+      expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+      expect(harness.disableCaptions).toHaveBeenCalledTimes(1)
+      await act(async () => root.unmount())
+      expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+      expect(harness.disableCaptions).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it.each([source, videoSource])(
+    "walks the caption toolbar and chooser in both directions for $kind without playback or data side effects",
+    async (playerSource) => {
+      const harness = installPlayerHarness([true], undefined, {
+        available: ["auto"],
+        current: "auto",
+      })
+      const { container, root } = await mountNavigablePlayer(playerSource)
+      await act(async () => harness.emit("ready"))
+      const player = harness.instances[0]
+      const playerRoot = container.querySelector("#twitch-player-root")
+      const frame = playerRoot?.querySelector("iframe")
+      expect(player).toBeDefined()
+      expect(playerRoot).not.toBeNull()
+      expect(frame).not.toBeNull()
+      const calls = [
+        harness.activateEmbeddedPlayer,
+        harness.play,
+        harness.pause,
+        harness.setMuted,
+        harness.seek,
+        harness.setQuality,
+        ...Object.values(harness.progress),
+        ...Object.values(harness.catalog),
+      ].map((mock) => ({ count: mock.mock.calls.length, mock }))
+      const expectIsolated = (): void => {
+        expect(harness.instances).toHaveLength(1)
+        expect(harness.instances[0]).toBe(player)
+        expect(harness.constructed).toHaveBeenCalledTimes(1)
+        expect(container.querySelector("#twitch-player-root")).toBe(playerRoot)
+        expect(playerRoot?.querySelector("iframe")).toBe(frame)
+        for (const { count, mock } of calls) expect(mock).toHaveBeenCalledTimes(count)
+      }
+      const move = async (key: string, id: string): Promise<void> => {
+        await pressKey(container, key)
+        expect(document.activeElement).toBe(buttonById(container, id))
+        expect(container.querySelector(".player-stage")?.contains(document.activeElement)).toBe(
+          false,
+        )
+        expectIsolated()
+      }
+      const route = [
+        "player-back",
+        "player-playback",
+        "player-muted",
+        "player-quality",
+        "player-captions",
+        "player-vods",
+        ...(playerSource.kind === "live" ? ["player-chat"] : []),
+        "player-fullscreen",
+      ]
+      for (const id of route.slice(1)) await move("ArrowRight", id)
+      for (const id of route.slice(0, -1).reverse()) await move("ArrowLeft", id)
+      for (const id of route.slice(1, 4)) await move("ArrowRight", id)
+      await move("Enter", "player-quality-option-auto")
+      await move("ArrowUp", "player-quality")
+      await move("ArrowRight", "player-captions")
+      await move("Enter", "player-captions-show")
+      expect(container.querySelector(".player-quality")).not.toBeNull()
+      expect(container.querySelector(".player-stage .player-captions")).toBeNull()
+      expect(harness.enableCaptions).not.toHaveBeenCalled()
+      expect(harness.disableCaptions).not.toHaveBeenCalled()
+      for (const command of ["show", "hide", "close"]) {
+        const button = buttonById(container, `player-captions-${command}`)
+        expect(button.disabled).toBe(false)
+        expect(button.getAttribute("data-focusable")).toBe("true")
+        for (const direction of ["down", "left", "right", "up"]) {
+          expect(button.hasAttribute(`data-focus-${direction}`)).toBe(true)
+        }
+      }
+      await move("Enter", "player-captions-show")
+      await move("ArrowRight", "player-captions-hide")
+      await move("Enter", "player-captions-hide")
+      await move("ArrowRight", "player-captions-close")
+      await move("ArrowLeft", "player-captions-hide")
+      await move("ArrowLeft", "player-captions-show")
+      await move("ArrowLeft", "player-captions")
+      await move("ArrowDown", "player-captions-show")
+      await move("ArrowDown", "player-captions-close")
+      await move("ArrowUp", "player-captions")
+      await move("ArrowDown", "player-captions-show")
+      await move("ArrowRight", "player-captions-hide")
+      await move("ArrowUp", "player-captions")
+      await move("ArrowDown", "player-captions-show")
+      await move("ArrowRight", "player-captions-hide")
+      await move("ArrowDown", "player-captions-close")
+      await move("ArrowRight", "player-captions-close")
+      await move("ArrowDown", "player-captions-close")
+      await move("Enter", "player-captions")
+      expect(container.querySelector(".player-captions")).toBeNull()
+      expect(harness.enableCaptions).toHaveBeenCalledExactlyOnceWith()
+      expect(harness.disableCaptions).toHaveBeenCalledExactlyOnceWith()
+      await move("ArrowUp", "player-back")
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["show", "hide"] as const)(
+    "recovers offline focus from the disabled %s command to Close and keeps loading controls reachable",
+    async (setting) => {
+      const harness = installPlayerHarness([true])
+      const { container, root } = await mountNavigablePlayer()
+      await pressKey(container, "ArrowRight")
+      await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "Enter")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      await pressKey(container, "ArrowLeft")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      await act(async () => harness.emit("ready"))
+      await pressKey(container, "ArrowUp")
+      await pressKey(container, "ArrowDown")
+      if (setting === "hide") await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, `player-captions-${setting}`))
+      await act(async () => harness.emit("offline"))
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      expect(document.activeElement?.getAttribute("data-controller-focused")).toBe("true")
+      await pressKey(container, "ArrowUp")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      await pressKey(container, "Enter")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "ArrowLeft")
+      expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+      await pressKey(container, "ArrowLeft")
+      expect(document.activeElement).toBe(buttonById(container, "player-back"))
+      expect(harness.enableCaptions).not.toHaveBeenCalled()
+      expect(harness.disableCaptions).not.toHaveBeenCalled()
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["show", "hide"] as const)(
+    "keeps a rejected %s caption request unrecorded, escapable and retryable",
+    async (setting) => {
+      const harness = installPlayerHarness([true])
+      const setter = setting === "show" ? harness.enableCaptions : harness.disableCaptions
+      setter.mockImplementationOnce(() => {
+        throw new Error("Player unavailable")
+      })
+      const { container, root } = await mountNavigablePlayer()
+      await act(async () => harness.emit("ready"))
+      await act(async () => buttonById(container, "player-captions").click())
+      if (setting === "hide") await pressKey(container, "ArrowRight")
+      await pressKey(container, "Enter")
+      expect(setter).toHaveBeenCalledExactlyOnceWith()
+      expect(buttonById(container, "player-captions").hasAttribute("data-requested-captions")).toBe(
+        false,
+      )
+      expect(buttonById(container, `player-captions-${setting}`).getAttribute("aria-pressed")).toBe(
+        "false",
+      )
+      const alert = container.querySelector('.player-captions [role="alert"]')
+      expect(alert).not.toBeNull()
+      expect(container.querySelector(".player-stage")?.contains(alert)).toBe(false)
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions-close"))
+      await pressKey(container, "Enter")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "Enter")
+      if (setting === "hide") await pressKey(container, "ArrowRight")
+      await pressKey(container, "Enter")
+      expect(setter).toHaveBeenCalledTimes(2)
+      expect(buttonById(container, "player-captions").getAttribute("data-requested-captions")).toBe(
+        setting,
+      )
+      expect(container.querySelector('.player-captions [role="alert"]')).toBeNull()
+      expect(buttonById(container, `player-captions-${setting}`).getAttribute("aria-pressed")).toBe(
+        "true",
+      )
+      await act(async () => root.unmount())
+    },
+  )
+
+  it("clears caption requests and errors on replacement and teardown without obsolete callbacks restoring them", async () => {
+    const harness = installPlayerHarness([true, true])
+    const { container, root } = await mountPlayer(source)
+    await act(async () => harness.emit("ready"))
+    await act(async () => buttonById(container, "player-captions").click())
+    await act(async () => buttonById(container, "player-captions-show").click())
+    harness.disableCaptions.mockImplementationOnce(() => {
+      throw new Error("Player unavailable")
+    })
+    await act(async () => buttonById(container, "player-captions-hide").click())
+    expect(buttonById(container, "player-captions").getAttribute("data-requested-captions")).toBe(
+      "show",
+    )
+    expect(container.querySelector('.player-captions [role="alert"]')).not.toBeNull()
+    const oldListeners = [...harness.listeners.values()]
+    await act(async () => root.render(playerView(videoSource)))
+    const control = buttonById(container, "player-captions")
+    expect(container.querySelector(".player-captions")).toBeNull()
+    expect(control.hasAttribute("data-requested-captions")).toBe(false)
+    await act(async () => {
+      for (const callback of oldListeners) callback()
+    })
+    expect(container.querySelector(".player-captions")).toBeNull()
+    await act(async () => control.click())
+    expect(container.querySelector('.player-captions [role="alert"]')).toBeNull()
+    expect(buttonById(container, "player-captions-show").disabled).toBe(true)
+    expect(container.querySelector(".player-frame")?.getAttribute("aria-busy")).toBe("true")
+    await act(async () => harness.emit("ready"))
+    await act(async () => {
+      for (const callback of oldListeners) callback()
+    })
+    expect(control.hasAttribute("data-requested-captions")).toBe(false)
+    expect(buttonById(container, "player-captions-show").disabled).toBe(false)
+    expect(buttonById(container, "player-captions-hide").getAttribute("aria-pressed")).toBe("false")
+    expect(container.querySelector('.player-captions [role="alert"]')).toBeNull()
+    expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+    expect(harness.disableCaptions).toHaveBeenCalledTimes(1)
+    await act(async () => buttonById(container, "player-captions-hide").click())
+    expect(control.getAttribute("data-requested-captions")).toBe("hide")
+    // Returning to the exact original source object cannot restore its request or error.
+    const videoListeners = [...harness.listeners.values()]
+    await act(async () => root.render(playerView(source)))
+    expect(container.querySelector(".player-captions")).toBeNull()
+    expect(control.hasAttribute("data-requested-captions")).toBe(false)
+    await act(async () => control.click())
+    expect(container.querySelector('.player-captions [role="alert"]')).toBeNull()
+    await act(async () => root.unmount())
+    await act(async () => {
+      for (const callback of [...oldListeners, ...videoListeners, ...harness.listeners.values()])
+        callback()
+    })
+    expect(container.childElementCount).toBe(0)
+    expect(harness.enableCaptions).toHaveBeenCalledTimes(1)
+    expect(harness.disableCaptions).toHaveBeenCalledTimes(2)
+  })
+
+  it("routes legacy bookmarks through Quality, Captions and Fullscreen around the disabled archive shortcut", async () => {
+    const harness = installPlayerHarness([true])
+    harness.bookmarks.set("legacy", { ...savedBookmark, videoId: "legacy" })
+    installNavigationSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "continue-legacy-open").click())
+    await pressKey(container, "Enter")
+    await act(async () => harness.emit("ready"))
+    expect(buttonById(container, "player-vods").disabled).toBe(true)
+    for (const id of [
+      "player-playback",
+      "player-muted",
+      "player-quality",
+      "player-captions",
+      "player-fullscreen",
+    ]) {
+      await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, id))
+    }
+    await pressKey(container, "ArrowLeft")
+    expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+    await pressKey(container, "ArrowLeft")
+    expect(document.activeElement).toBe(buttonById(container, "player-quality"))
+    await pressKey(container, "ArrowRight")
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(buttonById(container, "player-captions-show"))
+    await pressKey(container, "ArrowRight")
+    expect(document.activeElement).toBe(buttonById(container, "player-captions-hide"))
+    await pressKey(container, "ArrowRight")
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+    for (const request of Object.values(harness.catalog)) expect(request).not.toHaveBeenCalled()
+    expect(harness.enableCaptions).not.toHaveBeenCalled()
+    expect(harness.disableCaptions).not.toHaveBeenCalled()
+    await act(async () => root.unmount())
+  })
+
+  it.each(["loading", "ready", "offline"] as const)(
+    "preserves Escape to Home from captions through the real App controller while %s",
+    async (state) => {
+      const harness = installPlayerHarness([true])
+      installNavigationSurface()
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      await act(async () => root.render(<App />))
+      await act(async () => buttonById(container, "stream-preview-twitch").click())
+      if (state !== "loading") await act(async () => harness.emit("ready"))
+      if (state === "offline") await act(async () => harness.emit("offline"))
+      const route = state === "ready" ? 4 : 2
+      for (let index = 0; index < route; index += 1) await pressKey(container, "ArrowRight")
+      expect(document.activeElement).toBe(buttonById(container, "player-captions"))
+      await pressKey(container, "Enter")
+      expect(document.activeElement).toBe(
+        buttonById(container, state === "ready" ? "player-captions-show" : "player-captions-close"),
+      )
+      await pressKey(container, "Escape")
+      expect(container.querySelector(".player-view")).toBeNull()
+      expect(container.querySelector(".browse-view")).not.toBeNull()
+      expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+      expect(harness.restoreShellFullscreen).toHaveBeenCalledTimes(1)
+      expect(harness.enableCaptions).not.toHaveBeenCalled()
+      expect(harness.disableCaptions).not.toHaveBeenCalled()
+      await act(async () => root.unmount())
+    },
+  )
+})
+
 describe("live chat sidebar", () => {
   it("keeps focus in the shell until explicit entry is armed and never forwards the entry key", async () => {
     const harness = installPlayerHarness([])
@@ -1371,8 +1762,15 @@ describe("live chat sidebar", () => {
       expectFocus("player-back")
       const route =
         state === "ready"
-          ? ["player-playback", "player-muted", "player-quality", "player-vods", "player-chat"]
-          : ["player-quality", "player-vods", "player-chat"]
+          ? [
+              "player-playback",
+              "player-muted",
+              "player-quality",
+              "player-captions",
+              "player-vods",
+              "player-chat",
+            ]
+          : ["player-quality", "player-captions", "player-vods", "player-chat"]
       for (const id of route) await move("ArrowRight", id)
       await move("Enter", "player-chat")
       expect(buttonById(container, "player-chat").getAttribute("aria-expanded")).toBe("true")
@@ -1566,7 +1964,7 @@ describe("live chat sidebar", () => {
       await act(async () => buttonById(container, "stream-preview-twitch").click())
       if (state !== "loading") await act(async () => harness.emit("ready"))
       if (state === "offline") await act(async () => harness.emit("offline"))
-      const route = state === "ready" ? 5 : 3
+      const route = state === "ready" ? 6 : 4
       for (let index = 0; index < route; index += 1) await pressKey(container, "ArrowRight")
       expect(document.activeElement).toBe(buttonById(container, "player-chat"))
       await pressKey(container, "Enter")
@@ -1607,6 +2005,7 @@ describe("VOD controller seeking", () => {
       "player-playback",
       "player-muted",
       "player-quality",
+      "player-captions",
       "player-vods",
       "player-chat",
       "player-fullscreen",

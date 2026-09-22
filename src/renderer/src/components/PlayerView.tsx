@@ -14,6 +14,7 @@ import {
   TWITCH_PLAYER_ENDED,
   type TwitchPlayerInstance,
 } from "../twitch-player"
+import { usePlayerCaptions } from "./usePlayerCaptions"
 import { usePlayerChat } from "./usePlayerChat"
 import { usePlayerQuality } from "./usePlayerQuality"
 import { useVideoResume, type VideoProgress, type VideoSampleReason } from "./useVideoResume"
@@ -83,6 +84,11 @@ export const PlayerView = ({
     frameState === "ready",
   )
 
+  const { captionsButton, captionsChooser, resetCaptions } = usePlayerCaptions(
+    playerRef,
+    frameState === "ready",
+  )
+
   const cancelAutoStart = useCallback((): void => {
     autoStartGenerationRef.current += 1
     if (autoStartTimerRef.current !== undefined) {
@@ -102,6 +108,7 @@ export const PlayerView = ({
     setPosition(undefined)
     setDuration(undefined)
     resetQualities()
+    resetCaptions()
     if (!canPlay) return
     const progress =
       source.kind === "video" ? beginProgress(source, startingPosition, () => active) : undefined
@@ -206,6 +213,7 @@ export const PlayerView = ({
     return () => {
       progress?.leave()
       active = false
+      resetCaptions()
       progressRef.current = undefined
       clearInterval(timelineTimer)
       cancelAutoStart()
@@ -220,6 +228,7 @@ export const PlayerView = ({
     beginProgress,
     cancelAutoStart,
     refreshQualities,
+    resetCaptions,
     resetQualities,
   ])
 
@@ -315,12 +324,13 @@ export const PlayerView = ({
             <SpeakerSimpleXIcon aria-hidden="true" />
           )}
         </button>
+        {qualityButton}
         {unknownBroadcaster
-          ? cloneElement(qualityButton, { "data-focus-right": "player-fullscreen" })
-          : qualityButton}
+          ? cloneElement(captionsButton, { "data-focus-right": "player-fullscreen" })
+          : captionsButton}
         <button
           data-focus-id="player-vods"
-          data-focus-left="player-quality"
+          data-focus-left="player-captions"
           data-focus-right={source.kind === "live" ? "player-chat" : "player-fullscreen"}
           data-focusable="true"
           disabled={unknownBroadcaster}
@@ -336,7 +346,7 @@ export const PlayerView = ({
         <button
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
-          data-focus-left={unknownBroadcaster ? "player-quality" : fullscreenLeft}
+          data-focus-left={unknownBroadcaster ? "player-captions" : fullscreenLeft}
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
@@ -368,6 +378,7 @@ export const PlayerView = ({
         </section>
       ) : null}
       {qualityChooser}
+      {captionsChooser}
       {chatHint}
       <div className="player-stage">
         <div aria-busy={frameState === "loading"} className="player-frame">
