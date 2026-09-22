@@ -50,7 +50,7 @@ are out of scope and are rejected without review.
 | 3 | [Correct VOD thumbnail dimensions](#cycle-3--correct-vod-thumbnail-dimensions) | fix | Landed |
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
-| 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | In progress |
+| 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -295,6 +295,13 @@ history, archive pagination, and any player change.
 This cycle also closes the recorded empty-archive defect, since an empty Past broadcasts screen
 becomes the natural terminal state of browsing an offline channel.
 
+Landed in `fd78626` (Helix directory, batching and trust boundary) and `e09171e` (the All
+channels view, archive states and focus recovery), split so the main-process capability could be
+reviewed on its own. `useAppController.ts` shrank by roughly 127 lines as the directory moved
+into `useFollowedChannels.ts`, which also answers the module-size note recorded below. Verified
+with `bun run verify` at 238 tests. The signed-in hardware pass is outstanding: see the note in
+the table below about the HTPC session.
+
 ## Observed but not yet scheduled
 
 Defects and debts found during cycle work or review, recorded here instead of being folded into
@@ -307,4 +314,6 @@ an unrelated change. Each is a candidate for a future cycle.
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
 | Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
+| ~~A channel with no archives renders an empty Past broadcasts screen~~ — closed in cycle 6 with a status element and reachable Back | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3; fixed cycle 6 |
+| Cursor exhaustion on a live shelf and an induced shelf request failure cannot be staged against real Twitch data, so both remain test-only rather than hardware-verified | `src/renderer/src/components/StreamShelf.tsx` | Cycle 4 hardware QA; recorded as a verification limit, not a defect |
 | `PlayerView.tsx` and `useAppController.ts` have grown past 300 lines each, mixing playback lifecycle with rendering and catalog with navigation | both files | Gate review; maintenance note, not a defect |
