@@ -22,9 +22,10 @@ describe("controller back navigation", () => {
     const screens = [
       { kind: "browse", route: "home" },
       { kind: "browse", route: "search" },
+      { followingMode: "all", kind: "browse", route: "following" },
       { id: "33214", kind: "category", name: "Fortnite" },
       { kind: "player", source: { channel: "twitch", kind: "live", title: "Live", userId: "1" } },
-      { kind: "videos" },
+      { kind: "videos", userId: "1" },
     ] as const
 
     // When their entry targets are selected
@@ -34,6 +35,7 @@ describe("controller back navigation", () => {
     expect(targets).toEqual([
       "nav-home",
       "search-input",
+      "following-all",
       "category-back",
       "player-back",
       "videos-back",

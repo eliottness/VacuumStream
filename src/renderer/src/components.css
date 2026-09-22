@@ -229,6 +229,53 @@
   font-size: 1.125rem;
 }
 
+.followed-channel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: 1rem;
+  background: var(--color-rail);
+}
+
+.followed-channel .avatar {
+  inline-size: 4rem;
+  block-size: 4rem;
+  font-size: 1.5rem;
+}
+
+.followed-channel__identity {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.followed-channel__identity > span {
+  color: var(--color-text-muted);
+}
+
+.followed-channel__identity .followed-channel__live {
+  color: var(--color-accent-strong);
+  font-weight: 650;
+}
+
+.followed-channel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+@media (width < 60rem) {
+  .followed-channel {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .followed-channel__actions {
+    grid-column: 1 / -1;
+  }
+}
+
 .empty-state {
   display: grid;
   min-block-size: 10rem;

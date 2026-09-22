@@ -27,6 +27,39 @@
   justify-self: start;
 }
 
+.following-modes {
+  display: flex;
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.following-modes [aria-pressed="true"] {
+  box-shadow: inset 0 -0.2rem var(--color-accent-strong);
+}
+
+.followed-channels .shelf__heading {
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.followed-channels__list {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.videos-view {
+  block-size: 100dvb;
+  align-content: start;
+  overflow: auto;
+}
+
 .settings-panel,
 .search-view {
   max-inline-size: 80rem;

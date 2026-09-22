@@ -2,6 +2,7 @@ import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
 import { useEffect, useLayoutEffect } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { CategoryView } from "./components/CategoryView"
+import { FollowedChannelsView } from "./components/FollowedChannelsView"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
 import { SearchView } from "./components/SearchView"
@@ -57,9 +58,13 @@ export const App = () => {
   }
 
   if (controller.screen.kind === "videos") {
+    const { userId } = controller.screen
     return (
       <VideoShelf
+        error={controller.videoError}
+        loading={controller.busy}
         onBack={() => controller.navigate("home")}
+        onRetry={() => void controller.showPastBroadcasts(userId)}
         onSelect={controller.viewVideo}
         videos={controller.videos}
       />
@@ -67,6 +72,8 @@ export const App = () => {
   }
 
   const route = controller.screen.kind === "browse" ? controller.screen.route : undefined
+  const allChannels =
+    controller.screen.kind === "browse" && controller.screen.followingMode === "all"
 
   return (
     <div className="app-shell">
@@ -79,9 +86,12 @@ export const App = () => {
       <Navigation
         active={route ?? "home"}
         entryFocusId={
-          controller.auth.kind === "authenticated" && (route === "home" || route === "following")
-            ? `${route}-refresh`
-            : undefined
+          allChannels
+            ? "following-all"
+            : controller.auth.kind === "authenticated" &&
+                (route === "home" || route === "following")
+              ? `${route}-refresh`
+              : undefined
         }
         onNavigate={controller.navigate}
       />
@@ -161,36 +171,82 @@ export const App = () => {
             <header className="page-heading">
               <span>Your channels</span>
               <h1>Following</h1>
-              <p>Live channels from the Twitch account connected to this device.</p>
+              <p>Channels from the Twitch account connected to this device.</p>
             </header>
-            <StreamShelf
-              {...(controller.auth.kind === "authenticated"
-                ? {
-                    cursor: controller.followed.cursor,
-                    error: controller.followed.error,
-                    focusPrefix: "following",
-                    onLoadMore: () => void controller.loadMoreShelf("following"),
-                    onRefresh: () => void controller.refreshShelf("following"),
-                    onRetry: () => void controller.retryShelf("following"),
-                    refreshing:
-                      controller.followed.status === "loading" &&
-                      controller.followed.operation === "refresh",
-                    state: controller.followed.status,
-                  }
-                : {
-                    emptyActionFocusId: "following-connect",
-                    emptyActionLabel: "Connect Twitch",
-                    onEmptyAction: () => controller.navigate("settings"),
-                  })}
-              emptyMessage={
-                controller.auth.kind === "authenticated"
-                  ? "No followed channels are live right now."
-                  : "Connect Twitch to see live channels you follow."
-              }
-              onSelect={controller.openStream}
-              streams={controller.followed.items}
-              title="Live from your follows"
-            />
+            {allChannels ? null : (
+              <StreamShelf
+                {...(controller.auth.kind === "authenticated"
+                  ? {
+                      cursor: controller.followed.cursor,
+                      error: controller.followed.error,
+                      focusPrefix: "following",
+                      onLoadMore: () => void controller.loadMoreShelf("following"),
+                      onRefresh: () => void controller.refreshShelf("following"),
+                      onRetry: () => void controller.retryShelf("following"),
+                      refreshing:
+                        controller.followed.status === "loading" &&
+                        controller.followed.operation === "refresh",
+                      state: controller.followed.status,
+                    }
+                  : {
+                      emptyActionFocusId: "following-connect",
+                      emptyActionLabel: "Connect Twitch",
+                      onEmptyAction: () => controller.navigate("settings"),
+                    })}
+                emptyMessage={
+                  controller.auth.kind === "authenticated"
+                    ? "No followed channels are live right now."
+                    : "Connect Twitch to see live channels you follow."
+                }
+                onSelect={controller.openStream}
+                streams={controller.followed.items}
+                title="Live from your follows"
+              />
+            )}
+            <fieldset aria-label="Following view" className="following-modes">
+              <button
+                aria-pressed={!allChannels}
+                data-focus-down={allChannels ? "following-directory-refresh" : "following-refresh"}
+                data-focus-id="following-live"
+                data-focus-left="nav-following"
+                data-focus-right="following-all"
+                data-focus-up={allChannels ? "nav-following" : "following-refresh"}
+                data-focusable="true"
+                onClick={() => controller.navigate("following")}
+                type="button"
+              >
+                Live now
+              </button>
+              <button
+                aria-pressed={allChannels}
+                data-focus-down={allChannels ? "following-directory-refresh" : "following-refresh"}
+                data-focus-id="following-all"
+                data-focus-left="following-live"
+                data-focus-up={allChannels ? "nav-following" : "following-refresh"}
+                data-focusable="true"
+                onClick={controller.showAllChannels}
+                type="button"
+              >
+                All channels
+              </button>
+            </fieldset>
+            {allChannels ? (
+              <FollowedChannelsView
+                channels={controller.followedChannels.items}
+                cursor={controller.followedChannels.cursor}
+                error={controller.followedChannels.error}
+                onLoadMore={() => void controller.loadDirectory("more")}
+                onOpen={controller.openChannel}
+                onPastBroadcasts={(userId) => void controller.showPastBroadcasts(userId)}
+                onRefresh={() => void controller.loadDirectory("refresh")}
+                onRetry={() => void controller.loadDirectory("retry")}
+                refreshing={
+                  controller.followedChannels.status === "loading" &&
+                  controller.followedChannels.operation === "refresh"
+                }
+                status={controller.followedChannels.status}
+              />
+            ) : null}
           </main>
         ) : null}
         {route === "search" ? (

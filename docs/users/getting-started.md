@@ -67,8 +67,12 @@ For personalized discovery:
    code.
 5. Approve access on Twitch and return to VacuumStream.
 
-Following shows followed channels that are live. If none are live, an empty list is normal.
-Sign-in also enables live catalog, category, channel, and VOD discovery.
+Following starts in **Live now**. If none of your follows are live, an empty list is normal.
+Choose **All channels** below the live shelf to include offline broadcasters, with avatars and
+Live/Offline labels. Use **Open channel** to watch, or **Past broadcasts** to go straight to
+recordings without opening a live player. An empty archive means no recordings are available;
+**Retry** recovers a failed request, and **Back** returns to Home. Guests are sent to Settings
+to sign in. Sign-in also enables live catalog, category, channel, and VOD discovery.
 
 While signed in, Home and Following load a fresh first page when you enter them, including
 Home when you return from playback. Choose **Refresh** to update the shelf without leaving it,
@@ -78,7 +82,9 @@ When there are no more pages, Load more disappears and focus returns to Refresh.
 
 Use the arrows to move from navigation to Refresh, then Down to the cards and Load more or
 Retry. Press Enter to activate an action. Refresh starts over with the current live channels;
-it does not ask you to sign in again.
+it does not ask you to sign in again. Continue Down past the live shelf to reach the Following
+mode controls; Left/Right selects **Live now** or **All channels**. The directory uses the same
+Refresh, Load more, and Retry controls, with no background refresh.
 
 On Home, choose a card under **Top categories** to browse that game's live streams.
 Use the arrows and Enter to choose a stream, or **Load more** to see the next page.

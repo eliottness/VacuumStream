@@ -3,7 +3,6 @@ import type {
   AuthSnapshot,
   CategoryCard,
   ChannelCard,
-  LiveInput,
   SettingsSnapshot,
   StreamCard,
   VideoCard,
@@ -11,79 +10,16 @@ import type {
 import type { RouteName } from "./components/Navigation"
 import { PREVIEW_CATEGORIES } from "./demo-data"
 import { type Screen, shouldNavigateHomeOnBack } from "./screen"
+import {
+  type CatalogOperation,
+  catalogRequests,
+  useFollowedChannels,
+  useStreamCatalog,
+} from "./useFollowedChannels"
 
 type ShelfRoute = "following" | "home"
-type CatalogOperation = "more" | "refresh"
-
-type StreamCatalog = {
-  readonly cursor: string | undefined
-  readonly error: string
-  readonly items: readonly StreamCard[]
-  // Retained on failure so Retry repeats the failed operation, not the stored cursor.
-  readonly operation: CatalogOperation
-  readonly status: "error" | "loading" | "ready"
-}
-
-const EMPTY_CATALOG: StreamCatalog = {
-  cursor: undefined,
-  error: "",
-  items: [],
-  operation: "refresh",
-  status: "ready",
-}
-
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred"
-
-const useStreamCatalog = (endpoint: "followed" | "live") => {
-  const [catalog, setCatalog] = useState(EMPTY_CATALOG)
-  const generation = useRef(0)
-  const pending = useRef<CatalogOperation | undefined>(undefined)
-  const invalidate = useCallback((): void => {
-    generation.current += 1
-    pending.current = undefined
-  }, [])
-  const reset = useCallback((): void => {
-    invalidate()
-    setCatalog(EMPTY_CATALOG)
-  }, [invalidate])
-  useEffect(() => invalidate, [invalidate])
-
-  const load = useCallback(
-    async (input: LiveInput): Promise<void> => {
-      const operation = input.after === undefined ? "refresh" : "more"
-      if (pending.current === "refresh" || pending.current === operation) return
-      const requestId = ++generation.current
-      pending.current = operation
-      setCatalog((current) => ({ ...current, error: "", operation, status: "loading" }))
-      try {
-        const page = await window.vacuumStream.catalog[endpoint](input)
-        if (requestId !== generation.current) return
-        setCatalog((current) => ({
-          cursor: page.cursor,
-          error: "",
-          items: [
-            ...new Map(
-              [...(operation === "refresh" ? [] : current.items), ...page.items].map((stream) => [
-                stream.id,
-                stream,
-              ]),
-            ).values(),
-          ],
-          operation,
-          status: "ready",
-        }))
-      } catch (error) {
-        if (requestId !== generation.current) return
-        setCatalog((current) => ({ ...current, error: errorMessage(error), status: "error" }))
-      } finally {
-        if (requestId === generation.current) pending.current = undefined
-      }
-    },
-    [endpoint],
-  )
-  return { catalog, invalidate, load, reset }
-}
 
 const directChannel = (query: string): ChannelCard => ({
   category: "Twitch channel",
@@ -104,21 +40,22 @@ export const useAppController = () => {
     invalidate: invalidateLive,
     load: loadLive,
     reset: resetLive,
-  } = useStreamCatalog("live")
+  } = useStreamCatalog(catalogRequests.live)
   const {
     catalog: followed,
     invalidate: invalidateFollowed,
     load: loadFollowed,
     reset: resetFollowed,
-  } = useStreamCatalog("followed")
+  } = useStreamCatalog(catalogRequests.followed)
   const {
     catalog: categoryCatalog,
     invalidate: invalidateCategory,
     load: loadCategory,
     reset: resetCategory,
-  } = useStreamCatalog("live")
+  } = useStreamCatalog(catalogRequests.live)
   const [categories, setCategories] = useState<readonly CategoryCard[]>(PREVIEW_CATEGORIES)
   const [searchResults, setSearchResults] = useState<readonly ChannelCard[]>([])
+  const [videoError, setVideoError] = useState("")
   const [videos, setVideos] = useState<readonly VideoCard[]>([])
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState("")
@@ -127,24 +64,37 @@ export const useAppController = () => {
   const currentScreen = useRef(screen)
   const currentIdentity = useRef<string | undefined>(undefined)
   const identity = auth.kind === "authenticated" ? auth.login : undefined
+  const {
+    catalog: followedChannels,
+    invalidate: invalidateDirectory,
+    loadOperation: loadDirectory,
+    reset: resetDirectory,
+  } = useFollowedChannels(identity, screen)
   const activeShelf =
-    screen.kind === "browse" && (screen.route === "home" || screen.route === "following")
+    screen.kind === "browse" &&
+    (screen.route === "home" || (screen.route === "following" && screen.followingMode !== "all"))
       ? screen.route
       : undefined
   const changeScreen = useCallback(
     (next: Screen): void => {
       const current = currentScreen.current
-      if (next.kind === "browse" && current.kind === "browse" && next.route === current.route)
+      if (
+        next.kind === "browse" &&
+        current.kind === "browse" &&
+        next.route === current.route &&
+        next.followingMode === current.followingMode
+      )
         return
       catalogRequestEpoch.current += 1
       invalidateLive()
       invalidateFollowed()
       invalidateCategory()
+      invalidateDirectory()
       setBusy(false)
       currentScreen.current = next
       setScreen(next)
     },
-    [invalidateCategory, invalidateFollowed, invalidateLive],
+    [invalidateCategory, invalidateDirectory, invalidateFollowed, invalidateLive],
   )
   const navigate = useCallback(
     (route: RouteName): void => {
@@ -166,16 +116,19 @@ export const useAppController = () => {
         resetLive()
         resetFollowed()
         resetCategory()
+        resetDirectory()
         setCategories(PREVIEW_CATEGORIES)
         setSearchResults([])
+        setVideoError("")
         setVideos([])
         setBusy(false)
         setNotice("")
-        if (currentScreen.current.kind === "category") navigate("settings")
+        if (currentScreen.current.kind === "category" || currentScreen.current.kind === "videos")
+          navigate("settings")
       }
       setAuth(nextAuth)
     },
-    [navigate, resetCategory, resetFollowed, resetLive],
+    [navigate, resetCategory, resetDirectory, resetFollowed, resetLive],
   )
 
   useEffect(() => {
@@ -308,7 +261,9 @@ export const useAppController = () => {
     })
   }
 
-  const openChannel = (channel: ChannelCard): void => {
+  const openChannel = (
+    channel: Pick<ChannelCard, "displayName" | "id" | "login"> & { readonly title?: string },
+  ): void => {
     changeScreen({
       kind: "player",
       source: {
@@ -355,6 +310,10 @@ export const useAppController = () => {
       navigate("settings")
       return
     }
+    changeScreen({ kind: "videos", userId })
+    setVideoError("")
+    setVideos([])
+    setNotice("")
     setBusy(true)
     const requestEpoch = authEpoch.current
     const requestId = catalogRequestEpoch.current + 1
@@ -363,11 +322,10 @@ export const useAppController = () => {
       const items = (await window.vacuumStream.catalog.videos({ first: 30, userId })).items
       if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
         setVideos(items)
-        changeScreen({ kind: "videos" })
       }
     } catch (error) {
       if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
-        setNotice(errorMessage(error))
+        setVideoError(errorMessage(error))
       }
     } finally {
       if (requestEpoch === authEpoch.current && requestId === catalogRequestEpoch.current) {
@@ -382,7 +340,9 @@ export const useAppController = () => {
     categories,
     categoryCatalog,
     followed,
+    followedChannels,
     live,
+    loadDirectory,
     loadMoreCategory,
     loadMoreShelf: (route: ShelfRoute) => loadShelf(route, "more"),
     navigate,
@@ -397,12 +357,21 @@ export const useAppController = () => {
     searchResults,
     setAuth: updateAuth,
     settings,
+    showAllChannels: () => {
+      if (identity === undefined) {
+        setNotice("Sign in to see all the channels you follow")
+        navigate("settings")
+        return
+      }
+      changeScreen({ followingMode: "all", kind: "browse", route: "following" })
+    },
     showCategory,
     showPastBroadcasts,
     updateSettings: (nextSettings: SettingsSnapshot, resetAuth: boolean) => {
       setSettings(nextSettings)
       if (resetAuth) updateAuth({ kind: "guest" })
     },
+    videoError,
     videos,
     viewVideo: (video: VideoCard) =>
       changeScreen({
