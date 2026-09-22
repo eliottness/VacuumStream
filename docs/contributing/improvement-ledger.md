@@ -64,6 +64,7 @@ are out of scope and are rejected without review.
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
 | 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
+| 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -969,6 +970,40 @@ real Retry control, sampling the video element inside the player frame showed cu
 from 25.31 to 31.38 over six seconds at 1920x1080, unpaused and unmuted at volume 0.5. That
 replaces both the offline-screen capture and the withdrawn "audible playback" inference with
 measurements.
+
+### Cycle 20 — Keep one app instance per profile
+
+Cycles 10-19 made the local profile worth protecting: bookmarks, favourites, settings and the
+OAuth token all live in `userData`. Each store serializes its own operations, which is enough for
+one process and useless against two. Launching the app again creates a second owner.
+
+The scout reproduced the lost update with the real favourites store on an in-memory filesystem:
+pause store A after it reads an empty list, let store B add `bravo` successfully, then release A
+to add `alpha`. Both operations report success and the file ends up containing only `alpha`. It
+also confirmed there is no ownership gate at all — with a mocked lock returning `false`, the
+entry point still built a window, registered IPC and constructed all four stores.
+
+Fix: take `app.requestSingleInstanceLock()` before anything else is scheduled, quit when it
+fails, and handle `second-instance` by bringing the existing window back rather than building a
+new one. Twitch documents single-use refresh tokens for Device Code Flow, so competing token
+owners are a second credible consequence — inferred from source and docs, not observed.
+
+Acceptance criteria:
+
+1. A process that loses the lock creates nothing: no window, no server, no stores, no IPC — shown
+   failing against the current entry point first.
+2. Repeated launches leave exactly one window, server and store set, with `second-instance`
+   arriving both before and after window creation.
+3. Reactivation restores only when minimized and never reloads, renavigates or rebuilds anything.
+4. On hardware, running the same launch command twice against one profile leaves the primary PID
+   and the player frame untouched, with video still advancing.
+5. A favourite and a bookmark survive both the repeated launch and a systemd restart.
+6. `bun run verify` passes in one run.
+
+Not in scope: store consolidation, the `SettingsStore` weaknesses, power-loss corruption, and
+multi-window viewing, which this deliberately makes unsupported. Hardware evidence must separate
+"only one owner exists" from "the window became active", since compositor policy governs
+foregrounding.
 
 ## Device QA evidence: a capture error and its corrections
 
