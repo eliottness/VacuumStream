@@ -2,15 +2,18 @@ import { type BrowserWindow, type IpcMainInvokeEvent, ipcMain, shell } from "ele
 import { z } from "zod"
 import { CHANNELS } from "../shared/channels"
 import {
+  ChatInputSessionSchema,
   CursorInputSchema,
   LiveInputSchema,
   SearchInputSchema,
   VideosInputSchema,
 } from "../shared/contracts"
+import type { ChatInput } from "./chat-input"
 import type { TwitchService } from "./twitch-service"
 import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
 
 type IpcOptions = {
+  readonly chatInput: Pick<ChatInput, "begin" | "end">
   readonly mainWindow: BrowserWindow
   readonly rendererOrigin: string
   readonly runningInSteamGameMode: boolean
@@ -38,6 +41,16 @@ export const registerIpc = (options: IpcOptions): void => {
     }
   }
 
+  ipcMain.handle(CHANNELS.chatInputBegin, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [session] = z.tuple([ChatInputSessionSchema]).parse(input)
+    options.chatInput.begin(session)
+  })
+  ipcMain.handle(CHANNELS.chatInputEnd, async (event, ...input: unknown[]) => {
+    authorize(event)
+    const [session] = z.tuple([ChatInputSessionSchema]).parse(input)
+    options.chatInput.end(session)
+  })
   ipcMain.handle(CHANNELS.settingsSnapshot, async (event) => {
     authorize(event)
     return options.twitch.settingsSnapshot()

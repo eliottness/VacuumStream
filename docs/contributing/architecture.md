@@ -44,6 +44,15 @@ Every IPC handler verifies the expected `BrowserWindow`, its main frame, and the
 renderer origin. Inputs are parsed with bounded Zod schemas. Tokens, authorization headers,
 generic URLs, generic filesystem methods, and raw `ipcRenderer` never cross the bridge.
 
+Explicit chat interaction uses a sender-authorized begin/end capability scoped to a UUID session,
+plus a removable escape notification (also sent on BrowserWindow blur). Main intercepts Escape
+with `webContents.before-input-event` and calls `preventDefault()` before notifying the shell,
+because a focused cross-origin Twitch frame cannot bubble that key to React. The mode listener
+is removed immediately; a release-only guard consumes repeats and the matching keyUp so the
+same held press cannot also navigate Home. Blur and window teardown remove all input listeners.
+The renderer restores shell focus and rejects stale notifications. This exposes no generic input,
+frame targeting or debugging capability and does not synthesize keys into Twitch.
+
 ### Preload
 
 `src/preload/index.ts` exposes the `VacuumStreamApi` capability object. Each result is

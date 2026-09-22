@@ -4,6 +4,7 @@ import {
   AuthSnapshotSchema,
   CategoryCardSchema,
   ChannelCardSchema,
+  ChatInputSessionSchema,
   DeviceChallengeSchema,
   FollowedChannelCardSchema,
   PageSchema,
@@ -48,6 +49,25 @@ const api = {
       ipcRenderer
         .invoke(CHANNELS.catalogVideos, input)
         .then((value) => PageSchema(VideoCardSchema).parse(value)),
+  },
+  chatInput: {
+    begin: (session) =>
+      ipcRenderer
+        .invoke(CHANNELS.chatInputBegin, ChatInputSessionSchema.parse(session))
+        .then(() => undefined),
+    end: (session) =>
+      ipcRenderer
+        .invoke(CHANNELS.chatInputEnd, ChatInputSessionSchema.parse(session))
+        .then(() => undefined),
+    onEscape: (listener) => {
+      const onEscape = (_event: Electron.IpcRendererEvent, session: unknown): void => {
+        listener(ChatInputSessionSchema.parse(session))
+      }
+      ipcRenderer.on(CHANNELS.chatInputEscape, onEscape)
+      return () => {
+        ipcRenderer.removeListener(CHANNELS.chatInputEscape, onEscape)
+      }
+    },
   },
   settings: {
     saveClientId: (clientId) =>

@@ -213,12 +213,20 @@
 }
 
 .player-view--video,
-.player-view:has(.player-quality) {
+.player-view:has(.player-quality),
+.player-view:has(.player-chat-hint) {
   grid-template-rows: auto auto minmax(300px, 1fr);
 }
 
-.player-view--video:has(.player-quality) {
+.player-view--video:has(.player-quality),
+.player-view:has(.player-quality):has(.player-chat-hint) {
   grid-template-rows: auto auto auto minmax(300px, 1fr);
+}
+
+.player-chat-hint {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-rail);
 }
 
 .player-quality {

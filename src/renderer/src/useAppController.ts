@@ -193,6 +193,7 @@ export const useAppController = () => {
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return
       const editingText = document.activeElement instanceof HTMLInputElement
       if (event.key === "/" && !editingText) {
         event.preventDefault()

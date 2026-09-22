@@ -1,6 +1,7 @@
 import { X509Certificate } from "node:crypto"
 import { join } from "node:path"
 import { app, BrowserWindow, dialog, safeStorage, session } from "electron"
+import { createChatInput } from "./chat-input"
 import { type StaticHttpsServer, startStaticHttpsServer } from "./https-server"
 import { registerIpc } from "./ipc"
 import { SettingsStore } from "./settings-store"
@@ -71,7 +72,15 @@ const createWindow = async (): Promise<void> => {
   if (!tokenVault.isSecure) {
     console.warn("Secure OAuth token storage unavailable; using mode-0600 file fallback")
   }
+  const chatInput = createChatInput(mainWindow)
+  mainWindow.on("blur", chatInput.blur)
+  mainWindow.on("closed", chatInput.cancel)
+  mainWindow.webContents.on("render-process-gone", chatInput.cancel)
+  mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
+    if (isMainFrame) chatInput.cancel()
+  })
   registerIpc({
+    chatInput,
     mainWindow,
     rendererOrigin,
     runningInSteamGameMode,

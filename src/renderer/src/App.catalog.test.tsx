@@ -67,6 +67,11 @@ const makeBridge = (auth: AuthSnapshot) =>
         .fn<VacuumStreamApi["catalog"]["videos"]>()
         .mockResolvedValue({ cursor: undefined, items: [] }),
     },
+    chatInput: {
+      begin: vi.fn<VacuumStreamApi["chatInput"]["begin"]>().mockResolvedValue(undefined),
+      end: vi.fn<VacuumStreamApi["chatInput"]["end"]>().mockResolvedValue(undefined),
+      onEscape: vi.fn<VacuumStreamApi["chatInput"]["onEscape"]>().mockReturnValue(() => undefined),
+    },
     settings: {
       saveClientId: vi.fn<VacuumStreamApi["settings"]["saveClientId"]>(),
       snapshot: vi

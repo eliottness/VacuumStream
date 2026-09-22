@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+export const ChatInputSessionSchema = z.uuid()
+
 export const ClientIdSchema = z
   .string()
   .trim()
@@ -149,6 +151,11 @@ export interface VacuumStreamApi {
     readonly search: (input: SearchInput) => Promise<Page<ChannelCard>>
     readonly topCategories: (input: CursorInput) => Promise<Page<CategoryCard>>
     readonly videos: (input: VideosInput) => Promise<Page<VideoCard>>
+  }
+  readonly chatInput: {
+    readonly begin: (session: string) => Promise<void>
+    readonly end: (session: string) => Promise<void>
+    readonly onEscape: (listener: (session: string) => void) => () => void
   }
   readonly settings: {
     readonly saveClientId: (clientId: string) => Promise<SettingsSnapshot>

@@ -69,7 +69,8 @@ export const PlayerView = ({
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
   const playerRef = useRef<TwitchPlayerInstance | undefined>(undefined)
-  const { chatButton, chatPane, chatReloadButton } = usePlayerChat(source, backButtonRef)
+  const { chatButton, chatEnterButton, chatHint, chatPane, chatReloadButton, fullscreenLeft } =
+    usePlayerChat(source, backButtonRef)
   const { qualityButton, qualityChooser, refreshQualities, resetQualities } = usePlayerQuality(
     playerRef,
     frameState === "ready",
@@ -288,11 +289,12 @@ export const PlayerView = ({
           Past broadcasts
         </button>
         {chatButton}
+        {chatEnterButton}
         {chatReloadButton}
         <button
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
-          data-focus-left={source.kind === "live" ? "player-chat" : "player-vods"}
+          data-focus-left={fullscreenLeft}
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
@@ -323,6 +325,7 @@ export const PlayerView = ({
         </section>
       ) : null}
       {qualityChooser}
+      {chatHint}
       <div className="player-stage">
         <div aria-busy={frameState === "loading"} className="player-frame">
           {frameState === "error" ? (

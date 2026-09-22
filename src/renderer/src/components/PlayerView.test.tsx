@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 
+import { EventEmitter } from "node:events"
+import type { BrowserWindow } from "electron"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { createChatInput } from "../../../main/chat-input"
 import { App } from "../App"
 import { dispatchControllerKey, useControllerNavigation } from "../focus-navigation"
 import { type PlayerSource, PlayerView } from "./PlayerView"
@@ -100,10 +103,39 @@ const installPlayerHarness = (
     value: { Player: TestPlayer },
   })
   const restoreShellFullscreen = vi.fn(async () => undefined)
+  const chatNotifications = new Set<(session: string) => void>()
+  const chatContents = Object.assign(new EventEmitter(), {
+    send: (_channel: string, session: string) => {
+      for (const listener of chatNotifications) listener(session)
+    },
+  })
+  const chatInput = createChatInput({
+    isFocused: () => true,
+    webContents: chatContents,
+  } as unknown as BrowserWindow)
+  const beginChatInput = vi.fn(async (session: string) => chatInput.begin(session))
+  const endChatInput = vi.fn(async (session: string) => chatInput.end(session))
+  const onChatEscape = vi.fn((listener: (session: string) => void) => {
+    chatNotifications.add(listener)
+    return () => {
+      chatNotifications.delete(listener)
+    }
+  })
+  const chatKey = (type: "keyDown" | "keyUp", repeat = false): boolean => {
+    const event = {
+      defaultPrevented: false,
+      preventDefault: () => {
+        event.defaultPrevented = true
+      },
+    }
+    chatContents.emit("before-input-event", event, { isAutoRepeat: repeat, key: "Escape", type })
+    return event.defaultPrevented
+  }
   Object.defineProperty(window, "vacuumStream", {
     configurable: true,
     value: {
       auth: { snapshot: async () => ({ kind: "guest" }) },
+      chatInput: { begin: beginChatInput, end: endChatInput, onEscape: onChatEscape },
       settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },
     },
@@ -115,14 +147,21 @@ const installPlayerHarness = (
   const emit = (event: "ready" | "playing" | "seek" | "offline"): void => listeners.get(event)?.()
   return {
     activateEmbeddedPlayer,
+    beginChatInput,
+    chatContents,
+    chatInput,
+    chatKey,
+    chatNotifications,
     constructed,
     emit,
+    endChatInput,
     getCurrentTime,
     getDuration,
     getQualities,
     getQuality,
     instances,
     listeners,
+    onChatEscape,
     pause,
     play,
     restoreShellFullscreen,
@@ -167,6 +206,12 @@ const mountNavigablePlayer = async (playerSource: PlayerSource = source) => {
   const root = createRoot(container)
   await act(async () => root.render(<NavigablePlayer />))
   return { container, root }
+}
+
+const chatFrame = (container: HTMLElement): HTMLIFrameElement => {
+  const frame = container.querySelector<HTMLIFrameElement>(".player-chat iframe")
+  if (frame === null) throw new Error("Missing chat frame")
+  return frame
 }
 
 const qualityButtons = (container: HTMLElement): HTMLButtonElement[] => [
@@ -587,6 +632,241 @@ describe("controller playback quality", () => {
 })
 
 describe("live chat sidebar", () => {
+  it("keeps focus in the shell until explicit entry is armed and never forwards the entry key", async () => {
+    const harness = installPlayerHarness([])
+    const { container, root } = await mountNavigablePlayer()
+    await act(async () => buttonById(container, "player-chat").click())
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(chatFrame(container).tabIndex).toBe(-1)
+    await act(async () => buttonById(container, "player-chat-reload").click())
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(chatFrame(container).tabIndex).toBe(-1)
+    await act(async () => buttonById(container, "player-chat").click())
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(harness.beginChatInput).not.toHaveBeenCalled()
+    await act(async () => buttonById(container, "player-chat").click())
+    const frame = chatFrame(container)
+    const frameClick = vi.spyOn(frame, "click")
+    const frameKey = vi.fn()
+    frame.contentDocument?.addEventListener("keydown", frameKey)
+    let armed: (() => void) | undefined
+    harness.beginChatInput.mockImplementationOnce(
+      (session) =>
+        new Promise<void>((resolve) => {
+          armed = () => {
+            harness.chatInput.begin(session)
+            resolve()
+          }
+        }),
+    )
+    await pressKey(container, "ArrowDown")
+    await pressKey(container, "Enter")
+    expect(document.activeElement).toBe(buttonById(container, "player-chat-enter"))
+    expect(frame.tabIndex).toBe(-1)
+    await act(async () => {
+      if (armed === undefined) throw new Error("Entry was not requested")
+      armed()
+    })
+    expect(frame.tabIndex).toBe(0)
+    expect(document.activeElement).toBe(frame)
+    expect(frameClick).not.toHaveBeenCalled()
+    expect(frameKey).not.toHaveBeenCalled()
+    const hint = container.querySelector("#player-chat-hint")
+    expect(hint).not.toBeNull()
+    expect(container.querySelector(".player-stage")?.contains(hint)).toBe(false)
+    expect(container.querySelector('[data-controller-focused="true"]')).toBeNull()
+    // Focusing a child frame can blur the DOM window without blurring the BrowserWindow.
+    await act(async () => window.dispatchEvent(new Event("blur")))
+    expect(frame.tabIndex).toBe(0)
+    expect(document.activeElement).toBe(frame)
+    await act(async () => root.unmount())
+  })
+
+  it("exits on the main Escape notification, consumes the held press, then lets a later Escape go Home", async () => {
+    const harness = installPlayerHarness([])
+    installNavigationSurface()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () => root.render(<App />))
+    await act(async () => buttonById(container, "stream-preview-twitch").click())
+    await act(async () => buttonById(container, "player-chat").click())
+    await act(async () => buttonById(container, "player-chat-enter").click())
+    const frame = chatFrame(container)
+    expect(document.activeElement).toBe(frame)
+    const osEscape = async (type: "keyDown" | "keyUp", repeat = false): Promise<boolean> => {
+      let prevented = false
+      await act(async () => {
+        prevented = harness.chatKey(type, repeat)
+        if (!prevented && type === "keyDown") dispatchControllerKey("Escape")
+      })
+      return prevented
+    }
+    expect(await osEscape("keyDown")).toBe(true)
+    expect(frame.tabIndex).toBe(-1)
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(container.querySelector("#player-chat-hint")).toBeNull()
+    expect(harness.chatNotifications.size).toBe(0)
+    expect(await osEscape("keyDown", true)).toBe(true)
+    expect(await osEscape("keyDown", true)).toBe(true)
+    expect(await osEscape("keyUp")).toBe(true)
+    expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+    expect(harness.restoreShellFullscreen).not.toHaveBeenCalled()
+    expect(await osEscape("keyDown")).toBe(false)
+    expect(container.querySelector(".player-view")).toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+    expect(harness.restoreShellFullscreen).toHaveBeenCalledTimes(1)
+    await act(async () => root.unmount())
+  })
+
+  it.each(["hide", "reload", "source", "same-login", "video", "blur"] as const)(
+    "ends chat input on %s, removes listeners and ignores stale notifications even after re-entry",
+    async (reason) => {
+      const harness = installPlayerHarness([])
+      const { container, root } = await mountPlayer(source)
+      await act(async () => buttonById(container, "player-chat").click())
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      const frame = chatFrame(container)
+      const session = harness.beginChatInput.mock.calls[0]?.[0]
+      const staleNotification = harness.onChatEscape.mock.calls[0]?.[0]
+      if (session === undefined || staleNotification === undefined)
+        throw new Error("Missing session")
+      expect(harness.chatContents.listenerCount("before-input-event")).toBe(1)
+      await act(async () => {
+        switch (reason) {
+          case "hide":
+            buttonById(container, "player-chat").click()
+            break
+          case "reload":
+            buttonById(container, "player-chat-reload").click()
+            break
+          case "source":
+            root.render(playerView({ ...source, channel: "new" }))
+            break
+          case "same-login":
+            root.render(playerView({ ...source }))
+            break
+          case "video":
+            root.render(playerView(videoSource))
+            break
+          case "blur":
+            harness.chatInput.blur()
+            break
+        }
+      })
+      expect(harness.endChatInput).toHaveBeenCalledExactlyOnceWith(session)
+      expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+      expect(harness.chatNotifications.size).toBe(0)
+      expect(frame.tabIndex).toBe(-1)
+      expect(container.querySelector("#player-chat-hint")).toBeNull()
+      expect(document.activeElement).toBe(
+        buttonById(container, reason === "video" ? "player-back" : "player-chat"),
+      )
+      await act(async () => staleNotification(session))
+      expect(harness.endChatInput).toHaveBeenCalledTimes(1)
+      if (reason === "source" || reason === "same-login" || reason === "video") {
+        await act(async () => root.render(playerView(source)))
+        expect(container.querySelector(".player-chat")).toBeNull()
+      }
+      if (container.querySelector(".player-chat") === null) {
+        await act(async () => buttonById(container, "player-chat").click())
+      }
+      const nextFrame = chatFrame(container)
+      expect(nextFrame.tabIndex).toBe(-1)
+      expect(document.activeElement).not.toBe(nextFrame)
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      await act(async () => staleNotification(session))
+      expect(nextFrame.tabIndex).toBe(0)
+      expect(document.activeElement).toBe(nextFrame)
+      expect(harness.endChatInput).toHaveBeenCalledTimes(1)
+      await act(async () => root.unmount())
+    },
+  )
+
+  it.each(["leave", "unmount"] as const)(
+    "ends chat input on %s and restores shell focus before the player is removed",
+    async (reason) => {
+      const harness = installPlayerHarness([])
+      installNavigationSurface()
+      const container = document.createElement("div")
+      document.body.append(container)
+      const root = createRoot(container)
+      await act(async () => root.render(<App />))
+      await act(async () => buttonById(container, "stream-preview-twitch").click())
+      await act(async () => buttonById(container, "player-chat").click())
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      const frame = chatFrame(container)
+      const toggle = buttonById(container, "player-chat")
+      const restored = vi.fn()
+      toggle.addEventListener("focus", () => restored(toggle.isConnected))
+      const staleNotification = harness.onChatEscape.mock.calls[0]?.[0]
+      const session = harness.beginChatInput.mock.calls[0]?.[0]
+      if (staleNotification === undefined || session === undefined)
+        throw new Error("Missing session")
+      await act(async () => {
+        if (reason === "leave") buttonById(container, "player-back").click()
+        else root.unmount()
+      })
+      expect(restored).toHaveBeenCalledExactlyOnceWith(true)
+      expect(harness.endChatInput).toHaveBeenCalledExactlyOnceWith(session)
+      expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+      expect(harness.chatNotifications.size).toBe(0)
+      expect(frame.tabIndex).toBe(-1)
+      expect(container.querySelector(".player-view")).toBeNull()
+      if (reason === "leave") expect(document.activeElement).toBe(buttonById(container, "nav-home"))
+      await act(async () => staleNotification(session))
+      expect(harness.endChatInput).toHaveBeenCalledTimes(1)
+      if (reason === "leave") await act(async () => root.unmount())
+    },
+  )
+
+  it("invalidates pending entry on teardown and reports a rejected entry without focusing chat", async () => {
+    const harness = installPlayerHarness([])
+    const { container, root } = await mountPlayer(source)
+    await act(async () => buttonById(container, "player-chat").click())
+    const frame = chatFrame(container)
+    let acknowledge: (() => void) | undefined
+    harness.beginChatInput.mockImplementationOnce(async (session) => {
+      harness.chatInput.begin(session)
+      await new Promise<void>((resolve) => {
+        acknowledge = resolve
+      })
+    })
+    await act(async () => buttonById(container, "player-chat-enter").click())
+    await act(async () => buttonById(container, "player-chat-reload").click())
+    await act(async () => {
+      if (acknowledge === undefined) throw new Error("Missing pending acknowledgement")
+      acknowledge()
+    })
+    expect(frame.tabIndex).toBe(-1)
+    expect(chatFrame(container).tabIndex).toBe(-1)
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+    harness.beginChatInput.mockRejectedValueOnce(new Error("Entry denied"))
+    await act(async () => buttonById(container, "player-chat-enter").click())
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(chatFrame(container).tabIndex).toBe(-1)
+    expect(harness.chatNotifications.size).toBe(0)
+    await act(async () => root.unmount())
+  })
+
+  it("keeps native gamepad shell keys out of playback and lets B exit chat without going Home", async () => {
+    const harness = installPlayerHarness([])
+    const { container, root } = await mountNavigablePlayer()
+    await act(async () => buttonById(container, "player-chat").click())
+    await act(async () => buttonById(container, "player-chat-enter").click())
+    for (const key of ["ArrowLeft", "ArrowDown", "Enter", "F10", "/"]) {
+      await pressKey(container, key)
+      expect(document.activeElement).toBe(chatFrame(container))
+    }
+    await pressKey(container, "Escape")
+    expect(document.activeElement).toBe(buttonById(container, "player-chat"))
+    expect(chatFrame(container).tabIndex).toBe(-1)
+    expect(harness.chatContents.listenerCount("before-input-event")).toBe(0)
+    await act(async () => root.unmount())
+  })
+
   it.each([source, videoSource])(
     "starts hidden with live-only chat controls for $kind",
     async (playerSource) => {
@@ -595,6 +875,7 @@ describe("live chat sidebar", () => {
       const toggle = container.querySelector('[data-focus-id="player-chat"]')
       expect(toggle !== null).toBe(playerSource.kind === "live")
       if (toggle !== null) expect(toggle.getAttribute("aria-expanded")).toBe("false")
+      expect(container.querySelector('[data-focus-id="player-chat-enter"]')).toBeNull()
       expect(container.querySelector('[data-focus-id="player-chat-reload"]')).toBeNull()
       expect(container.querySelector(".player-chat")).toBeNull()
       expect(container.querySelectorAll("iframe")).toHaveLength(1)
@@ -640,7 +921,7 @@ describe("live chat sidebar", () => {
   )
 
   it.each(["loading", "ready", "offline"] as const)(
-    "navigates Show, Hide and Reload with real controller arrows and Enter while %s",
+    "walks every rendered toolbar control left and right, with chat actions on Down, while %s",
     async (state) => {
       const harness = installPlayerHarness([true])
       const { container, root } = await mountNavigablePlayer()
@@ -665,7 +946,7 @@ describe("live chat sidebar", () => {
       for (const id of route) await move("ArrowRight", id)
       await move("Enter", "player-chat")
       expect(buttonById(container, "player-chat").getAttribute("aria-expanded")).toBe("true")
-      for (const id of ["player-chat", "player-chat-reload"]) {
+      for (const id of ["player-chat", "player-chat-enter", "player-chat-reload"]) {
         const button = buttonById(container, id)
         expect(button.disabled).toBe(false)
         expect(button.getAttribute("data-focusable")).toBe("true")
@@ -673,18 +954,31 @@ describe("live chat sidebar", () => {
           expect(button.hasAttribute(`data-focus-${direction}`)).toBe(true)
         }
       }
+      const toolbar = [
+        "player-back",
+        ...route,
+        "player-chat-enter",
+        "player-chat-reload",
+        "player-fullscreen",
+      ]
+      buttonById(container, "player-back").focus()
+      for (const id of toolbar.slice(1)) await move("ArrowRight", id)
+      for (const id of toolbar.slice(0, -1).reverse()) await move("ArrowLeft", id)
+      for (const id of route) await move("ArrowRight", id)
       const oldFrame = container.querySelector(".player-chat iframe")
+      await move("ArrowDown", "player-chat-enter")
       await move("ArrowDown", "player-chat-reload")
       await move("Enter", "player-chat-reload")
       expect(container.querySelectorAll(".player-chat iframe")).toHaveLength(1)
       expect(container.querySelector(".player-chat iframe")).not.toBe(oldFrame)
       await move("ArrowDown", "player-chat-reload")
       await move("ArrowRight", "player-fullscreen")
-      await move("ArrowLeft", "player-chat")
-      await move("ArrowDown", "player-chat-reload")
+      await move("ArrowLeft", "player-chat-reload")
+      await move("ArrowLeft", "player-chat-enter")
       await move("ArrowLeft", "player-chat")
       await move("ArrowLeft", "player-vods")
       await move("ArrowRight", "player-chat")
+      await move("ArrowDown", "player-chat-enter")
       await move("ArrowDown", "player-chat-reload")
       await move("ArrowUp", "player-chat")
       await move("Enter", "player-chat")
@@ -700,7 +994,7 @@ describe("live chat sidebar", () => {
   )
 
   it.each(["loading", "ready", "offline"] as const)(
-    "isolates showing, hiding and reloading chat from the %s player",
+    "isolates showing, entering, using, exiting, hiding and reloading chat from the %s player",
     async (state) => {
       const harness = installPlayerHarness([true])
       const { container, root } = await mountPlayer(source)
@@ -732,6 +1026,18 @@ describe("live chat sidebar", () => {
       expectUnchangedPlayer()
       const pane = container.querySelector(".player-chat")
       const firstFrame = pane?.querySelector("iframe")
+      await act(async () => buttonById(container, "player-chat-enter").click())
+      expect(document.activeElement).toBe(firstFrame)
+      expectUnchangedPlayer()
+      // Frame-local events cannot bubble into the shell; the player has no chat listeners.
+      firstFrame?.contentDocument?.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" }))
+      firstFrame?.contentDocument?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }))
+      expectUnchangedPlayer()
+      await act(async () => {
+        harness.chatKey("keyDown")
+        harness.chatKey("keyUp")
+      })
+      expectUnchangedPlayer()
       await act(async () => buttonById(container, "player-chat-reload").click())
       expectUnchangedPlayer()
       expect(container.querySelector(".player-chat")).toBe(pane)
@@ -751,6 +1057,8 @@ describe("live chat sidebar", () => {
     const { container, root } = await mountNavigablePlayer()
     await act(async () => harness.emit("ready"))
     await act(async () => buttonById(container, "player-chat").click())
+    await pressKey(container, "ArrowDown")
+    expect(document.activeElement).toBe(buttonById(container, "player-chat-enter"))
     await pressKey(container, "ArrowDown")
     const frame = container.querySelector(".player-chat iframe")
     await act(async () => harness.emit("offline"))
@@ -832,6 +1140,8 @@ describe("live chat sidebar", () => {
       for (let index = 0; index < route; index += 1) await pressKey(container, "ArrowRight")
       expect(document.activeElement).toBe(buttonById(container, "player-chat"))
       await pressKey(container, "Enter")
+      await pressKey(container, "ArrowDown")
+      expect(document.activeElement).toBe(buttonById(container, "player-chat-enter"))
       await pressKey(container, "ArrowDown")
       expect(document.activeElement).toBe(buttonById(container, "player-chat-reload"))
       await pressKey(container, "Escape")

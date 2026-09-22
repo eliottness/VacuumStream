@@ -116,14 +116,24 @@ appear only after playback starts. **Close** returns focus to Quality; Escape st
 Home. A requested quality is not confirmation of a change; Auto can use different resolutions.
 
 For live channels, choose **Show chat** between Past broadcasts and Fullscreen to read live
-chat beside the video. This is reading live chat only, not a controller chat composer or VOD
-chat replay. Chat starts hidden each time you open or change a source. **Hide chat** removes
-the pane; **Reload chat** reloads only chat, without restarting playback. Press Down from
-Show/Hide chat to reach Reload chat, and Up to return; Enter activates either action. Escape
-still returns Home. Hide and Reload remain available while the player is loading or offline.
-Twitch handles chat's connection and error messages; VacuumStream sign-in does not sign you
-into chat. The enlarged pane stacks below the video on smaller screens, with scrolling rather
-than covering or shrinking the video below its minimum size.
+chat beside the video. Chat starts hidden each time you open or change a source. **Hide chat**
+removes the pane; **Reload chat** reloads only chat, without restarting playback. Left/Right
+walks Hide chat, Enter chat, Reload chat, Fullscreen and back. Down from Show/Hide chat reaches
+Enter chat, then Reload chat; Up returns to Hide chat. These controls remain available while
+the player is loading or offline. Showing or reloading chat does not move focus into Twitch.
+
+On a fresh profile, Twitch may ask for cookie/advertising consent before showing messages.
+Choose **Enter chat** to interact with **Twitch's own interface**, not a VacuumStream dialog.
+Use a physical keyboard or Steam Input keyboard mapping: **Tab / Shift+Tab** moves among
+Twitch's controls, **Enter** activates the focused choice, and **Escape** returns to Hide chat.
+A persistent hint outside the embeds remains visible in this mode. Holding Escape exits chat
+only; release and press Escape again to return Home. Hide, Reload, a source change, leaving
+playback, or switching away from the window also ends the mode; returning never resumes it.
+**Native gamepad input into the chat frame is not yet supported.** Map Tab, Shift+Tab, Enter,
+and Escape in Steam Input for consent controls. There is no VacuumStream controller chat
+composer or VOD chat replay. Twitch handles chat's connection and error messages;
+VacuumStream sign-in does not sign you into chat. The enlarged pane stacks below the video
+on smaller screens, with scrolling rather than covering or shrinking the video below 400x300.
 
 Past broadcasts show elapsed/total time and jumps back or forward by 30 seconds or 5 minutes.
 Press Down from Back to reach the jumps, Left/Right to choose, and Enter to seek; Up returns
