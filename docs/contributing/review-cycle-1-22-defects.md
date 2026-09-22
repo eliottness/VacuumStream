@@ -37,15 +37,17 @@ A defect row is a review finding, not a landed change.
 | cycle-18 | 0 | 1 | 2 | 0 | 3 |
 | cycle-19 | 0 | 1 | 3 | 0 | 4 |
 | cycle-20 | 0 | 0 | 3 | 0 | 3 |
-| cycle-21 | 0 | 1 | 1 | 0 | 2 |
+| cycle-21 | 0 | 0 | 1 | 0 | 1 |
 | cycle-22 | 0 | 1 | 2 | 0 | 3 |
 | xc-security | 0 | 1 | 1 | 0 | 2 |
 | xc-performance | 0 | 0 | 6 | 0 | 6 |
 | xc-docs | 0 | 1 | 0 | 0 | 1 |
 | manual-qa | 0 | 1 | 1 | 0 | 2 |
-| **total** | **0** | **11** | **36** | **0** | **47** |
+| **total** | **0** | **10** | **36** | **0** | **46** |
 
-The summary preserves the reports' original counts. The deduplicated defect table below has 46 rows; the merged report ID is recorded in the next section.
+The table holds 46 rows. Two further ids exist outside it: `D-cycle-21-1`, merged
+into `D-cycle-08-1` and recorded under "Duplicates and cross-lane themes", and the two withdrawn
+manual-QA findings under "Withdrawn findings".
 
 ## Defects
 
