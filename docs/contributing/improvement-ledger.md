@@ -58,6 +58,7 @@ are out of scope and are rejected without review.
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
+| 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -626,6 +627,36 @@ remount would drop controller focus, which on a gamepad-only device is the actua
 signed-out Showcase all three states (loaded, absent, failed) measured identical geometry,
 359x264 at 1280 and 545x368 at 1920, with no broken-image glyph and no empty `src`. The failed
 case uses a `data:` URI so it fails deterministically rather than depending on the network.
+
+### Cycle 14 — Retry failed Twitch player startup
+
+`loadTwitchPlayerApi` caches its promise at module scope and never clears it when the load fails,
+so a single failed script download poisons playback for the rest of the session: every later
+channel resolves the same rejected promise and no new request is ever issued. Reproduced against
+the real module — after one script error, `samePromise: true` and `scriptRequests: 1`. Restoring
+connectivity does not help; only restarting the renderer does. `PlayerView` compounds it by
+mapping both initialization failure and Twitch's `OFFLINE` event to the same error state, so an
+offline broadcaster and a broken SDK look identical and neither offers a way out.
+
+Target: a failed startup shows an understandable error with **Retry loading player** beside Back,
+both reachable with the D-pad, retrying the same channel or recording without navigating away,
+retyping or restarting. A failed retry stays visibly failed rather than claiming recovery.
+
+Acceptance criteria:
+
+1. A rejected load clears its cache and failed script, and a later call issues a fresh request;
+   concurrent callers still share one pending load.
+2. Retry is reachable with arrows, issues exactly one replacement request, and yields one player
+   with the original ID and selected time; activation while pending adds nothing.
+3. Back, unmount and source replacement during a failed startup install no stale player, error or
+   focus change, and a failed pre-READY VOD attempt saves no progress.
+4. `OFFLINE` after `READY` triggers no SDK retry and offers no startup-error action.
+5. Signed-out recovery works on the target hardware with the first request failed and then
+   allowed.
+6. `bun run verify` passes in one run.
+
+Not in scope: requests that never settle, post-READY media errors, offline-to-online recovery,
+and anything touching the activation injection.
 
 ## Autoplay injection: investigated, deferred with conditions
 
