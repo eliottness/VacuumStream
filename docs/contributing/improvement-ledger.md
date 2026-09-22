@@ -60,6 +60,7 @@ are out of scope and are rejected without review.
 | 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
 | 14 | [Retry failed Twitch player startup](#cycle-14--retry-failed-twitch-player-startup) | fix | Landed |
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
+| 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -719,6 +720,42 @@ only the return was simulated — a QA-only wrapper captured the callbacks the a
 the official SDK (all seven: ready, playing, play, pause, playbackBlocked, online, offline) and
 invoked `online`. The alert cleared and playback re-enabled around the SAME iframe with the count
 still 1. Recorded as an injected transition, not proof of a real broadcaster restart.
+
+### Cycle 16 — Save local favourite channels
+
+Three consecutive cycles repaired the playback seam, and it is now well covered. The remaining
+daily friction is elsewhere: a signed-out viewer who wants the same channel twice has to spell it
+out on an on-screen keyboard every time. Guest search already opens an exact channel without any
+Helix call, so remembering that login locally costs nothing in permissions and removes the typing
+entirely.
+
+Target: a Save favourite action beside each Search result, and a Favourite channels shelf on Home
+between Continue Watching and the live shelf, each entry offering Open channel and Remove
+favourite. It survives a restart and works signed out.
+
+Deliberate honesty in the design: entries show names only and never claim live status, because
+nothing here asks Twitch whether the channel is up. The list is labelled local to this
+installation and is shared across Twitch account changes — it is a shortcut list, not your Twitch
+follows, and the documentation says so. Saved logins can go stale when a channel is renamed or
+deleted; the answer is a Remove action, not background resolution.
+
+Acceptance criteria:
+
+1. A fresh store recovers a canonical, duplicate-free, alphabetical list; entry 51 is rejected
+   with an error rather than silently evicting; malformed files and failed writes preserve the
+   previous bytes.
+2. The IPC boundary rejects malformed input, extra arguments, unauthorized frames and bad
+   results.
+3. Guest search → save → Home → open issues no Helix or authorization call, constructs no player
+   while saving, and exactly one on opening.
+4. Save, Open, Remove and Retry are controller-reachable, and removing the middle or the last
+   entry leaves focus on a connected control.
+5. Read, add and remove failures and out-of-order completions produce no duplicate mutation, no
+   false success and no resurrection.
+6. It survives an app restart on the target hardware, and `bun run verify` passes.
+
+Not in scope: Twitch follow management, notifications, artwork, sorting controls, import/export,
+cross-device sync, and any player change.
 
 ## Autoplay injection: investigated, deferred with conditions
 
