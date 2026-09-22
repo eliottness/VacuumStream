@@ -51,8 +51,8 @@ are out of scope and are rejected without review.
 | 4 | [Refresh and paginate Home and Following](#cycle-4--refresh-and-paginate-home-and-following) | fix | Landed |
 | 5 | [Add controller-native playback quality selection](#cycle-5--add-controller-native-playback-quality-selection) | feature | Landed |
 | 6 | [Browse followed channels even when offline](#cycle-6--browse-followed-channels-even-when-offline) | feature | Landed |
-| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed, one criterion failing |
-| 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | In progress |
+| 7 | [Add optional live chat beside playback](#cycle-7--add-optional-live-chat-beside-playback) | feature | Landed; its failing criterion closed by cycle 8 |
+| 8 | [Make chat consent reachable without a pointer](#cycle-8--make-chat-consent-reachable-without-a-pointer) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -401,6 +401,13 @@ Acceptance criteria:
 
 Not in scope: native Gamepad API forwarding into the frame, native EventSub chat, message
 composition, and any change to the autoplay mechanism.
+
+Landed in `cc1b1f5`. On a fresh HTPC profile, signed out and using keys only, Show chat then
+Enter chat put focus in the frame, Tab reached Twitch's Reject control, Enter dismissed the gate,
+real chat appeared, and Escape returned to Hide chat without navigating Home. The interception
+keeps two listeners: one prevents Escape reaching Twitch and notifies the renderer, a second
+drains the rest of that held press so a single press cannot also trigger Home. The in-app hint
+states that native gamepad input into chat is not supported yet, rather than implying it is.
 
 ## Observed but not yet scheduled
 
