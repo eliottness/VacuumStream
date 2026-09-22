@@ -1,13 +1,14 @@
 import { defineConfig } from "@playwright/test"
 
-const { CI, E2E_WORKERS } = process.env
+const { CI, E2E_OUT, E2E_WORKERS } = process.env
+const outputDirectory = E2E_OUT ?? "test-results/e2e"
 
 export default defineConfig({
   expect: { timeout: 15_000 },
   forbidOnly: CI !== undefined,
   fullyParallel: false,
-  outputDir: "test-results/e2e",
-  reporter: [["list"], ["json", { outputFile: "test-results/e2e-report.json" }]],
+  outputDir: outputDirectory,
+  reporter: [["list"], ["json", { outputFile: `${outputDirectory}/report.json` }]],
   retries: 0,
   testDir: "test/e2e",
   timeout: 120_000,
