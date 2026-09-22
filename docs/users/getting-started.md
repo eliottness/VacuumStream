@@ -145,6 +145,21 @@ Reopening a part-watched recording offers **Resume from H:MM:SS**, **Start over*
 clears the old position; Back leaves without starting playback. If local progress cannot be
 read, you can still choose **Play without resume** or Back.
 
+Home shows **Continue Watching** above live channels when saved recordings exist, even while
+signed out. It shows the ten most recently updated positions, with titles and saved elapsed/total
+time. Older entries without a title appear as **Recording <videoId>**; their Past broadcasts
+shortcut is disabled because the broadcaster is unknown. Selecting an entry opens the same
+Resume / Start over / Back choices; nothing plays before you choose. The shelf does not check
+whether a recording is still available on Twitch.
+
+From Home navigation, Right (Down on the compact navigation bar) reaches the first entry.
+Left/Right moves between entries; Down reaches **Forget progress**, then the live shelf controls.
+Up returns in the opposite direction. **Forget progress deletes the saved position**, not just
+its card. Focus moves to the next surviving entry, or a Home control when none remain. A failed
+delete keeps the entry and offers **Retry forget progress**; a failed read offers **Retry Continue
+Watching**. These positions are local to this installation and shared across Twitch accounts,
+including when signed out.
+
 Positions are **local to this installation and shared across Twitch account changes**. They
 are not synced to Twitch or other devices. Observed progress is checkpointed every 15 seconds
 when it changes, and on pause, confirmed seeking, and normal departure. An abrupt app or

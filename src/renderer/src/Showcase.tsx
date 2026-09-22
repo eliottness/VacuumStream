@@ -1,5 +1,6 @@
-import type { VideoCard } from "../../shared/contracts"
+import type { PlaybackBookmark, VideoCard } from "../../shared/contracts"
 import { CategoryShelf } from "./components/CategoryShelf"
+import { ContinueWatchingShelf } from "./components/ContinueWatchingShelf"
 import { StreamShelf } from "./components/StreamShelf"
 import { VideoResumePrompt } from "./components/VideoResumePrompt"
 import { VideoShelf } from "./components/VideoShelf"
@@ -33,6 +34,17 @@ const PREVIEW_VIDEOS = [
   },
 ] satisfies readonly VideoCard[]
 
+const PREVIEW_BOOKMARKS: readonly PlaybackBookmark[] = [
+  {
+    details: { title: "A quiet evening building a world together", userId: "preview" },
+    duration: 10_800,
+    position: 3900,
+    updatedAt: 2,
+    videoId: "preview-recording",
+  },
+  { duration: 3600, position: 65, updatedAt: 1, videoId: "123456789" },
+]
+
 export const Showcase = () => {
   useControllerNavigation()
   return (
@@ -57,6 +69,44 @@ export const Showcase = () => {
           Focus sample
         </button>
       </section>
+      {(["populated", "legacy-entry", "loading", "read-error", "removal-error"] as const).map(
+        (fixture) => (
+          <div className="showcase__continue" key={fixture}>
+            <h2>{fixture}</h2>
+            <ContinueWatchingShelf
+              error={fixture === "read-error" ? "Could not read local playback progress." : ""}
+              fallbackFocusId={`showcase-${fixture}-home`}
+              focusPrefix={`showcase-${fixture}`}
+              items={
+                fixture === "loading" || fixture === "read-error"
+                  ? []
+                  : fixture === "legacy-entry"
+                    ? PREVIEW_BOOKMARKS.slice(1)
+                    : PREVIEW_BOOKMARKS
+              }
+              lowerFocusId={`showcase-${fixture}-home`}
+              onForget={() => undefined}
+              onRetry={() => undefined}
+              onSelect={() => undefined}
+              removalError={
+                fixture === "removal-error"
+                  ? {
+                      message: "Could not delete the saved position. Try again.",
+                      videoId: "preview-recording",
+                    }
+                  : undefined
+              }
+              removingId={undefined}
+              status={
+                fixture === "loading" ? "loading" : fixture === "read-error" ? "error" : "ready"
+              }
+            />
+            <button data-focus-id={`showcase-${fixture}-home`} data-focusable="true" type="button">
+              Home control
+            </button>
+          </div>
+        ),
+      )}
       <StreamShelf
         emptyMessage="No live channels are available."
         onSelect={() => undefined}

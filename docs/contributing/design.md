@@ -99,6 +99,15 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 - **Accessibility**: arrow keys move within and between shelves; no additional navigation key is required.
 - **Layout**: reel owns horizontal overflow; no nested vertical scroll.
 
+### ContinueWatchingShelf
+
+- **Structure**: Home-only text-first horizontal row above the live shelf, showing at most the ten newest local bookmarks. Cards show the saved title and elapsed/total time, with a separate Forget progress action. No thumbnails, Helix requests, or availability lookups are involved; legacy entries use `Recording <videoId>`.
+- **States**: populated, legacy entry, loading, read error with retry, and removal error with retry. An empty successful list renders no shelf; loading/read-error feedback remains outside the absent row, and existing Home controls stay reachable. Live discovery and authentication do not gate loading.
+- **Playback**: selection uses the existing video source and Resume / Start over / Back prompt before player construction. Legacy bookmarks use broadcaster sentinel `"0"`; their Past broadcasts shortcut is disabled and bypassed by the toolbar focus graph, never resolved through a fabricated lookup. Completion is only the player's ENDED event, not a percentage watched.
+- **Persistence**: positions are local to this installation and shared across Twitch accounts, including signed-out viewing. Forget progress deletes the saved position. The renderer's shared per-video queue orders writes, removals and resume lookups; listing waits for already-queued renderer work before invoking IPC, separately from main-store serialization. Home-entry and removal generations reject obsolete list results so they cannot resurrect deleted entries.
+- **Accessibility**: explicit directional links connect navigation, entry buttons, Forget actions, and live controls in both directions. A successful removal rescues focus to the next surviving entry (or the previous one at the end), then an existing Home control if the row disappears. A failed removal retains the card and its focusable retry action. Loading does not trap focus or trigger authorization.
+- **Layout**: the existing horizontal reel owns overflow, with padded focus frames, two-line titles and tabular elapsed/total times. Text and actions remain readable at 1280x720 and 1920x1080; no nested vertical scrolling or playback overlays.
+
 ### StreamCard
 
 - **Structure**: 16:9 thumbnail frame, live/viewer overlays, avatar, two-line title, channel/category metadata.
@@ -135,7 +144,7 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 ### Primitive Showcase
 
-The development-only `?showcase=1` surface renders action default/focus/disabled states, populated/loading/error/empty shelves, media fallback handling, the real resume prompt in bookmarked/loading/read-error states, and category cards at 375, 768, 1280, 1920, and 3840 px before product screens are accepted.
+The development-only `?showcase=1` surface renders action default/focus/disabled states, populated/loading/error/empty shelves, media fallback handling, the real Continue Watching shelf in populated/legacy-entry/loading/read-error/removal-error fixtures, the real resume prompt in bookmarked/loading/read-error states, and category cards at 375, 768, 1280, 1920, and 3840 px before product screens are accepted.
 
 ## 6. Motion & Interaction
 

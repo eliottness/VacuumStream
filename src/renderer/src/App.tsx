@@ -2,6 +2,11 @@ import { BroadcastIcon, SignInIcon } from "@phosphor-icons/react"
 import { useEffect, useLayoutEffect } from "react"
 import { CategoryShelf } from "./components/CategoryShelf"
 import { CategoryView } from "./components/CategoryView"
+import {
+  ContinueWatchingShelf,
+  continueWatchingEntryId,
+  recordingTitle,
+} from "./components/ContinueWatchingShelf"
 import { FollowedChannelsView } from "./components/FollowedChannelsView"
 import { Navigation, type RouteName } from "./components/Navigation"
 import { PlayerView } from "./components/PlayerView"
@@ -74,6 +79,8 @@ export const App = () => {
   const route = controller.screen.kind === "browse" ? controller.screen.route : undefined
   const allChannels =
     controller.screen.kind === "browse" && controller.screen.followingMode === "all"
+  const continueEntry =
+    route === "home" ? continueWatchingEntryId(controller.continueWatching) : undefined
 
   return (
     <div className="app-shell">
@@ -86,12 +93,13 @@ export const App = () => {
       <Navigation
         active={route ?? "home"}
         entryFocusId={
-          allChannels
+          continueEntry ??
+          (allChannels
             ? "following-all"
             : controller.auth.kind === "authenticated" &&
                 (route === "home" || route === "following")
               ? `${route}-refresh`
-              : undefined
+              : undefined)
         }
         onNavigate={controller.navigate}
       />
@@ -124,7 +132,7 @@ export const App = () => {
               {controller.auth.kind !== "authenticated" ? (
                 <button
                   className="primary-button"
-                  data-focus-down="stream-preview-twitch"
+                  data-focus-down={continueEntry ?? "stream-preview-twitch"}
                   data-focus-id="home-sign-in"
                   data-focus-left="nav-home"
                   data-focusable="true"
@@ -138,6 +146,24 @@ export const App = () => {
                 <BroadcastIcon aria-hidden="true" className="broadcast-mark" weight="duotone" />
               )}
             </header>
+            <ContinueWatchingShelf
+              {...controller.continueWatching}
+              fallbackFocusId={
+                controller.auth.kind === "authenticated" ? "home-refresh" : "home-sign-in"
+              }
+              lowerFocusId={
+                controller.auth.kind === "authenticated" ? "home-refresh" : "stream-preview-twitch"
+              }
+              onForget={(videoId) => void controller.continueWatching.forget(videoId)}
+              onRetry={() => void controller.continueWatching.retry()}
+              onSelect={(bookmark) =>
+                controller.viewVideo({
+                  id: bookmark.videoId,
+                  title: recordingTitle(bookmark),
+                  userId: bookmark.details?.userId ?? "0",
+                })
+              }
+            />
             <StreamShelf
               {...(controller.auth.kind === "authenticated"
                 ? {

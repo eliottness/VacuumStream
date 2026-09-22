@@ -56,6 +56,7 @@ const installPlayerHarness = (
     get: vi.fn<VacuumStreamApi["playbackProgress"]["get"]>(async (videoId) =>
       bookmarks.get(videoId),
     ),
+    list: vi.fn<VacuumStreamApi["playbackProgress"]["list"]>(async () => [...bookmarks.values()]),
     remove: vi.fn<VacuumStreamApi["playbackProgress"]["remove"]>(async (videoId) => {
       bookmarks.delete(videoId)
     }),
@@ -305,6 +306,7 @@ describe("local VOD resume", () => {
     })
     expect(harness.progress.save).toHaveBeenCalledExactlyOnceWith({
       ...savedBookmark,
+      details: { title: videoSource.title, userId: videoSource.userId },
       updatedAt: Date.now(),
     })
     await act(async () => first.root.unmount())

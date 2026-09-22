@@ -10,6 +10,7 @@ import type {
 import type { RouteName } from "./components/Navigation"
 import { PREVIEW_CATEGORIES } from "./demo-data"
 import { type Screen, shouldNavigateHomeOnBack } from "./screen"
+import { useContinueWatching } from "./useContinueWatching"
 import {
   type CatalogOperation,
   catalogRequests,
@@ -35,6 +36,8 @@ export const useAppController = () => {
   const [auth, setAuth] = useState<AuthSnapshot>({ kind: "guest" })
   const [settings, setSettings] = useState<SettingsSnapshot>({ clientId: "", secureStorage: false })
   const [screen, setScreen] = useState<Screen>({ kind: "browse", route: "home" })
+  const continueWatching = useContinueWatching(screen.kind === "browse" && screen.route === "home")
+  const { invalidate: invalidateProgress } = continueWatching
   const {
     catalog: live,
     invalidate: invalidateLive,
@@ -90,11 +93,18 @@ export const useAppController = () => {
       invalidateFollowed()
       invalidateCategory()
       invalidateDirectory()
+      invalidateProgress()
       setBusy(false)
       currentScreen.current = next
       setScreen(next)
     },
-    [invalidateCategory, invalidateDirectory, invalidateFollowed, invalidateLive],
+    [
+      invalidateCategory,
+      invalidateDirectory,
+      invalidateFollowed,
+      invalidateLive,
+      invalidateProgress,
+    ],
   )
   const navigate = useCallback(
     (route: RouteName): void => {
@@ -340,6 +350,7 @@ export const useAppController = () => {
     busy,
     categories,
     categoryCatalog,
+    continueWatching,
     followed,
     followedChannels,
     live,
@@ -374,7 +385,7 @@ export const useAppController = () => {
     },
     videoError,
     videos,
-    viewVideo: (video: VideoCard) =>
+    viewVideo: (video: Pick<VideoCard, "id" | "title" | "userId">) =>
       changeScreen({
         kind: "player",
         source: {

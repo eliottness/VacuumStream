@@ -1,5 +1,6 @@
 import { createElement, useCallback, useEffect, useState } from "react"
 import type { PlaybackBookmark } from "../../../shared/contracts"
+import { queueProgress } from "../playback-progress"
 import type { PlayerSource } from "./PlayerView"
 import { VideoResumePrompt } from "./VideoResumePrompt"
 
@@ -20,20 +21,6 @@ type Startup = {
   readonly phase: "loading" | "choice" | "playing"
   readonly source: PlayerSource
   readonly startingPosition?: number | undefined
-}
-
-// Also order a returning player's lookup after the previous player's final checkpoint.
-// Callers still receive and report rejections; a failed operation cannot poison the queue.
-const pendingProgress = new Map<string, Promise<unknown>>()
-const queueProgress = <T>(videoId: string, operation: () => Promise<T>): Promise<T> => {
-  const previous = pendingProgress.get(videoId) ?? Promise.resolve()
-  const result = previous.then(operation, operation)
-  pendingProgress.set(videoId, result)
-  const release = (): void => {
-    if (pendingProgress.get(videoId) === result) pendingProgress.delete(videoId)
-  }
-  void result.then(release, release)
-  return result
 }
 
 const initialStartup = (source: PlayerSource): Startup => ({
@@ -196,7 +183,13 @@ export const useVideoResume = (source: PlayerSource, onBack: () => void) => {
           )
             confirmed = true
           if (!confirmed) return
-          observed = { duration, position, updatedAt: Date.now(), videoId }
+          observed = {
+            details: { title: owner.title, userId: owner.userId },
+            duration,
+            position,
+            updatedAt: Date.now(),
+            videoId,
+          }
           checkpoint(reason === "pause" || reason === "seek")
         },
         requestSeek: (position) => {

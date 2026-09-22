@@ -7,7 +7,7 @@ import {
   SpeakerHighIcon,
   SpeakerSimpleXIcon,
 } from "@phosphor-icons/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { cloneElement, useCallback, useEffect, useRef, useState } from "react"
 import {
   createTwitchPlayerOptions,
   loadTwitchPlayerApi,
@@ -262,6 +262,7 @@ export const PlayerView = ({
   }
 
   const showHours = duration !== undefined && duration >= 3600
+  const unknownBroadcaster = source.kind === "video" && source.userId === "0"
 
   if (resumePrompt !== null) {
     return <main className="player-view player-view--resume">{resumePrompt}</main>
@@ -314,12 +315,15 @@ export const PlayerView = ({
             <SpeakerSimpleXIcon aria-hidden="true" />
           )}
         </button>
-        {qualityButton}
+        {unknownBroadcaster
+          ? cloneElement(qualityButton, { "data-focus-right": "player-fullscreen" })
+          : qualityButton}
         <button
           data-focus-id="player-vods"
           data-focus-left="player-quality"
           data-focus-right={source.kind === "live" ? "player-chat" : "player-fullscreen"}
           data-focusable="true"
+          disabled={unknownBroadcaster}
           onClick={() => onPastBroadcasts(source.userId)}
           type="button"
         >
@@ -332,7 +336,7 @@ export const PlayerView = ({
         <button
           aria-label="Toggle fullscreen"
           data-focus-id="player-fullscreen"
-          data-focus-left={fullscreenLeft}
+          data-focus-left={unknownBroadcaster ? "player-quality" : fullscreenLeft}
           data-focusable="true"
           onClick={onToggleFullscreen}
           type="button"
