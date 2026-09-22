@@ -66,8 +66,9 @@
   gap: var(--space-3);
   min-inline-size: 0;
   padding: var(--space-4);
-  border-radius: 1rem;
-  background: var(--color-rail);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
   scroll-snap-align: start;
 }
 
@@ -84,7 +85,7 @@
   display: -webkit-box;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 1.125rem;
+  font-size: var(--text-body);
   line-height: 1.3;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -92,12 +93,12 @@
 
 .continue-card__open span {
   color: var(--color-text-muted);
-  font-size: 1.125rem;
+  font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
 }
 
 .continue-card > button {
-  font-size: 1.125rem;
+  font-size: var(--text-body);
 }
 
 .continue-watching__error,
@@ -118,8 +119,9 @@
   gap: var(--space-3);
   min-inline-size: 0;
   padding: var(--space-4);
-  border-radius: 1rem;
-  background: var(--color-rail);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
   scroll-snap-align: start;
 }
 
@@ -128,7 +130,7 @@
 }
 
 .favourite-card > button {
-  font-size: 1.125rem;
+  font-size: var(--text-body);
 }
 
 .favourites > p {
@@ -163,9 +165,10 @@
   grid-template-columns: minmax(15rem, 0.8fr) minmax(20rem, 1.2fr);
   gap: var(--space-12);
   padding: var(--space-8);
-  border-radius: 1rem;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
   background: var(--color-rail);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  box-shadow: inset 0 1px 0 var(--color-edge-light);
 }
 
 .settings-card h2 {
@@ -206,7 +209,11 @@
 
 .device-code strong {
   color: var(--color-accent-strong);
+  font-family: var(--font-display);
   font-size: clamp(2rem, 4vw, 4rem);
+  font-stretch: var(--display-stretch);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   letter-spacing: 0.12em;
 }
 
@@ -224,7 +231,7 @@
 
 .device-code__qr {
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
   background: var(--color-on-accent);
 }
 
@@ -382,7 +389,8 @@
   max-inline-size: 60rem;
   min-inline-size: 0;
   padding: var(--space-6);
-  border-radius: 1rem;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
   background: var(--color-rail);
   overflow-wrap: anywhere;
 }
@@ -414,6 +422,7 @@
 .player-chat-hint {
   margin: 0;
   padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--color-rule);
   background: var(--color-rail);
 }
 
@@ -425,6 +434,7 @@
   gap: var(--space-1) var(--space-3);
   min-inline-size: 0;
   padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--color-rule);
   background: var(--color-rail);
 }
 
@@ -465,11 +475,14 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--color-rule);
   background: var(--color-rail);
 }
 
 .player-transport__time {
-  font-size: 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--text-body-lg);
+  font-stretch: var(--display-stretch);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -482,6 +495,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+  border-block-start: 1px solid var(--color-rule);
   background: var(--color-rail);
 }
 
@@ -564,7 +578,13 @@
   position: relative;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+  transition: box-shadow var(--dur-press) var(--ease-out);
+}
+
+.video-card:hover > span:first-child {
+  box-shadow: inset 0 0 0 1px var(--color-accent-strong);
 }
 
 .video-card > span:first-child > .video-card__artwork-placeholder {
@@ -587,9 +607,10 @@
   position: absolute;
   inset: auto var(--space-2) var(--space-2) auto;
   padding: var(--space-1) var(--space-2);
-  border-radius: 0.35rem;
+  border-radius: var(--radius-badge);
   color: var(--color-text);
   background: var(--color-scrim);
+  font-variant-numeric: tabular-nums;
 }
 
 .showcase__buttons {

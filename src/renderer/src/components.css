@@ -5,8 +5,8 @@
   align-items: stretch;
   gap: var(--space-6);
   padding: var(--space-4) var(--space-2);
-  background: color-mix(in srgb, var(--color-rail) 94%, transparent);
-  box-shadow: 1px 0 0 rgb(255 255 255 / 6%);
+  border-inline-end: 1px solid var(--color-rule);
+  background: var(--color-rail);
 }
 
 .navigation__brand {
@@ -22,7 +22,10 @@
 }
 
 .navigation__brand strong {
+  font-family: var(--font-display);
   font-size: 0.75rem;
+  font-stretch: var(--display-stretch);
+  font-weight: 600;
   letter-spacing: 0.08em;
 }
 
@@ -32,13 +35,21 @@
 }
 
 .navigation__item {
+  position: relative;
   min-block-size: 4rem;
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-2);
+  border-color: transparent;
   color: var(--color-text-muted);
   background: transparent;
-  font-size: 1rem;
+  font-size: var(--text-meta);
+}
+
+.navigation__item:hover {
+  border-color: transparent;
+  color: var(--color-text);
+  background: var(--color-surface);
 }
 
 .navigation__item svg {
@@ -48,7 +59,21 @@
 
 .navigation__item[aria-current="page"] {
   color: var(--color-text);
-  background: var(--color-raised);
+  background: transparent;
+}
+
+.navigation__item[aria-current="page"]::before {
+  position: absolute;
+  content: "";
+  inset-block: var(--space-2);
+  inset-inline-start: 0;
+  inline-size: 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+.navigation__item[aria-current="page"] svg {
+  color: var(--color-accent-strong);
 }
 
 .navigation__settings {
@@ -56,15 +81,14 @@
 }
 
 .home-heading {
-  min-block-size: 8rem;
-  padding: var(--space-6) var(--space-8);
-  border-radius: 1.5rem;
-  background: linear-gradient(115deg, rgb(145 71 255 / 26%), transparent 62%), var(--color-rail);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  min-block-size: 0;
+  padding: 0 0 var(--space-4);
 }
 
 .home-heading h1 {
   margin-block-start: var(--space-1);
+  font-size: var(--text-display);
+  line-height: 1.05;
 }
 
 .broadcast-mark {
@@ -84,10 +108,13 @@
   align-items: baseline;
   justify-content: space-between;
   margin-block-end: var(--space-4);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--color-rule);
 }
 
 .shelf__heading span {
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .shelf__tools {
@@ -149,6 +176,7 @@
   justify-content: start;
   flex-direction: column;
   padding: 0;
+  border: 0;
   overflow: hidden;
   text-align: start;
   background: transparent;
@@ -175,8 +203,15 @@
   display: block;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
   background: var(--color-raised);
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+  transition: box-shadow var(--dur-press) var(--ease-out);
+}
+
+.stream-card:hover .stream-card__art,
+.video-card:hover .stream-card__art {
+  box-shadow: inset 0 0 0 1px var(--color-accent-strong);
 }
 
 .stream-card img,
@@ -193,10 +228,11 @@
   position: absolute;
   inset-block-start: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border-radius: 0.35rem;
+  border-radius: var(--radius-badge);
   color: var(--color-on-accent);
   background: var(--color-scrim);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
 
@@ -221,7 +257,7 @@
   display: -webkit-box;
   min-block-size: 2.7em;
   overflow: hidden;
-  font-size: 1.125rem;
+  font-size: var(--text-body);
   line-height: 1.3;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -242,11 +278,11 @@
 
 .category-card img {
   aspect-ratio: 3 / 4;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
 }
 
 .category-card strong {
-  font-size: 1.125rem;
+  font-size: var(--text-body);
 }
 
 .followed-channel {
@@ -255,8 +291,9 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
-  border-radius: 1rem;
-  background: var(--color-rail);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
 }
 
 .followed-channel .avatar {
@@ -300,8 +337,9 @@
   display: grid;
   min-block-size: 10rem;
   place-content: center;
-  border-radius: 1rem;
+  border: 1px dashed var(--color-rule);
+  border-radius: var(--radius-panel);
   color: var(--color-text-muted);
   background: var(--color-rail);
-  font-size: 1.125rem;
+  font-size: var(--text-body);
 }

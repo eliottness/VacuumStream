@@ -11,21 +11,28 @@ VacuumStream is a calm, dark broadcast wall designed to be read from a sofa. Liv
 
 The app is dark-only because playback is the dominant task and abrupt theme changes are distracting in a dim room.
 
+Every value lives in `src/renderer/src/tokens.css`. Nothing in the app declares a raw colour.
+
 | Role | Token | Value | Usage |
 | --- | --- | --- | --- |
 | Surface / canvas | `--color-canvas` | `#0e0e10` | App background |
 | Surface / rail | `--color-rail` | `#18181b` | Navigation and fixed chrome |
+| Surface / surface | `--color-surface` | `#1f1f23` | Resting controls and local cards |
 | Surface / raised | `--color-raised` | `#26262c` | Dialogs, selected metadata |
-| Surface / hover | `--color-hover` | `#323239` | Hovered controls |
-| Text / primary | `--color-text` | `#f7f7f8` | Headings and key labels |
+| Surface / hover | `--color-hover` | `#2f2f35` | Hovered controls |
+| Surface / rule | `--color-rule` | `#3a3a3d` | Hairline borders and section rules |
+| Surface / edge light | `--color-edge-light` | `rgba(255, 255, 255, 0.07)` | Inset top highlight on large panels |
+| Text / primary | `--color-text` | `#efeff1` | Headings and key labels |
 | Text / secondary | `--color-text-muted` | `#adadb8` | Metadata and hints |
+| Text / tertiary | `--color-text-dim` | `#848494` | Canvas and rail only; fails AA on raised |
 | Text / disabled | `--color-text-disabled` | `#adadb8` | Disabled states; shape and surface also indicate disabled status |
 | Text / on accent | `--color-on-accent` | `#ffffff` | Small text on purple and live-red fills |
-| Accent / primary | `--color-accent` | `#9147ff` | Primary actions and active nav |
-| Accent / strong | `--color-accent-strong` | `#bf94ff` | Focus frame and selected state |
+| Accent / primary | `--color-accent` | `#9147ff` | Primary action fills and the active-route marker |
+| Accent / hover | `--color-accent-hover` | `#a970ff` | Primary hover fill, paired with canvas ink |
+| Accent / strong | `--color-accent-strong` | `#bf94ff` | Focus frame, purple text, active icons |
 | Accent / pressed | `--color-accent-pressed` | `#772ce8` | Active state |
 | Live | `--color-live` | `#eb0400` | Live status only |
-| Success | `--color-success` | `#00b37e` | Completed device authorization |
+| Success | `--color-success` | `#00db7f` | Completed device authorization |
 | Warning | `--color-warning` | `#ffb31a` | Recoverable service warnings |
 | Error | `--color-error` | `#ff6b6b` | Errors and destructive action |
 | Scrim | `--color-scrim` | `rgba(0, 0, 0, 0.72)` | Player and dialog overlays |
@@ -33,12 +40,18 @@ The app is dark-only because playback is the dominant task and abrupt theme chan
 Rules:
 
 - Purple is the only interaction accent; red is reserved for live state.
+- `--color-accent` is a fill, never small text: it reaches only 4.18:1 on canvas. Purple text uses
+  `--color-accent-strong` at 8.17:1. Purple fills carry white ink at 4.62:1, and the lighter hover
+  fill flips to canvas ink at 5.92:1.
 - Focus never relies on color alone: it combines a two-layer frame, lift, and metadata change.
+  The frame is `--focus-frame` and appears instantly; only the lift is animated.
 - All body text targets WCAG 2.2 AAA where practical and never falls below AA.
 
 ## 3. Typography
 
-Primary: **Atkinson Hyperlegible Next**, self-hosted, with `system-ui` fallback. Its differentiated letterforms support distance reading and low vision. No secondary family is needed.
+Body: **Atkinson Hyperlegible Next** (`--font-body`), self-hosted, with `system-ui` fallback. Its differentiated letterforms support distance reading and low vision, so it carries every label, control, and paragraph.
+
+Display: **Archivo Variable** (`--font-display`), self-hosted, set at `font-stretch: 110%` with `-0.005em` tracking. Wide grotesk signage holds its shape at three metres better than a condensed face. It is scoped to headings, the rail wordmark, the device code, and the transport clock — never to body copy. All display type is roman; italic headings are not used.
 
 | Level | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- |
@@ -62,6 +75,7 @@ All intent spacing uses a 4 px base.
 | `--space-2` | `0.5rem` | Badge and icon spacing |
 | `--space-3` | `0.75rem` | Compact control padding |
 | `--space-4` | `1rem` | Card metadata gap |
+| `--space-5` | `1.25rem` | Keyboard and control-cluster offset |
 | `--space-6` | `1.5rem` | Shelf gap |
 | `--space-8` | `2rem` | Main gutter |
 | `--space-12` | `3rem` | Shelf separation |
@@ -80,8 +94,11 @@ The `AppShell` is a fixed-sidenav shell bounded to `100dvb`; the main content pa
 
 ### NavigationRail
 
-- **Structure**: brand, primary routes, flexible spacer, settings/account.
-- **States**: default, hover, active, focus, disabled.
+- **Structure**: brand, primary routes, flexible spacer, settings/account. A hairline separates the
+  rail from the content pane.
+- **States**: default, hover, active, focus, disabled. The active route is marked by an accent bar on
+  the leading edge plus a lit icon, not a filled block; on the compact top bar the bar moves to the
+  bottom edge.
 - **Accessibility**: real links/buttons, visible label and icon, `aria-current`.
 - **Motion**: focus lift only; labels never slide or collapse while focused.
 
@@ -115,6 +132,9 @@ DOM attributes. Standalone fixtures, including Showcase, declare their own bound
 
 ### ActionButton
 
+- **Shape**: `--radius-control` on every control. Cards use `--radius-card`, panels `--radius-panel`,
+  badges `--radius-badge`. Secondary controls rest on `--color-surface` behind a `--color-rule`
+  hairline; hover raises the surface and lights the border with `--color-accent-strong`.
 - **Variants**: primary, secondary, quiet, danger, icon.
 - **States**: default, hover, active, focus, and disabled.
 - **Accessibility**: minimum 48 px target on handheld and 56 px on TV; loading name remains stable.
@@ -162,15 +182,15 @@ DOM attributes. Standalone fixtures, including Showcase, declare their own bound
 - **States**: local loading, ready, paused, muted, offline, and a distinct SDK/player initialization error; jumps disabled until ready with a finite positive duration. OFFLINE never offers an SDK retry or automatically reconstructs the player.
 - **Live availability**: initialization and channel availability are separate facts. OFFLINE disables playback, mute and caption commands and clears quality options, but retains initialization knowledge. READY alone cannot clear an observed live outage. The documented `Twitch.Player.ONLINE` event clears offline guidance; before READY it leaves commands disabled and reads no player state. After initialization it restores the shell by reading `getMuted()`, `isPaused()`, `getQualities()` and `getQuality()`, without replaying READY, restarting activation or issuing playback, mute, quality or caption requests. ONLINE means the channel is available, not that video is moving; the viewer may wait or go Back, with no promise of automatic media recovery. Repeated outages and duplicate ONLINE events retain the player, player-root node and visible chat iframe, never focusing either frame. Obsolete callbacks after replacement or unmount cannot restore state or move focus. VOD sampling and resume remain unchanged.
 - **Startup recovery**: initialization failure exposes Retry loading player beside Back in the shell toolbar, with a stable `player-retry` focus ID. Right from Back reaches Retry, Left returns, Right continues to Quality (whose Left returns to Retry), and Up/Down return to Back. Activation moves visible focus to Back before removing Retry and restarts only the current source's initialization effect; pending activations cannot overlap. The resolved VOD resume/start-over decision and selected `time` survive retry without another lookup or prompt. Startup/offline messages occupy a content-sized shell row outside the player stage, never covering Twitch. SDK loading is single-flight: rejection removes the failed script and listeners and releases only that attempt's cache slot; success remains reusable. No automatic reload loop is added. Late resolutions/rejections after leaving or source replacement cannot construct a stale player, restore an error, or steal focus; pre-READY failures save no progress.
-- **Accessibility**: all playback actions use Arrow keys and Enter; Down from Back enters the jumps, Left/Right chooses, and Up returns to Back. Seeking retains focus and cancels autoplay retries without changing play/pause or mute.
+- **Accessibility**: all playback actions use Arrow keys and Enter; Down from Back enters the jumps, Left/Right chooses, and Up or Down returns to Back. Each row loops: Right from the last toolbar control reaches Back and Left from Back reaches Fullscreen, and the jump row wraps between its first and last jump. Seeking retains focus and cancels autoplay retries without changing play/pause or mute.
 - **Playback**: VOD jumps use the official Player API and clamp to recording bounds; live controls remain unchanged. Time refreshes on READY, PLAYING, SEEK, and once per second while a ready VOD is mounted.
 - **Resume**: a feature-local hook looks up a VOD bookmark before constructing any player. The real `VideoResumePrompt` presents Resume from H:MM:SS, Start over, and Back, with initial visible focus, stable focus IDs and explicit links in all four directions. Pending lookup retains Back; a rejected lookup exposes Play without resume and Back. Resume supplies only Twitch's documented `time` option (3900 seconds becomes `1h5m0s`), never a corrective seek or second player. Start over removes the bookmark and omits `time`; live sources perform no progress operations and never receive `time`.
 - **Progress**: the existing one-second sampler checkpoints changed, observed positions at most every 15 seconds, plus pause, confirmed seek and normal departure. READY/loading zero and unconfirmed resume-startup samples cannot replace a bookmark. A viewer-requested seek is saved only after the official SEEK event reports its destination. ENDED removes the bookmark, cancels queued samples and orders removal after any in-flight write; a near-end position alone never clears a growing archive. Every callback remains bound to its source and active player generation, and a returning lookup waits for earlier writes/removal. Failed writes/removals remain visible in the transport row outside the embed without blocking playback or claiming success. Positions are local to this installation and shared across Twitch account changes, not Twitch-synced or account-scoped.
-- **Quality**: live and VOD Quality opens an inline chooser of official API options, refreshed on READY, live ONLINE after initialization, PLAYING, and opening. PLAYING still refreshes qualities that were empty at ONLINE. Arrows and Enter request an exact quality ID; Close returns focus to Quality, while Escape still returns Home. Empty/offline states retain Back and Close. Requested mode is distinct from the player-reported effective resolution, including Auto; `data-requested-quality` and `data-player-quality` on the Quality button expose those values without claiming setter confirmation.
+- **Quality**: live and VOD Quality opens an inline chooser of official API options, refreshed on READY, live ONLINE after initialization, PLAYING, and opening. PLAYING still refreshes qualities that were empty at ONLINE. Arrows and Enter request an exact quality ID; Left/Right cycles the options and Close, wrapping at both ends, Down from Close returns to Quality, and Close returns focus to Quality, while Escape still returns Home. Empty/offline states retain Back and Close. Requested mode is distinct from the player-reported effective resolution, including Auto; `data-requested-quality` and `data-player-quality` on the Quality button expose those values without claiming setter confirmation.
 - **Captions**: a feature-local hook owns an inline live/VOD chooser, its optional requested setting and its error. Captions come from the broadcaster's own stream; Twitch renders and styles them. Show calls only the documented zero-argument `enableCaptions()` and Hide only `disableCaptions()`, recording `data-requested-captions` (`show` or `hide`) only after the call returns without throwing. There is no availability getter: neither the UI nor silence from a source reports availability or confirms rendering. Mount, READY, opening, closing and source replacement never call either method; Twitch's default stays untouched until an explicit viewer request. Active-player lifecycle cleanup resets visibility, request and error; obsolete callbacks cannot restore them. Caption actions preserve the player instance, playback state and bookmarks.
-- **Caption navigation**: Left/Right connects Quality, Captions and Past broadcasts in both directions. For legacy recordings with unknown broadcaster sentinel `"0"`, Captions and Fullscreen link directly around the disabled archive shortcut. Down from the open Captions control reaches Show (or Close before READY/offline); explicit links reach Show, Hide and Close, and Up returns to Captions. Show/Hide are disabled until ready; disabling the focused command recovers focus to Close. The chooser, errors and Close stay outside the embed and remain escapable; Close restores Captions focus, and Escape still returns Home. Setter failures do not record a successful request and allow retry.
+- **Caption navigation**: Left/Right connects Quality, Captions and Past broadcasts in both directions. For legacy recordings with unknown broadcaster sentinel `"0"`, Captions and Fullscreen link directly around the disabled archive shortcut. Down from the open Captions control reaches Show (or Close before READY/offline); explicit links reach Show, Hide and Close, Up returns to Captions, and the chooser loops: Left from Show reaches Close, Right from Close returns to Show, and Down from Close returns to Captions. Before READY and offline, with Show/Hide disabled, Close keeps its Left escape to Captions instead of wrapping. Show/Hide are disabled until ready; disabling the focused command recovers focus to Close. The chooser, errors and Close stay outside the embed and remain escapable; Close restores Captions focus, and Escape still returns Home. Setter failures do not record a successful request and allow retry.
 - **Chat**: live chat, without a VacuumStream controller composer or VOD chat replay. A feature-local hook owns separate visibility, iframe reload, and interaction state, reset on every source change. Hidden chat has no iframe. The documented `https://www.twitch.tv/embed/${encodeURIComponent(channelLogin)}/chat?parent=localhost` URL uses only the live source's login, with no tokens or additional parameters. Reload replaces only the chat iframe; chat actions never recreate or control the player. Twitch owns connection/error presentation; iframe `load` is not a connected signal.
-- **Chat navigation**: Left/Right follows the rendered toolbar in both directions: Past broadcasts, Show/Hide chat, Enter chat, Reload chat, Fullscreen. Hidden chat omits Enter and Reload. Secondary actions remain on Down: Show/Hide to Enter, then Reload; Up returns to the toggle. All chat controls stay usable before READY and offline. The titled iframe normally has `tabIndex={-1}` and no controller focus marker; showing, hiding or reloading never focuses it.
+- **Chat navigation**: Left/Right follows the rendered toolbar in both directions: Past broadcasts, Show/Hide chat, Enter chat, Reload chat, Fullscreen. Hidden chat omits Enter and Reload. Secondary actions remain on Down: Show/Hide to Enter, then Reload, then back to the toggle; Up returns to the toggle. All chat controls stay usable before READY and offline. The titled iframe normally has `tabIndex={-1}` and no controller focus marker; showing, hiding or reloading never focuses it.
 - **Chat interaction**: only Enter chat arms the main-process Escape capability, sets `tabIndex={0}`, and focuses the frame, without forwarding the activating key. The viewer is interacting with Twitch's own interface, including its cookie/advertising consent dialog. A persistent hint outside both embeds explains Tab/Shift+Tab to move, Enter to activate, and Escape to return to Hide chat. Physical keyboard and Steam Input keyboard mappings work; native gamepad input into the frame is not yet supported. Escape exits this mode before it can reach Twitch; repeats and the matching release are consumed, while a later distinct Escape still returns Home. Hide, Reload, source replacement (including a returning source), BrowserWindow blur, leaving playback and unmount invalidate the session, remove its listeners, reset the frame to `tabIndex={-1}`, and recover shell focus. A mode-ending Escape retains only a release guard until that press ends. Late acknowledgements or notifications cannot revive a session.
 - **Layout**: a player-stage grid holds the unobscured video frame and optional sibling chat pane. Video remains at least 400 by 300 px and expands to available space; when side-by-side cannot fit, the panes stack and the player view scrolls. Local toolbar, transport, quality and caption choosers, chat controls and the interaction hint remain outside both embeds. Each visible inline panel has its own content-sized grid row; simultaneous panels scroll rather than clipping controls or shrinking the video below its minimum. Chat is enlarged with a transform on its outer frame and compensating width/height, following the root scale for couch readability without injecting cross-origin CSS or cropping Twitch's UI.
 

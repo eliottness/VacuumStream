@@ -41,6 +41,7 @@
     "test:e2e:coverage": "node scripts/check-e2e-coverage.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "5.3.0",
     "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
     "@phosphor-icons/react": "2.1.10",
     "ky": "2.1.0",

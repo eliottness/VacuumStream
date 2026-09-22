@@ -3,7 +3,16 @@
     flex-direction: row;
     gap: var(--space-1);
     padding: var(--space-2);
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--color-rule);
     overflow-x: auto;
+  }
+
+  .navigation__item[aria-current="page"]::before {
+    inset-block: auto 0;
+    inset-inline: var(--space-2);
+    inline-size: auto;
+    block-size: 0.25rem;
   }
 
   .navigation__brand {
@@ -59,7 +68,7 @@
 
   .navigation__item {
     min-block-size: 5rem;
-    font-size: 1.125rem;
+    font-size: var(--text-body);
   }
 
   .shelf__reel {

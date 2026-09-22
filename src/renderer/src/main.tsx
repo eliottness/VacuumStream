@@ -1,3 +1,4 @@
+import "@fontsource-variable/archivo/wdth.css"
 import "@fontsource-variable/atkinson-hyperlegible-next"
 import React from "react"
 import ReactDOM from "react-dom/client"
