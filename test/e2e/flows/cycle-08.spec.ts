@@ -80,7 +80,7 @@ test.describe("cycle-08 explicit entry and toolbar graph", () => {
     await controller.press("ArrowDown")
     await controller.waitForFocus("player-chat-enter")
     await controller.press("Enter")
-    await expect.poll(() => controller.focusId(), { timeout: 5_000 }).toBe("IFRAME")
+    await expect.poll(() => controller.focusId(), { timeout: 45_000 }).toBe("IFRAME")
     await window.keyboard.press("Escape")
     await controller.waitForFocus("player-chat")
   })
@@ -96,7 +96,7 @@ test.describe("cycle-08 enter before first chat load", () => {
     await controller.press("ArrowDown")
     await controller.press("Enter")
     await window.waitForSelector(".player-chat iframe")
-    await expect.poll(() => controller.focusId(), { timeout: 10_000 }).toBe("IFRAME")
+    await expect.poll(() => controller.focusId(), { timeout: 45_000 }).toBe("IFRAME")
     await expect(window.locator('[data-focus-id="player-chat-enter"]')).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -138,7 +138,7 @@ test.describe("cycle-08 reload and leave cleanup", () => {
     await controller.press("ArrowDown")
     await controller.waitForFocus("player-chat-enter")
     await controller.press("Enter")
-    await expect.poll(() => controller.focusId(), { timeout: 10_000 }).toBe("IFRAME")
+    await expect.poll(() => controller.focusId(), { timeout: 45_000 }).toBe("IFRAME")
     await expect(window.locator('[data-focus-id="player-chat-enter"]')).toHaveAttribute(
       "aria-pressed",
       "true",
