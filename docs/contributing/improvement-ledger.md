@@ -57,7 +57,7 @@ are out of scope and are rejected without review.
 | 10 | [Remember and resume past broadcasts](#cycle-10--remember-and-resume-past-broadcasts) | feature | Landed |
 | 11 | [Add a local Continue Watching shelf](#cycle-11--add-a-local-continue-watching-shelf) | feature | Landed |
 | 12 | [Add controller-native closed caption controls](#cycle-12--add-controller-native-closed-caption-controls) | feature | Landed |
-| 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | In progress |
+| 13 | [Replace failed VOD previews with placeholders](#cycle-13--replace-failed-vod-previews-with-placeholders) | fix | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -620,6 +620,13 @@ Acceptance criteria:
 
 Not in scope: retries, cache-busting, schema changes, and the autoplay debt.
 
+Landed in `e0425ea`. Failure is recorded per recording against its exact URL and only the image
+carries a `key`, so a replacement URL is retried while the card button is never remounted — a
+remount would drop controller focus, which on a gamepad-only device is the actual defect. On the
+signed-out Showcase all three states (loaded, absent, failed) measured identical geometry,
+359x264 at 1280 and 545x368 at 1920, with no broken-image glyph and no empty `src`. The failed
+case uses a `data:` URI so it fails deterministically rather than depending on the network.
+
 ## Autoplay injection: investigated, deferred with conditions
 
 After four one-line deferrals this was investigated properly in cycle 13. Recording the findings
@@ -665,7 +672,7 @@ an unrelated change. Each is a candidate for a future cycle.
 | --- | --- | --- |
 | A channel with no archives renders an empty Past broadcasts screen: heading and Back only, no empty-state message | `src/renderer/src/components/VideoShelf.tsx` | Hardware testing, cycle 3 |
 | ~~The videos parser accepts an empty `thumbnail_url` string that the shared contract then rejects as a URL~~ — closed in cycle 9 | `src/main/twitch-schemas.ts`, `src/shared/contracts.ts` | Scout probe, cycle 4; fixed cycle 9 |
-| A recording whose thumbnail URL fails to LOAD shows a broken-image glyph: `VideoShelf` has no `onError` fallback, unlike `StreamShelf` which hides the image | `src/renderer/src/components/VideoShelf.tsx` | Cycle 9 Showcase inspection; observed |
+| ~~A recording whose thumbnail URL fails to LOAD shows a broken-image glyph~~ — closed in cycle 13 | `src/renderer/src/components/VideoShelf.tsx` | Cycle 9 Showcase inspection; fixed cycle 13 |
 | Autoplay activation injects JavaScript that clicks private Twitch DOM selectors and calls `video.play()`, so the client is not free of iframe DOM playback control despite the stated policy | `src/main/window-controls.ts` | Gate review; predates the recorded cycles |
 | Two inherited tests do not constrain what they claim: one pins the absence of loading prose rather than obstruction, the other omits required fields so it would pass without the constraint it names | `PlayerView.test.tsx`, `twitch-schemas.test.ts` | Gate review |
 | ~~Search and past-broadcast handlers guard obsolete successes but not obsolete failures~~ — no longer true: both catch blocks now check request and authentication epochs | `src/renderer/src/useAppController.ts` | Gate review; re-checked and closed during cycle 6 scouting |
