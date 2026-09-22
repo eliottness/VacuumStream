@@ -275,7 +275,8 @@
         var(--player-transport-rows, 0) +
         var(--player-quality-rows, 0) +
         var(--player-captions-rows, 0) +
-        var(--player-hint-rows, 0)
+        var(--player-hint-rows, 0) +
+        var(--player-status-rows, 0)
       ),
       auto
     )
@@ -300,6 +301,18 @@
 
 .player-view:has(.player-chat-hint) {
   --player-hint-rows: 1;
+}
+
+.player-view:has(.player-load-status) {
+  --player-status-rows: 1;
+}
+
+.player-load-status {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 0.25rem solid var(--color-error);
+  background: var(--color-raised);
+  overflow-wrap: anywhere;
 }
 
 .player-view--resume {
@@ -412,11 +425,15 @@
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: auto;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: var(--player-back-columns, auto) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--color-rail);
+}
+
+.player-toolbar:has(.player-retry) {
+  --player-back-columns: auto auto;
 }
 
 .player-toolbar > div {

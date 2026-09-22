@@ -8,6 +8,7 @@ import {
   SpeakerSimpleXIcon,
 } from "@phosphor-icons/react"
 import { cloneElement, useCallback, useEffect, useRef, useState } from "react"
+import { markControllerFocus } from "../focus-navigation"
 import {
   createTwitchPlayerOptions,
   loadTwitchPlayerApi,
@@ -63,7 +64,11 @@ export const PlayerView = ({
   onToggleFullscreen,
   source,
 }: PlayerViewProps) => {
-  const [frameState, setFrameState] = useState<"error" | "loading" | "ready">("loading")
+  const [frameState, setFrameState] = useState<"loading" | "offline" | "ready" | "startup-error">(
+    "loading",
+  )
+  const [startupAttempt, setStartupAttempt] = useState(0)
+  const startupAttemptRef = useRef(0)
   const [muted, setMuted] = useState(true)
   const [paused, setPaused] = useState(true)
   const [position, setPosition] = useState<number | undefined>(undefined)
@@ -151,7 +156,7 @@ export const PlayerView = ({
     }
     void loadTwitchPlayerApi()
       .then((api) => {
-        if (!active) return
+        if (!active || startupAttemptRef.current !== startupAttempt) return
         player = new api.Player(
           "twitch-player-root",
           createTwitchPlayerOptions(source, startingPosition),
@@ -203,12 +208,13 @@ export const PlayerView = ({
           ready = false
           clearInterval(timelineTimer)
           timelineTimer = undefined
-          setFrameState("error")
+          setFrameState("offline")
           resetQualities(false)
         })
       })
       .catch(() => {
-        if (active) setFrameState("error")
+        if (!active || startupAttemptRef.current !== startupAttempt) return
+        setFrameState("startup-error")
       })
     return () => {
       progress?.leave()
@@ -223,6 +229,7 @@ export const PlayerView = ({
     }
   }, [
     source,
+    startupAttempt,
     canPlay,
     startingPosition,
     beginProgress,
@@ -231,6 +238,18 @@ export const PlayerView = ({
     resetCaptions,
     resetQualities,
   ])
+
+  const retryStartup = (): void => {
+    if (frameState !== "startup-error" || startupAttemptRef.current !== startupAttempt) return
+    // Lock synchronously, before React commits the pending state.
+    startupAttemptRef.current += 1
+    if (backButtonRef.current !== null) {
+      markControllerFocus(backButtonRef.current)
+      backButtonRef.current.focus()
+    }
+    setFrameState("loading")
+    setStartupAttempt(startupAttemptRef.current)
+  }
 
   const togglePlayback = (): void => {
     cancelAutoStart()
@@ -283,7 +302,13 @@ export const PlayerView = ({
         <button
           data-focus-down={source.kind === "video" ? "player-seek-back-5m" : undefined}
           data-focus-id="player-back"
-          data-focus-right={frameState === "ready" ? "player-playback" : "player-quality"}
+          data-focus-right={
+            frameState === "startup-error"
+              ? "player-retry"
+              : frameState === "ready"
+                ? "player-playback"
+                : "player-quality"
+          }
           data-focusable="true"
           onClick={onBack}
           ref={backButtonRef}
@@ -292,6 +317,21 @@ export const PlayerView = ({
           <ArrowLeftIcon aria-hidden="true" />
           Back
         </button>
+        {frameState === "startup-error" ? (
+          <button
+            className="player-retry"
+            data-focus-down="player-back"
+            data-focus-id="player-retry"
+            data-focus-left="player-back"
+            data-focus-right="player-quality"
+            data-focus-up="player-back"
+            data-focusable="true"
+            onClick={retryStartup}
+            type="button"
+          >
+            Retry loading player
+          </button>
+        ) : null}
         <div>
           <strong>{source.title}</strong>
           <span>{source.kind === "live" ? "Live on Twitch" : "Past broadcast"}</span>
@@ -324,7 +364,9 @@ export const PlayerView = ({
             <SpeakerSimpleXIcon aria-hidden="true" />
           )}
         </button>
-        {qualityButton}
+        {frameState === "startup-error"
+          ? cloneElement(qualityButton, { "data-focus-left": "player-retry" })
+          : qualityButton}
         {unknownBroadcaster
           ? cloneElement(captionsButton, { "data-focus-right": "player-fullscreen" })
           : captionsButton}
@@ -380,13 +422,15 @@ export const PlayerView = ({
       {qualityChooser}
       {captionsChooser}
       {chatHint}
+      {frameState === "startup-error" || frameState === "offline" ? (
+        <p className="player-load-status" role="alert">
+          {frameState === "startup-error"
+            ? "Twitch player could not be loaded. Check your connection, then retry loading player."
+            : "This Twitch source is offline. Go Back to choose another broadcast."}
+        </p>
+      ) : null}
       <div className="player-stage">
         <div aria-busy={frameState === "loading"} className="player-frame">
-          {frameState === "error" ? (
-            <div className="player-status" role="alert">
-              Twitch player is offline or could not be loaded.
-            </div>
-          ) : null}
           <div className="twitch-player-root" id="twitch-player-root" />
         </div>
         {chatPane}

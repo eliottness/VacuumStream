@@ -18,6 +18,15 @@ same user may still read it. Never copy or share it.
 
 ## Player is offline, shows ads, or reports an error
 
+If the player could not be loaded, restore your connection and choose **Retry loading player**
+next to **Back**. From Back, press Right then Enter (controller A). Focus returns to Back while
+loading, and repeated activation cannot start overlapping attempts. A selected recording resume
+position is kept; you do not need to restart the app or choose Resume again. If loading fails
+again, Retry remains available, or use Back to leave.
+
+An offline broadcast is different from a player startup failure: it does not offer this retry
+or automatically reload the player. Use Back to choose another broadcast.
+
 Try the channel on Twitch in a browser to distinguish channel availability from application
 problems. Sign-in in VacuumStream does not authenticate the embedded player. Subscription
 status or browser login does not guarantee an ad-free embedded-player session.
