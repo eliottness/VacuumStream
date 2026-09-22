@@ -62,7 +62,7 @@ are out of scope and are rejected without review.
 | 15 | [Restore controls when channels return online](#cycle-15--restore-controls-when-channels-return-online) | fix | Landed |
 | 16 | [Save local favourite channels](#cycle-16--save-local-favourite-channels) | feature | Landed |
 | 17 | [Centralize Home's inter-shelf focus wiring](#cycle-17--centralize-homes-inter-shelf-focus-wiring) | refactor | Landed |
-| 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | In progress |
+| 18 | [Add gamepad search editing shortcuts](#cycle-18--add-gamepad-search-editing-shortcuts) | feature | Landed |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -854,6 +854,29 @@ Acceptance criteria:
 
 Not in scope: caret editing, grapheme-aware deletion, prediction, keyboard layout redesign,
 intercepting typed `x`/`y`, chat-frame input, and any generalized input framework.
+
+Landed in `a9e1c7d` (input layer) and `c5ba969` (Search consuming it). The latch is keyed to the
+physical button's pressed state rather than to the resolved action, which is what makes holding
+the opener safe.
+
+On the device, driving the app's own polling bridge: `xqcc` became `xqc` with one west press and
+focus never left the input; one north press produced exactly one result; and the corrected login
+opened in the official player. Holding the west button for three seconds - six times the initial
+repeat threshold - deleted exactly one character.
+
+The gamepad was synthetic: a QA-only `navigator.getGamepads()` override that sets button state
+and nothing else, so the app interpreted it. Physical-controller compatibility is therefore NOT
+established by this cycle and still wants a real pad on the device.
+
+Cycle 18 also carried the one real defect from the cycle 10-17 review: favourites Retry focused
+the submit button before removing itself, and submit is disabled while a search is in flight, so
+focus fell to the body. The regression test failed against the old fallback first. The fix rides
+with the Search commit because it depends on the same form ref introduced there.
+
+Tooling note: `agentToolkit` disappeared from the tool set during this cycle, so the loop's own
+criterion statuses could not be updated. Per-criterion evidence is written to
+`.omo/evidence/.../G020-add-gamepad-search-editing-shortcuts/a1/criteria.md` instead, and this
+entry is the committed record.
 
 ## Autoplay injection: investigated, deferred with conditions
 
