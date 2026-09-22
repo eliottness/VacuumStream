@@ -66,6 +66,7 @@ are out of scope and are rejected without review.
 | 19 | [Make account sign-in controller-first](#cycle-19--make-account-sign-in-controller-first) | fix | Landed |
 | 20 | [Keep one app instance per profile](#cycle-20--keep-one-app-instance-per-profile) | fix | Landed |
 | 21 | [Enable native gamepad chat consent](#cycle-21--enable-native-gamepad-chat-consent) | fix | Landed |
+| 22 | [Fix overlapping presses and stale auth completions](#cycle-22--fix-overlapping-presses-and-stale-auth-completions) | fix | In progress |
 
 ### Cycle 1 — Add controller-native VOD seeking
 
@@ -1091,6 +1092,43 @@ stability and the exact embed pattern immediately before every dispatch. The ren
 a UUID plus one of three enum values. An existing debugger attachment is refused rather than
 stolen, and the keyDown/keyUp pair is submitted together so an exit mid-press cannot leave a
 dangling keyDown for newly restored shell focus.
+
+### Cycle 22 — Fix overlapping presses and stale auth completions
+
+An independent gate review of cycles 18-20 reproduced two real defects against the committed code
+with the real components. Both are regressions introduced by the cycles that preceded them, so
+they take priority over any new feature.
+
+**Overlapping face presses lose the Search submission.** `keyboardForGamepad` picks west before
+north, but the poll records BOTH physical buttons as held even when north was never dispatched.
+Press north before releasing west and that north edge is consumed permanently; releasing west does
+not recover it. Reproduced with query `twitchx`: west deletes to `twitch`, then `[2,3]`, then
+`[3]`, then holding `[3]` another second - no submission at all, until north is released and
+pressed again. Starting with both faces down dispatches only the delete. The viewer sequence this
+breaks is precisely the one cycle 18 existed to make fast: fix a typo, submit immediately. The
+existing latch test passes because it starts with the tested face already dispatched.
+
+**Account requests outlive their guard.** `pending` belongs to one Settings mount while
+`onAuthChange` still updates App after that mount is gone. Two consequences, both reproduced. A
+logout resolving while focus sits on `home-refresh` removes Refresh and leaves
+`document.activeElement` on BODY - the nav link correctly becomes `home-sign-in`, but nothing
+transfers browser focus. And starting sign-in, leaving for Search, then returning and activating
+again issues two pending begin calls: resolving newer-then-older moves the displayed code from
+`CODE0002` back to `CODE0001`. Within a single mount the synchronous guard does hold; ownership
+across route changes is the hole.
+
+Acceptance criteria:
+
+1. West then north pressed before release produces one deletion AND one submission; both-at-once
+   covered; shown failing against current code first.
+2. The cycle-18 guarantees survive: no repeat while held, release/repress works, no opener replay
+   after a focus change.
+3. A stale completion cannot overwrite newer state across a remount, in either direction.
+4. No completion strands focus on `document.body`, on Home or Settings.
+5. `bun run verify` passes in one run with cycles 17-21 coverage intact.
+
+Not in scope: reconnect-while-held policy, which the review recorded as a limitation rather than a
+criterion, and any change to cycle 21's chat transport.
 
 ## Device QA evidence: a capture error and its corrections
 
