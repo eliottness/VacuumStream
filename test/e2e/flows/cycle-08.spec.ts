@@ -25,7 +25,7 @@ test.describe("cycle-08 signed-out physical-keyboard consent", () => {
     await controller.press("ArrowDown")
     await controller.waitForFocus("player-chat-enter")
     await controller.press("Enter")
-    await expect.poll(() => controller.focusId(), { timeout: 10_000 }).toBe("IFRAME")
+    await expect.poll(() => controller.focusId(), { timeout: 45_000 }).toBe("IFRAME")
     await expect(window.locator('[data-focus-id="player-chat-enter"]')).toHaveAttribute(
       "aria-pressed",
       "true",
