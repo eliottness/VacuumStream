@@ -16,11 +16,13 @@ For local setup, see [development](../contributing/development.md).
 
 1. Update `package.json` and AppStream release metadata together. Commit the version change.
 2. Review [Twitch integration policy](twitch.md), dependency updates, and open security reports.
-3. Run `bun install --frozen-lockfile` and `bun run verify`.
-4. Test actual artifacts, including sign-in, playback, keyboard navigation, and target hardware
+3. When dependencies change, run `bash scripts/flatpak-node-sources.sh` and commit the refreshed
+   `flatpak/package-lock.json`. Flathub builds offline from that lockfile.
+4. Run `bun install --frozen-lockfile` and `bun run verify`.
+5. Test actual artifacts, including sign-in, playback, keyboard navigation, and target hardware
    where available. Document untested platforms in the release notes.
-5. Merge to `main` and wait for CI. Do not publish known-broken builds.
-6. Optionally run **Release artifacts → Run workflow** from the Actions tab on the intended ref.
+6. Merge to `main` and wait for CI. Do not publish known-broken builds.
+7. Optionally run **Release artifacts → Run workflow** from the Actions tab on the intended ref.
    This builds downloadable workflow artifacts only; it does not create a release or upload assets.
 
 ## Publish a release
@@ -68,11 +70,18 @@ Set `RELEASE_TAG=vVERSION` to also exercise the tag/version guard.
 
 ## Distribution limitations
 
-The Flatpak manifest packages `dist/linux-unpacked`, built from checked-out source with locked
-dependencies. It is suitable for GitHub bundles, not a Flathub source-build submission.
-A Flathub submission needs a fully checksummed source/dependency manifest, screenshots,
-current runtime support, and review under Flathub's rules. Track runtime lifecycle and update the
-manifest, build-container digest, and development documentation together.
+The Flatpak manifest in `flatpak/` packages `dist/linux-unpacked` for GitHub release bundles. It
+is not the Flathub manifest: Flathub builds entirely from source with no network access.
+
+The Flathub submission lives in the Flathub repository for `io.github.eliottness.VacuumStream` and
+builds the released source tarball with the npm sources produced by
+`bash scripts/flatpak-node-sources.sh`. That script writes `flatpak/package-lock.json` (committed,
+shipped in the release tarball) and `flatpak/generated-sources.json` (untracked, copied into the
+Flathub repository next to the manifest). Screenshots referenced by
+`flatpak/io.github.eliottness.VacuumStream.metainfo.xml` must resolve at a pushed tag before a
+Flathub build runs, because Flathub mirrors them at build time. Track runtime lifecycle and update
+the local manifest, the Flathub manifest, the build-container digest, and this documentation
+together.
 
 The build container is privileged to allow Flatpak's nested sandbox on an ephemeral GitHub-hosted
 runner. Do not move this workflow onto a shared self-hosted runner. No publishing token is supplied

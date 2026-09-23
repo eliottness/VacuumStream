@@ -7,6 +7,7 @@ playwright-report/
 .flatpak-build/
 .flatpak-repository/
 .flatpak-builder/
+flatpak/generated-sources.json
 .playwright-mcp/
 .omo/
 *.log
