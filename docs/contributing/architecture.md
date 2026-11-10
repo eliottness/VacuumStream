@@ -140,7 +140,10 @@ AppImage is a fallback where Chromium user namespaces are available; sandbox fai
 never worked around with `--no-sandbox`.
 
 Flatpak's `--device=input` exposes the sandbox to all host input devices, not only gamepads,
-and fallback X11 has weaker isolation than Wayland. These are accepted HTPC compatibility
+and fallback X11 has weaker isolation than Wayland. Read-only `/run/udev` is also granted:
+Chromium discovers gamepads through the udev database, and without it `navigator.getGamepads()`
+stays empty even though the device nodes are visible (reproduced with a virtual Xbox 360 pad
+under SteamOS-style Gaming Mode). These are accepted HTPC compatibility
 tradeoffs: Wayland remains preferred, no filesystem access is granted, and packages must be
 built from reviewed source. Release assets include SHA-256 checksums, not cryptographic signatures.
 The application ID is `io.github.eliottness.VacuumStream` across Electron and Flatpak metadata.
