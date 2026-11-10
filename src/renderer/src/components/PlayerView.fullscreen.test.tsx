@@ -236,6 +236,21 @@ describe("player hotkeys", () => {
     expect(mute.getAttribute("aria-label")).not.toBe(before)
   })
 
+  it("keeps the mute it requested while Twitch applies it asynchronously", async () => {
+    const harness = installHarness()
+    const { container } = await mountPlayer()
+    const player = await harness.ready()
+    // Twitch's embed answers getMuted() with the old value until its frame applies the change.
+    player.setMuted.mockImplementation(() => undefined)
+    const mute = button(container, "player-muted")
+    expect(mute.getAttribute("aria-label")).toBe("Unmute")
+
+    await press("m")
+
+    expect(player.setMuted).toHaveBeenCalledExactlyOnceWith(false)
+    expect(mute.getAttribute("aria-label")).toBe("Mute")
+  })
+
   it("plays or pauses with Space only while no shell control is focused", async () => {
     const harness = installHarness()
     const { container } = await mountPlayer()
