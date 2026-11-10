@@ -16,6 +16,8 @@ finish-args:
   - --socket=pulseaudio
   - --device=dri
   - --device=input
+  # Chromium finds gamepads through the udev database; without it no controller is ever reported.
+  - --filesystem=/run/udev:ro
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.kde.kwalletd5
   - --talk-name=org.kde.kwalletd6
