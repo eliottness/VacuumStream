@@ -88,9 +88,13 @@ const makeBridge = (auth: AuthSnapshot) =>
     },
     settings: {
       saveClientId: vi.fn<VacuumStreamApi["settings"]["saveClientId"]>(),
-      snapshot: vi
-        .fn<VacuumStreamApi["settings"]["snapshot"]>()
-        .mockResolvedValue({ clientId: "abcdefghijklmnopqrstuvwxyz1234", secureStorage: false }),
+      saveStartStreamsFullscreen:
+        vi.fn<VacuumStreamApi["settings"]["saveStartStreamsFullscreen"]>(),
+      snapshot: vi.fn<VacuumStreamApi["settings"]["snapshot"]>().mockResolvedValue({
+        clientId: "abcdefghijklmnopqrstuvwxyz1234",
+        secureStorage: false,
+        startStreamsFullscreen: false,
+      }),
     },
     system: {
       activateEmbeddedPlayer: vi.fn<VacuumStreamApi["system"]["activateEmbeddedPlayer"]>(),
@@ -98,7 +102,7 @@ const makeBridge = (auth: AuthSnapshot) =>
       restoreShellFullscreen: vi
         .fn<VacuumStreamApi["system"]["restoreShellFullscreen"]>()
         .mockResolvedValue(false),
-      toggleFullscreen: vi.fn<VacuumStreamApi["system"]["toggleFullscreen"]>(),
+      setPlayerFullscreen: vi.fn<VacuumStreamApi["system"]["setPlayerFullscreen"]>(),
     },
   }) satisfies VacuumStreamApi
 
@@ -221,11 +225,17 @@ describe("Settings in the mounted App", () => {
       expect(target("settings-client-id").getAttribute("data-focus-up")).toBe(id)
       expect(target("settings-client-id").getAttribute("data-focus-down")).toBe("settings-save")
       expect(target("settings-save").getAttribute("data-focus-up")).toBe("settings-client-id")
+      expect(target("settings-save").getAttribute("data-focus-down")).toBe(
+        "settings-start-fullscreen",
+      )
+      expect(target("settings-start-fullscreen").getAttribute("data-focus-up")).toBe(
+        "settings-save",
+      )
       expect(
         [...container.querySelectorAll(".settings-card")].map((card) =>
           card.getAttribute("aria-labelledby"),
         ),
-      ).toEqual(["account-heading", "developer-app-heading"])
+      ).toEqual(["account-heading", "developer-app-heading", "playback-heading"])
       expect(
         container.querySelectorAll(
           '#account-heading ~ button, [aria-labelledby="account-heading"] button',

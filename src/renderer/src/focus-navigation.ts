@@ -193,7 +193,8 @@ export const dismissOpenSurface = (): boolean => backDismissals.at(-1)?.() === t
 
 export const dispatchControllerKey = (key: string): void => {
   const activeElement = document.activeElement
-  if (key === "Enter" && activeElement instanceof HTMLElement) {
+  // With nothing focused (stream fullscreen hides every control) Enter reaches keyboard handlers.
+  if (key === "Enter" && activeElement instanceof HTMLElement && activeElement !== document.body) {
     activeElement.click()
     return
   }

@@ -77,9 +77,13 @@ const makeBridge = (items: readonly PlaybackBookmark[], auth: AuthSnapshot) => {
     },
     settings: {
       saveClientId: vi.fn<VacuumStreamApi["settings"]["saveClientId"]>(),
-      snapshot: vi
-        .fn<VacuumStreamApi["settings"]["snapshot"]>()
-        .mockResolvedValue({ clientId: "client", secureStorage: false }),
+      saveStartStreamsFullscreen:
+        vi.fn<VacuumStreamApi["settings"]["saveStartStreamsFullscreen"]>(),
+      snapshot: vi.fn<VacuumStreamApi["settings"]["snapshot"]>().mockResolvedValue({
+        clientId: "client",
+        secureStorage: false,
+        startStreamsFullscreen: false,
+      }),
     },
     system: {
       activateEmbeddedPlayer: vi
@@ -89,7 +93,7 @@ const makeBridge = (items: readonly PlaybackBookmark[], auth: AuthSnapshot) => {
       restoreShellFullscreen: vi
         .fn<VacuumStreamApi["system"]["restoreShellFullscreen"]>()
         .mockResolvedValue(false),
-      toggleFullscreen: vi.fn<VacuumStreamApi["system"]["toggleFullscreen"]>(),
+      setPlayerFullscreen: vi.fn<VacuumStreamApi["system"]["setPlayerFullscreen"]>(),
     },
   } satisfies VacuumStreamApi
   return { bookmarks, bridge }

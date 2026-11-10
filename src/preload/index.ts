@@ -127,6 +127,10 @@ const api = {
       ipcRenderer
         .invoke(CHANNELS.settingsSaveClientId, clientId)
         .then((value) => SettingsSnapshotSchema.parse(value)),
+    saveStartStreamsFullscreen: (enabled) =>
+      ipcRenderer
+        .invoke(CHANNELS.settingsSaveStartStreamsFullscreen, z.boolean().parse(enabled))
+        .then((value) => SettingsSnapshotSchema.parse(value)),
     snapshot: () =>
       ipcRenderer
         .invoke(CHANNELS.settingsSnapshot)
@@ -141,8 +145,10 @@ const api = {
       ipcRenderer.invoke(CHANNELS.systemIsSteamGameMode).then((value) => Boolean(value)),
     restoreShellFullscreen: () =>
       ipcRenderer.invoke(CHANNELS.systemRestoreShellFullscreen).then((value) => Boolean(value)),
-    toggleFullscreen: () =>
-      ipcRenderer.invoke(CHANNELS.systemToggleFullscreen).then((value) => Boolean(value)),
+    setPlayerFullscreen: (fullscreen) =>
+      ipcRenderer
+        .invoke(CHANNELS.systemSetPlayerFullscreen, z.boolean().parse(fullscreen))
+        .then((value) => Boolean(value)),
   },
 } satisfies VacuumStreamApi
 

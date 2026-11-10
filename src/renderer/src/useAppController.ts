@@ -36,7 +36,11 @@ const directChannel = (query: string): ChannelCard => ({
 
 export const useAppController = () => {
   const [auth, setAuth] = useState<AuthSnapshot>({ kind: "guest" })
-  const [settings, setSettings] = useState<SettingsSnapshot>({ clientId: "", secureStorage: false })
+  const [settings, setSettings] = useState<SettingsSnapshot>({
+    clientId: "",
+    secureStorage: false,
+    startStreamsFullscreen: false,
+  })
   const [screen, setScreen] = useState<Screen>({ kind: "browse", route: "home" })
   const continueWatching = useContinueWatching(screen.kind === "browse" && screen.route === "home")
   const { invalidate: invalidateProgress } = continueWatching

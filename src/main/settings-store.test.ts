@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -50,5 +50,41 @@ describe("settings store", () => {
 
     // Then no invalid setting is accepted
     await expect(save()).rejects.toThrow()
+  })
+
+  it("reads settings saved before the fullscreen preference existed as off", async () => {
+    // Given a settings file from an earlier version
+    directory = await mkdtemp(join(tmpdir(), "vacuumstream-settings-"))
+    await writeFile(
+      join(directory, "settings.json"),
+      JSON.stringify({ clientId: "abcdefghijklmnopqrstuvwxyz1234" }),
+    )
+
+    // When it is loaded
+    const settings = await new SettingsStore(directory).load()
+
+    // Then the Client ID survives and streams do not start in fullscreen
+    expect(settings).toEqual({
+      clientId: "abcdefghijklmnopqrstuvwxyz1234",
+      startStreamsFullscreen: false,
+    })
+  })
+
+  it("keeps each setting when the other one is saved, even concurrently", async () => {
+    // Given an empty application data directory
+    directory = await mkdtemp(join(tmpdir(), "vacuumstream-settings-"))
+    const store = new SettingsStore(directory)
+
+    // When both settings are saved without waiting for each other
+    await Promise.all([
+      store.saveStartStreamsFullscreen(true),
+      store.saveClientId("abcdefghijklmnopqrstuvwxyz1234"),
+    ])
+
+    // Then a fresh store reads both from disk
+    expect(await new SettingsStore(directory).load()).toEqual({
+      clientId: "abcdefghijklmnopqrstuvwxyz1234",
+      startStreamsFullscreen: true,
+    })
   })
 })

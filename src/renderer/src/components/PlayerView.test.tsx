@@ -39,12 +39,7 @@ const seekIds = [
 ] as const
 
 const playerView = (playerSource: PlayerSource = source, onBack = () => undefined) => (
-  <PlayerView
-    onBack={onBack}
-    onPastBroadcasts={() => undefined}
-    onToggleFullscreen={() => undefined}
-    source={playerSource}
-  />
+  <PlayerView onBack={onBack} onPastBroadcasts={() => undefined} source={playerSource} />
 )
 
 const installPlayerHarness = (
@@ -222,7 +217,13 @@ const installPlayerHarness = (
         press: pressChatInput,
       },
       playbackProgress: progress,
-      settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
+      settings: {
+        snapshot: async () => ({
+          clientId: "client",
+          secureStorage: false,
+          startStreamsFullscreen: false,
+        }),
+      },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },
     },
   })

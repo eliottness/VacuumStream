@@ -33,6 +33,7 @@ const authorizing: AuthSnapshot = { challenge, kind: "authorizing" }
 const settings: SettingsSnapshot = {
   clientId: "abcdefghijklmnopqrstuvwxyz1234",
   secureStorage: false,
+  startStreamsFullscreen: false,
 }
 
 const deferred = <T,>() => {
@@ -67,7 +68,11 @@ describe("settings account panel", () => {
         onAccountRequest={() => () => true}
         onAuthChange={() => undefined}
         onSettingsChange={() => undefined}
-        settings={{ clientId: "abcdefghijklmnopqrstuvwxyz1234", secureStorage: false }}
+        settings={{
+          clientId: "abcdefghijklmnopqrstuvwxyz1234",
+          secureStorage: false,
+          startStreamsFullscreen: false,
+        }}
       />,
     )
 
@@ -342,7 +347,7 @@ const makeMountedBridge = (
     const previous = await store.load()
     const saved = await store.saveClientId(clientId)
     if (saved.clientId !== previous.clientId) setAuth({ kind: "guest" })
-    return { clientId: saved.clientId, secureStorage: false }
+    return { clientId: saved.clientId, secureStorage: false, startStreamsFullscreen: false }
   }
   const bridge = {
     auth: {
@@ -396,9 +401,11 @@ const makeMountedBridge = (
       saveClientId: vi
         .fn<VacuumStreamApi["settings"]["saveClientId"]>()
         .mockImplementation(persistClientId),
+      saveStartStreamsFullscreen:
+        vi.fn<VacuumStreamApi["settings"]["saveStartStreamsFullscreen"]>(),
       snapshot: vi.fn<VacuumStreamApi["settings"]["snapshot"]>().mockImplementation(async () => {
         const current = await store.load()
-        return { clientId: current.clientId, secureStorage: false }
+        return { clientId: current.clientId, secureStorage: false, startStreamsFullscreen: false }
       }),
     },
     system: {
@@ -411,8 +418,8 @@ const makeMountedBridge = (
       restoreShellFullscreen: vi
         .fn<VacuumStreamApi["system"]["restoreShellFullscreen"]>()
         .mockResolvedValue(false),
-      toggleFullscreen: vi
-        .fn<VacuumStreamApi["system"]["toggleFullscreen"]>()
+      setPlayerFullscreen: vi
+        .fn<VacuumStreamApi["system"]["setPlayerFullscreen"]>()
         .mockResolvedValue(false),
     },
   } satisfies VacuumStreamApi
@@ -513,7 +520,7 @@ describe("Settings persistence through the mounted App", () => {
         const saved = await store.saveClientId(clientId)
         if (saved.clientId !== settings.clientId) authState = { kind: "guest" }
         persisted.resolve(undefined)
-        return { clientId: saved.clientId, secureStorage: false }
+        return { clientId: saved.clientId, secureStorage: false, startStreamsFullscreen: false }
       })
 
       await act(async () => save.click())
@@ -576,11 +583,66 @@ describe("Settings persistence through the mounted App", () => {
     )
     expect(target<HTMLInputElement>("settings-client-id").value).toBe(newerClientId)
 
-    await act(async () => pending.resolve({ clientId: staleClientId, secureStorage: false }))
+    await act(async () =>
+      pending.resolve({
+        clientId: staleClientId,
+        secureStorage: false,
+        startStreamsFullscreen: false,
+      }),
+    )
     expect(container.querySelector(".account-status")?.textContent).toContain(
       "Signed in as New Fixture Viewer",
     )
     expect(target<HTMLInputElement>("settings-client-id").value).toBe(newerClientId)
     expect((await store.load()).clientId).toBe(newerClientId)
+  })
+})
+
+describe("start streams in fullscreen preference", () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+    vi.unstubAllGlobals()
+  })
+
+  it("saves the opposite of the current preference once per pending request", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    const saved = deferred<SettingsSnapshot>()
+    const saveStartStreamsFullscreen = vi.fn<(enabled: boolean) => Promise<SettingsSnapshot>>(
+      () => saved.promise,
+    )
+    vi.stubGlobal("vacuumStream", { settings: { saveStartStreamsFullscreen } })
+    const onSettingsChange = vi.fn<(next: SettingsSnapshot, resetAuth: boolean) => void>()
+    const container = document.createElement("div")
+    document.body.append(container)
+    const root = createRoot(container)
+    await act(async () =>
+      root.render(
+        <SettingsPanel
+          auth={{ kind: "guest" }}
+          onAccountRequest={() => () => true}
+          onAuthChange={() => undefined}
+          onSettingsChange={onSettingsChange}
+          settings={settings}
+        />,
+      ),
+    )
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-focus-id="settings-start-fullscreen"]',
+    )
+    if (toggle === null) throw new Error("Missing fullscreen preference")
+    expect(toggle.getAttribute("aria-pressed")).toBe("false")
+
+    await act(async () => {
+      toggle.click()
+      toggle.click()
+    })
+    expect(saveStartStreamsFullscreen).toHaveBeenCalledExactlyOnceWith(true)
+    expect(toggle.getAttribute("aria-disabled")).toBe("true")
+
+    const next = { ...settings, startStreamsFullscreen: true }
+    await act(async () => saved.resolve(next))
+    expect(onSettingsChange).toHaveBeenCalledExactlyOnceWith(next, false)
+    expect(toggle.getAttribute("aria-disabled")).toBe("false")
+    await act(async () => root.unmount())
   })
 })

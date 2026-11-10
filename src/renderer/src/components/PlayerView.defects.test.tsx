@@ -131,14 +131,7 @@ const installHarness = ({
 
 const NavigablePlayer = ({ source }: { readonly source: PlayerSource }) => {
   useControllerNavigation()
-  return (
-    <PlayerView
-      onBack={() => undefined}
-      onPastBroadcasts={() => undefined}
-      onToggleFullscreen={() => undefined}
-      source={source}
-    />
-  )
+  return <PlayerView onBack={() => undefined} onPastBroadcasts={() => undefined} source={source} />
 }
 
 const mountPlayer = async (
@@ -154,12 +147,7 @@ const mountPlayer = async (
       navigable ? (
         <NavigablePlayer source={source} />
       ) : (
-        <PlayerView
-          onBack={() => undefined}
-          onPastBroadcasts={() => undefined}
-          onToggleFullscreen={() => undefined}
-          source={source}
-        />
+        <PlayerView onBack={() => undefined} onPastBroadcasts={() => undefined} source={source} />
       ),
     ),
   )

@@ -180,6 +180,7 @@ export const AuthSnapshotSchema = z.discriminatedUnion("kind", [
 export const SettingsSnapshotSchema = z.object({
   clientId: z.string(),
   secureStorage: z.boolean(),
+  startStreamsFullscreen: z.boolean(),
 })
 
 export type AuthSnapshot = z.infer<typeof AuthSnapshotSchema>
@@ -238,12 +239,13 @@ export interface VacuumStreamApi {
   }
   readonly settings: {
     readonly saveClientId: (clientId: string) => Promise<SettingsSnapshot>
+    readonly saveStartStreamsFullscreen: (enabled: boolean) => Promise<SettingsSnapshot>
     readonly snapshot: () => Promise<SettingsSnapshot>
   }
   readonly system: {
     readonly activateEmbeddedPlayer: (audible: boolean) => Promise<boolean>
     readonly isSteamGameMode: () => Promise<boolean>
     readonly restoreShellFullscreen: () => Promise<boolean>
-    readonly toggleFullscreen: () => Promise<boolean>
+    readonly setPlayerFullscreen: (fullscreen: boolean) => Promise<boolean>
   }
 }
