@@ -123,9 +123,40 @@ export type ChatGamepadAction = "next" | "previous" | "activate" | "exit" | "con
 export const SEARCH_GAMEPAD_EVENT = "vacuumstream:search-gamepad"
 export type SearchGamepadAction = "delete" | "submit"
 type GamepadInput = string | 2 | 3
+type GamepadSnapshot = Pick<Gamepad, "axes" | "buttons">
+
+// The View/Select button toggles the player's stream fullscreen through its keyboard shortcut.
+export const STREAM_FULLSCREEN_KEY = "f"
+
+// Steam and other tools expose several pads at once (a virtual pad beside the physical device),
+// so one controller is read as every connected pad together, preferring standard-mapped ones
+// whose button order is known.
+export const combineGamepads = (
+  gamepads: readonly (Gamepad | null)[],
+): GamepadSnapshot | undefined => {
+  const connected = gamepads.filter(
+    (candidate): candidate is Gamepad => candidate?.connected === true,
+  )
+  const standard = connected.filter((candidate) => candidate.mapping === "standard")
+  const sources = standard.length > 0 ? standard : connected
+  if (sources.length === 0) return undefined
+  const buttonCount = Math.max(...sources.map((source) => source.buttons.length))
+  const axisCount = Math.max(...sources.map((source) => source.axes.length))
+  return {
+    axes: Array.from({ length: axisCount }, (_, index) =>
+      sources
+        .map((source) => source.axes[index] ?? 0)
+        .reduce((strongest, value) => (Math.abs(value) > Math.abs(strongest) ? value : strongest)),
+    ),
+    buttons: Array.from({ length: buttonCount }, (_, index) => {
+      const pressed = sources.find((source) => source.buttons[index]?.pressed === true)
+      return pressed?.buttons[index] ?? { pressed: false, touched: false, value: 0 }
+    }),
+  }
+}
 
 const keyboardForGamepad = (
-  gamepad: Gamepad,
+  gamepad: GamepadSnapshot,
   dispatchedFaces: ReadonlySet<number>,
 ): GamepadInput | undefined => {
   if (gamepad.buttons[0]?.pressed === true) return "Enter"
@@ -136,6 +167,7 @@ const keyboardForGamepad = (
   if (gamepad.buttons[2]?.pressed === true) return 2
   if (gamepad.buttons[3]?.pressed === true) return 3
   if (gamepad.buttons[9]?.pressed === true) return "F10"
+  if (gamepad.buttons[8]?.pressed === true) return STREAM_FULLSCREEN_KEY
   if (gamepad.buttons[12]?.pressed === true || (gamepad.axes[1] ?? 0) < -0.55) return "ArrowUp"
   if (gamepad.buttons[13]?.pressed === true || (gamepad.axes[1] ?? 0) > 0.55) return "ArrowDown"
   if (gamepad.buttons[14]?.pressed === true || (gamepad.axes[0] ?? 0) < -0.55) return "ArrowLeft"
@@ -224,15 +256,12 @@ const installGamepadBridge = (): (() => void) => {
   let repeatedAt = 0
 
   const poll = (now: number): void => {
-    const gamepad = navigator.getGamepads().find((candidate) => candidate?.connected === true)
+    const gamepad = combineGamepads(navigator.getGamepads())
     // Only a dispatched edge is consumed. A held face must not hide another face's new edge.
     for (const button of dispatchedFaces) {
       if (gamepad?.buttons[button]?.pressed !== true) dispatchedFaces.delete(button)
     }
-    const input =
-      gamepad === undefined || gamepad === null
-        ? undefined
-        : keyboardForGamepad(gamepad, dispatchedFaces)
+    const input = gamepad === undefined ? undefined : keyboardForGamepad(gamepad, dispatchedFaces)
     const changed = typeof input === "number" ? !dispatchedFaces.has(input) : input !== activeInput
     const repeats =
       typeof input === "string" &&

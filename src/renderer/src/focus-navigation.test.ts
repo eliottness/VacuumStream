@@ -128,7 +128,8 @@ describe("spatial focus navigation", () => {
 describe("native gamepad press identity", () => {
   let root: Root
   let nextFrame: FrameRequestCallback | undefined
-  let snapshot: Pick<Gamepad, "axes" | "buttons" | "connected"> | undefined
+  let snapshot: Pick<Gamepad, "axes" | "buttons" | "connected" | "mapping"> | undefined
+  let leadingPads: Partial<Gamepad>[] = []
   let target: HTMLButtonElement
   const keys: string[] = []
   const recordKey = (event: KeyboardEvent) => keys.push(event.key)
@@ -145,6 +146,7 @@ describe("native gamepad press identity", () => {
         value: pressed.includes(index) ? 1 : 0,
       })),
       connected: true,
+      mapping: "standard",
     }
     const callback = nextFrame
     if (callback === undefined) throw new Error("No scheduled gamepad frame")
@@ -154,8 +156,9 @@ describe("native gamepad press identity", () => {
   beforeEach(async () => {
     keys.length = 0
     snapshot = undefined
+    leadingPads = []
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
-    vi.stubGlobal("navigator", { getGamepads: () => [snapshot] })
+    vi.stubGlobal("navigator", { getGamepads: () => [...leadingPads, snapshot] })
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       nextFrame = callback
       return 1
@@ -308,6 +311,35 @@ describe("native gamepad press identity", () => {
     await frame(1203, [9])
     await frame(1703, [9])
     expect(keys).toEqual(["Escape", "F10"])
+  })
+
+  it("maps View/Select to the stream fullscreen shortcut once per press", async () => {
+    await frame(1, [8])
+    await frame(501, [8])
+    await frame(601, [8])
+    await frame(602)
+    await frame(603, [8])
+    expect(keys).toEqual(["f", "f"])
+  })
+
+  it("reads a standard pad listed after an idle pad of another kind", async () => {
+    // Steam exposes its virtual pad beside the raw device, which may come first and never report.
+    leadingPads = [
+      {
+        axes: [0.9, 0.9],
+        buttons: Array.from({ length: 16 }, () => ({ pressed: false, touched: false, value: 0 })),
+        connected: true,
+        mapping: "",
+      },
+    ]
+    snapshot = undefined
+    const activate = vi.fn()
+    target.addEventListener("click", activate)
+    await frame(1, [15])
+    await frame(2)
+    await frame(3, [0])
+    expect(keys).toEqual(["ArrowRight"])
+    expect(activate).toHaveBeenCalledTimes(1)
   })
 
   it.each([
