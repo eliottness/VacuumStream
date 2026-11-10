@@ -52,6 +52,10 @@ type PlayerViewProps = {
 // Twitch's own fullscreen key, plus H (hide) and T (toggle) for the shell's controls.
 const STREAM_FULLSCREEN_KEYS = new Set(["f", "h", "t"])
 
+// Twitch applies mute and pause asynchronously, so the keypress resync must not read the player
+// back over a change a hotkey has just requested.
+const hotkeyActions = new WeakSet<Event>()
+
 const isEditingText = (element: Element | null): boolean =>
   element instanceof HTMLInputElement ||
   element instanceof HTMLTextAreaElement ||
@@ -196,7 +200,8 @@ export const PlayerView = ({
     if (frameState !== "ready") return undefined
     // Ads and Twitch's own controls change playback without always emitting PLAY or PAUSE, so the
     // toolbar would keep offering the action the viewer already has. Resync when they reach for it.
-    const resync = (): void => {
+    const resync = (event: KeyboardEvent): void => {
+      if (hotkeyActions.has(event)) return
       const player = playerRef.current
       if (player === undefined) return
       setPaused(player.isPaused())
@@ -416,12 +421,14 @@ export const PlayerView = ({
     }
     if (key === "m" && frameState === "ready") {
       event.preventDefault()
+      hotkeyActions.add(event)
       toggleMuted()
       return
     }
     // A focused button already answers Space itself; only the bare stream takes it.
     if (key === " " && (focused === null || focused === document.body) && frameState === "ready") {
       event.preventDefault()
+      hotkeyActions.add(event)
       togglePlayback()
       return
     }
