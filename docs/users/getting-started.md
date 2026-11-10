@@ -146,10 +146,22 @@ read offers **Retry favourites**. Escape leaves Search even when a save fails.
 | Enter | Activate the focused action or submit Search |
 | Escape | Return to Home from a secondary screen |
 | ArrowDown in a text field | Leave text editing for navigation |
+| F, H or T on the player | Toggle stream fullscreen |
+| M on the player | Mute or unmute |
+| Space on the player | Play or pause while no control is focused (for example in stream fullscreen) |
 
 Left/Right edit text while a field is focused. Search text uses normal keyboard input.
 On the player screen, focus the separate play/pause or mute button and press Enter.
 Optional shortcuts: `/` opens Search, `F10` opens Settings.
+The player shortcuts work without clicking into the video first. Once focus is inside
+Twitch's own player (after clicking it), Twitch's own shortcuts apply instead.
+
+The **Fullscreen stream** button at the end of the player toolbar (or F, H, T, or the
+controller's View/Select button) hides the toolbar, the open submenus and chat, and fills the
+screen with the video. Back/Escape (controller B), Enter (A), any arrow direction, or the same
+shortcut again brings the controls back with focus on Fullscreen stream; a second Back leaves
+the player as usual. Choose **Start streams in fullscreen** in Settings to open every stream
+this way; a past broadcast still asks Resume or Start over first.
 
 Choose **Quality** for live streams or past broadcasts. Left/Right chooses among the options
 Twitch supplies; Enter requests a change without changing play/pause or mute. Options may
@@ -228,7 +240,9 @@ clears the bookmark; merely approaching the current end of a growing archive doe
 Storage failures appear outside the video while playback continues; a failed write is not
 saved progress. Live streams do not use bookmarks.
 
-Native gamepads map D-pad/left stick to arrows, A to Enter, and B to Escape. While focus is
+Native gamepads map D-pad/left stick to arrows, A to Enter, B to Escape, Start to Settings, and
+View/Select to stream fullscreen. Every connected controller is read, so a virtual Steam pad and
+the physical device both work. While focus is
 in Search's form or on-screen keyboard, the **west face button** (button 2, X on Xbox) deletes
 the last character, and the **north face button** (button 3, Y on Xbox) submits the search.
 Neither shortcut moves focus or opens a result. Each press acts once: release before pressing
