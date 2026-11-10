@@ -51,9 +51,16 @@ problems, try `--ozone-platform=x11` and report whether it changes the result.
 ## Flatpak or controller problems
 
 Check `flatpak --version` (1.16+ required), update the runtime with `flatpak update --user`,
-and verify the controller is recognized by the operating system. Steam Input's keyboard mapping
-can avoid differences in native gamepad visibility. Do not grant broad filesystem permissions
-or disable sandboxing to fix input problems.
+and verify the controller is recognized by the operating system. Flatpak releases up to 0.2.1 could
+not see native controllers at all; update the app, or on one of those builds grant the read-only
+udev database it needs:
+
+```sh
+flatpak override --user --filesystem=/run/udev:ro io.github.eliottness.VacuumStream
+```
+
+Steam Input's keyboard mapping can avoid differences in native gamepad visibility. Do not grant
+broad filesystem permissions or disable sandboxing to fix input problems.
 
 When reporting a bug, include the release/commit, install method, distribution, display server,
 hardware, input method, and exact steps. Sanitize any logs first.
