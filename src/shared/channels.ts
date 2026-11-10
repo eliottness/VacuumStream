@@ -21,9 +21,10 @@ export const CHANNELS = {
   playbackProgressRemove: "playback-progress:remove",
   playbackProgressSave: "playback-progress:save",
   settingsSaveClientId: "settings:save-client-id",
+  settingsSaveStartStreamsFullscreen: "settings:save-start-streams-fullscreen",
   settingsSnapshot: "settings:snapshot",
   systemActivateEmbeddedPlayer: "system:activate-embedded-player",
   systemIsSteamGameMode: "system:is-steam-game-mode",
   systemRestoreShellFullscreen: "system:restore-shell-fullscreen",
-  systemToggleFullscreen: "system:toggle-fullscreen",
+  systemSetPlayerFullscreen: "system:set-player-fullscreen",
 } as const

@@ -1,4 +1,10 @@
-import { CheckCircleIcon, CopyIcon, SignInIcon, SignOutIcon } from "@phosphor-icons/react"
+import {
+  CheckCircleIcon,
+  CopyIcon,
+  CornersOutIcon,
+  SignInIcon,
+  SignOutIcon,
+} from "@phosphor-icons/react"
 import { QRCodeSVG } from "qrcode.react"
 import { type ComponentProps, useEffect, useRef, useState } from "react"
 import type { AuthSnapshot, SettingsSnapshot } from "../../../shared/contracts"
@@ -38,6 +44,8 @@ export const SettingsPanel = ({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const pending = useRef(false)
+  const [preferenceBusy, setPreferenceBusy] = useState(false)
+  const preferencePending = useRef(false)
   const accountFocusId = settingsAccountFocusId(auth)
   const needsClientId = (auth.kind === "guest" || auth.kind === "error") && settings.clientId === ""
   const AccountIcon =
@@ -68,6 +76,25 @@ export const SettingsPanel = ({
     } finally {
       pending.current = false
       setBusy(false)
+    }
+  }
+
+  const toggleStartFullscreen = async (): Promise<void> => {
+    // aria-disabled keeps controller focus; the ref also blocks clicks before React commits.
+    if (preferencePending.current) return
+    preferencePending.current = true
+    setPreferenceBusy(true)
+    setError("")
+    try {
+      const nextSettings = await window.vacuumStream.settings.saveStartStreamsFullscreen(
+        !settings.startStreamsFullscreen,
+      )
+      onSettingsChange(nextSettings, false)
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      preferencePending.current = false
+      setPreferenceBusy(false)
     }
   }
 
@@ -189,6 +216,7 @@ export const SettingsPanel = ({
               value={clientId}
             />
             <button
+              data-focus-down="settings-start-fullscreen"
               data-focus-id="settings-save"
               data-focus-left="nav-settings"
               data-focus-up="settings-client-id"
@@ -201,6 +229,32 @@ export const SettingsPanel = ({
             </button>
           </div>
         </form>
+      </section>
+
+      <section aria-labelledby="playback-heading" className="settings-card">
+        <div>
+          <h2 id="playback-heading">Playback</h2>
+          <p>
+            Open every stream with only the video on screen. Press Back, Escape or F to bring the
+            controls back.
+          </p>
+        </div>
+        <div className="account-status">
+          <button
+            aria-busy={preferenceBusy}
+            aria-disabled={preferenceBusy}
+            aria-pressed={settings.startStreamsFullscreen}
+            data-focus-id="settings-start-fullscreen"
+            data-focus-left="nav-settings"
+            data-focus-up="settings-save"
+            data-focusable="true"
+            onClick={toggleStartFullscreen}
+            type="button"
+          >
+            <CornersOutIcon aria-hidden="true" />
+            Start streams in fullscreen: {settings.startStreamsFullscreen ? "On" : "Off"}
+          </button>
+        </div>
       </section>
       {error !== "" ? (
         <p className="error-message" role="alert">

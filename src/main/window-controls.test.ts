@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
+import {
+  activateEmbeddedPlayer,
+  restoreShellFullscreen,
+  setPlayerFullscreen,
+} from "./window-controls"
 
 const webContentsFor = (result: unknown, executions: boolean[]) => ({
   mainFrame: {
@@ -118,4 +122,25 @@ describe("window controller actions", () => {
     expect(fullscreen).toBe(true)
     expect(fullscreenStates).toEqual([true])
   })
+
+  it.each([false, true])(
+    "fills the screen for stream fullscreen and returns to the shell baseline (Gaming Mode %s)",
+    (gamingMode) => {
+      // Given a desktop or Gaming Mode window
+      const fullscreenStates: boolean[] = []
+      const mainWindow = {
+        setFullScreen: (fullscreen: boolean): void => {
+          fullscreenStates.push(fullscreen)
+        },
+      }
+
+      // When stream fullscreen is entered and then left
+      const entered = setPlayerFullscreen(mainWindow, true, gamingMode)
+      const left = setPlayerFullscreen(mainWindow, false, gamingMode)
+
+      // Then the window is fullscreen first and returns to the shell's own baseline
+      expect([entered, left]).toEqual([true, gamingMode])
+      expect(fullscreenStates).toEqual([true, gamingMode])
+    },
+  )
 })

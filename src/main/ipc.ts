@@ -18,7 +18,11 @@ import type { ChatInput } from "./chat-input"
 import type { FavouritesStore } from "./favourites-store"
 import type { PlaybackProgressStore } from "./playback-progress-store"
 import type { TwitchService } from "./twitch-service"
-import { activateEmbeddedPlayer, restoreShellFullscreen } from "./window-controls"
+import {
+  activateEmbeddedPlayer,
+  restoreShellFullscreen,
+  setPlayerFullscreen,
+} from "./window-controls"
 
 type IpcOptions = {
   readonly chatInput: Pick<ChatInput, "begin" | "end" | "press">
@@ -73,6 +77,10 @@ export const registerIpc = (options: IpcOptions): void => {
   ipcMain.handle(CHANNELS.settingsSaveClientId, async (event, input: unknown) => {
     authorize(event)
     return options.twitch.saveClientId(z.string().parse(input))
+  })
+  ipcMain.handle(CHANNELS.settingsSaveStartStreamsFullscreen, async (event, input: unknown) => {
+    authorize(event)
+    return options.twitch.saveStartStreamsFullscreen(z.boolean().parse(input))
   })
   ipcMain.handle(CHANNELS.authSnapshot, async (event) => {
     authorize(event)
@@ -161,10 +169,12 @@ export const registerIpc = (options: IpcOptions): void => {
     authorize(event)
     return restoreShellFullscreen(options.mainWindow, options.runningInSteamGameMode)
   })
-  ipcMain.handle(CHANNELS.systemToggleFullscreen, (event) => {
+  ipcMain.handle(CHANNELS.systemSetPlayerFullscreen, (event, input: unknown) => {
     authorize(event)
-    const fullscreen = !options.mainWindow.isFullScreen()
-    options.mainWindow.setFullScreen(fullscreen)
-    return fullscreen
+    return setPlayerFullscreen(
+      options.mainWindow,
+      z.boolean().parse(input),
+      options.runningInSteamGameMode,
+    )
   })
 }

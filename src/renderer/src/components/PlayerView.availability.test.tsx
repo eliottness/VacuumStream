@@ -181,14 +181,7 @@ const NavigablePlayer = ({
   readonly source: PlayerSource
 }) => {
   useControllerNavigation()
-  return (
-    <PlayerView
-      onBack={onBack}
-      onPastBroadcasts={() => undefined}
-      onToggleFullscreen={() => undefined}
-      source={source}
-    />
-  )
+  return <PlayerView onBack={onBack} onPastBroadcasts={() => undefined} source={source} />
 }
 
 const mountPlayer = async (harness: Harness, source: PlayerSource = liveSource) => {

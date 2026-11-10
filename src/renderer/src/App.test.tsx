@@ -21,7 +21,11 @@ vi.mock("./useAppController", () => ({
     search: async () => undefined,
     searchResults: [],
     setAuth: () => undefined,
-    settings: { clientId: "abcdefghijklmnopqrstuvwxyz1234", secureStorage: false },
+    settings: {
+      clientId: "abcdefghijklmnopqrstuvwxyz1234",
+      secureStorage: false,
+      startStreamsFullscreen: false,
+    },
     showAllChannels: () => undefined,
     showPastBroadcasts: async () => undefined,
     updateSettings: () => undefined,

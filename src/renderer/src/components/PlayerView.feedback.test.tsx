@@ -103,12 +103,7 @@ const mountPlayer = async (source: PlayerSource): Promise<HTMLDivElement> => {
   roots.add(root)
   await act(async () =>
     root.render(
-      <PlayerView
-        onBack={() => undefined}
-        onPastBroadcasts={() => undefined}
-        onToggleFullscreen={() => undefined}
-        source={source}
-      />,
+      <PlayerView onBack={() => undefined} onPastBroadcasts={() => undefined} source={source} />,
     ),
   )
   return container

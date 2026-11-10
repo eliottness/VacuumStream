@@ -86,3 +86,14 @@ export const restoreShellFullscreen = (
   mainWindow.setFullScreen(runningInSteamGameMode)
   return runningInSteamGameMode
 }
+
+// Stream fullscreen fills the screen; leaving it returns to the shell's own baseline.
+export const setPlayerFullscreen = (
+  mainWindow: FullscreenWindow,
+  fullscreen: boolean,
+  runningInSteamGameMode: boolean,
+): boolean => {
+  if (!fullscreen) return restoreShellFullscreen(mainWindow, runningInSteamGameMode)
+  mainWindow.setFullScreen(true)
+  return true
+}

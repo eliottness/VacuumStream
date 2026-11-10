@@ -188,7 +188,7 @@ describe("chat input capability", () => {
       "activateEmbeddedPlayer",
       "isSteamGameMode",
       "restoreShellFullscreen",
-      "toggleFullscreen",
+      "setPlayerFullscreen",
     ])
     await api.chatInput.begin(session)
     await api.chatInput.end(session)

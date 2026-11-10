@@ -6,7 +6,7 @@ import {
   type DeviceChallenge,
   type SettingsSnapshot,
 } from "../shared/contracts"
-import type { SettingsStore } from "./settings-store"
+import type { PublicSettings, SettingsStore } from "./settings-store"
 import type { StoredToken, TokenVault } from "./token-vault"
 import { ConfigurationError, SessionChangedError } from "./twitch-errors"
 import { createDeviceTokenBody, isAllowedActivationUrl, TWITCH_SCOPES } from "./twitch-requests"
@@ -39,8 +39,7 @@ export class TwitchAuth {
   }
 
   public async settingsSnapshot(): Promise<SettingsSnapshot> {
-    const settings = await this.#settings.load()
-    return { clientId: settings.clientId, secureStorage: this.#vault.isSecure }
+    return this.#settingsFrom(await this.#settings.load())
   }
 
   public async saveClientId(clientId: string): Promise<SettingsSnapshot> {
@@ -50,8 +49,19 @@ export class TwitchAuth {
       this.#cancelAuthorization()
       await this.#clearAndRevoke(previous.clientId)
     }
-    const settings = await this.#settings.saveClientId(parsedClientId)
-    return { clientId: settings.clientId, secureStorage: this.#vault.isSecure }
+    return this.#settingsFrom(await this.#settings.saveClientId(parsedClientId))
+  }
+
+  public async saveStartStreamsFullscreen(enabled: boolean): Promise<SettingsSnapshot> {
+    return this.#settingsFrom(await this.#settings.saveStartStreamsFullscreen(enabled))
+  }
+
+  #settingsFrom(settings: PublicSettings): SettingsSnapshot {
+    return {
+      clientId: settings.clientId,
+      secureStorage: this.#vault.isSecure,
+      startStreamsFullscreen: settings.startStreamsFullscreen,
+    }
   }
 
   public async begin(): Promise<DeviceChallenge> {

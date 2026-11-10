@@ -7,7 +7,15 @@ import {
   SpeakerHighIcon,
   SpeakerSimpleXIcon,
 } from "@phosphor-icons/react"
-import { cloneElement, useCallback, useEffect, useRef, useState } from "react"
+import {
+  cloneElement,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import { markControllerFocus, registerBackDismissal } from "../focus-navigation"
 import {
   createTwitchPlayerOptions,
@@ -37,9 +45,17 @@ export type PlayerSource =
 type PlayerViewProps = {
   readonly onBack: () => void
   readonly onPastBroadcasts: (userId: string) => void
-  readonly onToggleFullscreen: () => void
   readonly source: PlayerSource
+  readonly startFullscreen?: boolean
 }
+
+// Twitch's own fullscreen key, plus H (hide) and T (toggle) for the shell's controls.
+const STREAM_FULLSCREEN_KEYS = new Set(["f", "h", "t"])
+
+const isEditingText = (element: Element | null): boolean =>
+  element instanceof HTMLInputElement ||
+  element instanceof HTMLTextAreaElement ||
+  (element instanceof HTMLElement && element.isContentEditable)
 
 const SEEK_ACTIONS = [
   { id: "player-seek-back-5m", label: "Back 5 minutes", seconds: -300 },
@@ -64,8 +80,8 @@ const formatTime = (seconds: number | undefined, showHours: boolean): string => 
 export const PlayerView = ({
   onBack,
   onPastBroadcasts,
-  onToggleFullscreen,
   source,
+  startFullscreen = false,
 }: PlayerViewProps) => {
   const [frameState, setFrameState] = useState<"loading" | "offline" | "ready" | "startup-error">(
     "loading",
@@ -77,6 +93,9 @@ export const PlayerView = ({
   const [position, setPosition] = useState<number | undefined>(undefined)
   const [duration, setDuration] = useState<number | undefined>(undefined)
   const [seekTransportOpen, setSeekTransportOpen] = useState(false)
+  const [streamFullscreen, setStreamFullscreen] = useState(startFullscreen)
+  const restoreFullscreenFocusRef = useRef(false)
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null)
   const autoStartGenerationRef = useRef(0)
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const backButtonRef = useRef<HTMLButtonElement>(null)
@@ -94,6 +113,34 @@ export const PlayerView = ({
 
   const { captionsButton, captionsChooser, dismissCaptionsChooser, resetCaptions } =
     usePlayerCaptions(playerRef, frameState === "ready")
+  // The resume choice is never hidden: stream fullscreen applies once the player itself shows.
+  const resuming = resumePrompt !== null
+  const fullscreenActive = streamFullscreen && !resuming
+
+  const showControls = useCallback((): void => {
+    restoreFullscreenFocusRef.current = true
+    setStreamFullscreen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!fullscreenActive) return undefined
+    void window.vacuumStream.system.setPlayerFullscreen(true)
+    // Hidden controls cannot keep focus; controller input then reveals them again.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && focused.closest(".player-view") !== null) focused.blur()
+    return () => {
+      void window.vacuumStream.system.setPlayerFullscreen(false)
+    }
+  }, [fullscreenActive])
+
+  useLayoutEffect(() => {
+    if (fullscreenActive || !restoreFullscreenFocusRef.current) return
+    restoreFullscreenFocusRef.current = false
+    const button = fullscreenButtonRef.current
+    if (button === null) return
+    markControllerFocus(button)
+    button.focus()
+  }, [fullscreenActive])
 
   const dismissSeekTransport = useCallback((): boolean => {
     if (!seekTransportOpen) return false
@@ -108,6 +155,10 @@ export const PlayerView = ({
 
   // Back closes the submenu the viewer is in, or the first one still open, before leaving.
   const dismissSubmenu = useCallback((): boolean => {
+    if (fullscreenActive) {
+      showControls()
+      return true
+    }
     const focused = document.activeElement
     const submenus = [
       { dismiss: dismissQualityChooser, id: "player-quality-chooser" },
@@ -120,7 +171,13 @@ export const PlayerView = ({
     return focusedSubmenu === undefined
       ? submenus.some(({ dismiss }) => dismiss())
       : focusedSubmenu.dismiss()
-  }, [dismissCaptionsChooser, dismissQualityChooser, dismissSeekTransport])
+  }, [
+    dismissCaptionsChooser,
+    dismissQualityChooser,
+    dismissSeekTransport,
+    fullscreenActive,
+    showControls,
+  ])
 
   useEffect(() => registerBackDismissal(dismissSubmenu), [dismissSubmenu])
 
@@ -346,6 +403,40 @@ export const PlayerView = ({
     player.seek(destination)
   }
 
+  const onHotkey = useEffectEvent((event: KeyboardEvent): void => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    const focused = document.activeElement
+    if (isEditingText(focused)) return
+    const key = event.key.toLowerCase()
+    if (STREAM_FULLSCREEN_KEYS.has(key)) {
+      event.preventDefault()
+      if (fullscreenActive) showControls()
+      else setStreamFullscreen(true)
+      return
+    }
+    if (key === "m" && frameState === "ready") {
+      event.preventDefault()
+      toggleMuted()
+      return
+    }
+    // A focused button already answers Space itself; only the bare stream takes it.
+    if (key === " " && (focused === null || focused === document.body) && frameState === "ready") {
+      event.preventDefault()
+      togglePlayback()
+      return
+    }
+    if (fullscreenActive && (key === "enter" || key.startsWith("arrow"))) {
+      event.preventDefault()
+      showControls()
+    }
+  })
+
+  useEffect(() => {
+    if (resuming) return undefined
+    document.addEventListener("keydown", onHotkey)
+    return () => document.removeEventListener("keydown", onHotkey)
+  }, [resuming])
+
   const showHours = duration !== undefined && duration >= 3600
   const unknownBroadcaster = source.kind === "video" && source.userId === "0"
   const seekTransportUsable =
@@ -371,11 +462,13 @@ export const PlayerView = ({
 
   return (
     <main
-      className={
-        source.kind === "video" && seekTransportOpen
-          ? "player-view player-view--video"
-          : "player-view"
-      }
+      className={[
+        "player-view",
+        source.kind === "video" && seekTransportOpen ? "player-view--video" : "",
+        fullscreenActive ? "player-view--fullscreen" : "",
+      ]
+        .filter((name) => name !== "")
+        .join(" ")}
     >
       <header className="player-toolbar">
         <button
@@ -490,12 +583,14 @@ export const PlayerView = ({
         {chatEnterButton}
         {chatReloadButton}
         <button
-          aria-label="Toggle fullscreen"
+          aria-keyshortcuts="F H T"
+          aria-label="Fullscreen stream"
           data-focus-id="player-fullscreen"
           data-focus-left={toolbarFullscreenLeft}
           data-focus-right="player-back"
           data-focusable="true"
-          onClick={onToggleFullscreen}
+          onClick={() => setStreamFullscreen(true)}
+          ref={fullscreenButtonRef}
           type="button"
         >
           <CornersOutIcon aria-hidden="true" />
@@ -543,6 +638,11 @@ export const PlayerView = ({
         <div aria-busy={frameState === "loading"} className="player-frame">
           <div className="twitch-player-root" id="twitch-player-root" />
         </div>
+        {fullscreenActive ? (
+          <p className="player-fullscreen-hint" role="status">
+            Press Back, Escape or F to show the controls
+          </p>
+        ) : null}
         {chatPane}
       </div>
     </main>

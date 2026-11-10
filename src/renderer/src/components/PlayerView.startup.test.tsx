@@ -75,7 +75,13 @@ const installHarness = (saved?: PlaybackBookmark) => {
         remove: vi.fn<VacuumStreamApi["favourites"]["remove"]>().mockResolvedValue([]),
       },
       playbackProgress: progress,
-      settings: { snapshot: async () => ({ clientId: "client", secureStorage: false }) },
+      settings: {
+        snapshot: async () => ({
+          clientId: "client",
+          secureStorage: false,
+          startStreamsFullscreen: false,
+        }),
+      },
       system: { activateEmbeddedPlayer, restoreShellFullscreen },
     },
   })
@@ -131,14 +137,7 @@ const NavigablePlayer = ({
   readonly source: PlayerSource
 }) => {
   useControllerNavigation()
-  return (
-    <PlayerView
-      onBack={onBack}
-      onPastBroadcasts={() => undefined}
-      onToggleFullscreen={() => undefined}
-      source={source}
-    />
-  )
+  return <PlayerView onBack={onBack} onPastBroadcasts={() => undefined} source={source} />
 }
 
 const mountPlayer = async (source: PlayerSource = liveSource) => {

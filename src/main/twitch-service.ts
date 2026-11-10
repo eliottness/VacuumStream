@@ -70,6 +70,10 @@ export class TwitchService {
     return this.#auth.saveClientId(clientId)
   }
 
+  public saveStartStreamsFullscreen(enabled: boolean): Promise<SettingsSnapshot> {
+    return this.#auth.saveStartStreamsFullscreen(enabled)
+  }
+
   public beginAuthorization(): Promise<DeviceChallenge> {
     return this.#auth.begin()
   }

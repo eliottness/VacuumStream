@@ -569,6 +569,61 @@
   display: block;
 }
 
+/* Stream fullscreen: only the video remains, filling the window. */
+.player-view.player-view--fullscreen {
+  grid-template-rows: minmax(0, 1fr);
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.player-view.player-view--fullscreen > :not(.player-stage),
+.player-view.player-view--fullscreen .player-chat {
+  display: none;
+}
+
+.player-view.player-view--fullscreen .player-stage {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-block-size: 0;
+}
+
+.player-view.player-view--fullscreen .player-frame {
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.player-fullscreen-hint {
+  position: absolute;
+  inset: var(--space-4) auto auto 50%;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-badge);
+  color: var(--color-text);
+  background: var(--color-scrim);
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: player-fullscreen-hint 4s var(--ease-out) forwards;
+}
+
+@keyframes player-fullscreen-hint {
+  0%,
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-fullscreen-hint {
+    animation-timing-function: steps(1, end);
+  }
+}
+
 .video-card {
   gap: var(--space-3);
   overflow: visible;
